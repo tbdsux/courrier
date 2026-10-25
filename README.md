@@ -7,6 +7,10 @@ It is written in Go with [MyGo](https://mygo.egoist.dev)'s native UI: no
 Electron, no bundled browser. The only web view is the system's own, used to
 show HTML mail in a sandbox (no scripts, no remote images unless you allow them).
 
+![courrier: the unified inbox, an account's folders and the Accounts settings](docs/app-2.png)
+
+![courrier: General settings, with theme, reading, notification and keyboard options](docs/app-1.png)
+
 ## Features
 
 - **Any account**: IMAP or POP3 for incoming mail, SMTP for outgoing, with
