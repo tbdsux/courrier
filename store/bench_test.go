@@ -24,22 +24,26 @@ var (
 
 func benchStore(b *testing.B) *Store {
 	b.Helper()
+
 	benchOnce.Do(func() {
 		// Built once and kept: it takes minutes. Delete it after changing the fixture.
 		benchPath = filepath.Join(os.TempDir(), "courrier-bench-100k-v1.db")
 		if s, err := Open(benchPath, fakeSecrets{}); err == nil {
 			accs, _ := s.Accounts()
 			s.Close()
+
 			if len(accs) == 1 {
 				benchAcc = accs[0].ID
 				return
 			}
 		}
+
 		os.Remove(benchPath)
 		s, err := Open(benchPath, fakeSecrets{})
 		if err != nil {
 			b.Fatal(err)
 		}
+
 		defer s.Close()
 		srv := vps
 		srv.Hidden = true
@@ -47,10 +51,13 @@ func benchStore(b *testing.B) *Store {
 		if err := s.SaveAccount(&a, &srv, "x", "x"); err != nil {
 			b.Fatal(err)
 		}
+
 		benchAcc = a.ID
+
 		if err := s.SetFolders(a.ID, []mail.Folder{{Path: "INBOX", Special: "inbox", UIDValidity: 1}}); err != nil {
 			b.Fatal(err)
 		}
+
 		words := strings.Fields("invoice meeting project alpha release budget travel report lunch review quarterly offer")
 		start := time.Now().AddDate(-10, 0, 0)
 		step := time.Since(start) / benchN
@@ -65,9 +72,11 @@ func benchStore(b *testing.B) *Store {
 				if err := s.AddHeaders(a.ID, "INBOX", hs); err != nil {
 					b.Fatal(err)
 				}
+
 				hs = nil
 			}
 		}
+
 		body := strings.Repeat("A paragraph of a message body, as people write them. ", 80)
 		for i := 5; i <= benchN; i += 5 {
 			if err := s.SetBody(a.ID, "INBOX", uint32(i), mail.Body{Text: body}); err != nil {
@@ -75,11 +84,14 @@ func benchStore(b *testing.B) *Store {
 			}
 		}
 	})
+
 	s, err := Open(benchPath, fakeSecrets{})
 	if err != nil {
 		b.Fatal(err)
 	}
+
 	b.Cleanup(func() { s.Close() })
+
 	return s
 }
 
@@ -88,6 +100,7 @@ func benchInbox(b *testing.B, s *Store) int64 {
 	if err != nil || len(fs) == 0 {
 		b.Fatal(fs, err)
 	}
+
 	return fs[0].ID
 }
 
@@ -95,14 +108,17 @@ func benchInbox(b *testing.B, s *Store) int64 {
 // default view), within 100 ms.
 func BenchmarkLaunch100k_100ms(b *testing.B) {
 	benchStore(b).Close()
+
 	for b.Loop() {
 		s, err := Open(benchPath, fakeSecrets{})
 		if err != nil {
 			b.Fatal(err)
 		}
+
 		if _, err := s.Conversations(benchInbox(b, s), 100); err != nil {
 			b.Fatal(err)
 		}
+
 		s.Close()
 	}
 }
@@ -136,8 +152,10 @@ func BenchmarkSize100k_400MB(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+
 	for b.Loop() {
 	}
+
 	b.ReportMetric(float64(fi.Size())/(1<<20), "MB")
 }
 
@@ -148,6 +166,7 @@ func BenchmarkAddHeaders1000_600ms(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+
 	defer s.Close()
 	srv := vps
 	srv.Hidden = true
@@ -155,6 +174,7 @@ func BenchmarkAddHeaders1000_600ms(b *testing.B) {
 	if err := s.SaveAccount(&a, &srv, "x", "x"); err != nil {
 		b.Fatal(err)
 	}
+
 	s.SetFolders(a.ID, []mail.Folder{{Path: "INBOX", Special: "inbox", UIDValidity: 1}})
 	uid := uint32(0)
 	for b.Loop() {
@@ -164,6 +184,7 @@ func BenchmarkAddHeaders1000_600ms(b *testing.B) {
 			hs[i] = mail.Header{UID: uid, MessageID: fmt.Sprintf("<%d@x>", uid), FromAddr: "s@example.com", Subject: fmt.Sprint("Hello ", uid%300),
 				Date: time.Unix(int64(uid)*600, 0), Snippet: "some text"}
 		}
+
 		if err := s.AddHeaders(a.ID, "INBOX", hs); err != nil {
 			b.Fatal(err)
 		}

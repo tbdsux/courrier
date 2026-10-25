@@ -14,13 +14,17 @@ import (
 // Roles of macOS alone drop out on the other systems.
 func (a *app) appMenu() *mygo.Menu {
 	mac := runtime.GOOS == "darwin"
+
 	do := func(fn func()) func(*mygo.MenuItem, *mygo.Window) {
 		return func(*mygo.MenuItem, *mygo.Window) { a.update(fn) }
 	}
+
 	on := func(fn func([]store.Message)) func() { return func() { fn(a.targets()) } }
+
 	settings := func() *mygo.MenuItem {
 		return &mygo.MenuItem{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: do(func() { a.showWindow(); a.sel = "general" })}
 	}
+
 	file := []*mygo.MenuItem{
 		{Label: "New Message", Accelerator: accel("⌘N"), Click: do(func() { a.showWindow(); a.newMessage() })},
 		{Label: "Check Mail", Accelerator: "Shift+CmdOrCtrl+N", Click: do(a.checkAll)},
@@ -30,6 +34,7 @@ func (a *app) appMenu() *mygo.Menu {
 	if !mac { // macOS has these in the app menu; Settings checks for updates
 		file = append(file, mygo.Separator(), settings(), mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleQuit})
 	}
+
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu, Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),
@@ -73,6 +78,7 @@ func accel(keys string) string {
 	if mods&(ui.Ctrl|ui.Alt|ui.Super) == 0 || len(name) != 1 && (name == "" || name[0] != 'F') {
 		return ""
 	}
+
 	s := ""
 	for _, m := range []struct {
 		mod  ui.Modifiers
@@ -82,5 +88,6 @@ func accel(keys string) string {
 			s += m.name
 		}
 	}
+
 	return s + name
 }

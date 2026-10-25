@@ -45,6 +45,7 @@ func (s *Store) Rules() ([]Rule, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Rule, len(rows.Values))
 	for i, r := range rows.Values {
 		out[i] = Rule{ID: r[0].(int64), AccountID: r[1].(int64), Name: r[2].(string), Query: r[3].(string), Enabled: r[5].(int64) != 0, SortOrder: int(r[6].(int64))}
@@ -52,6 +53,7 @@ func (s *Store) Rules() ([]Rule, error) {
 			return nil, err
 		}
 	}
+
 	return out, nil
 }
 
@@ -63,9 +65,11 @@ func (s *Store) SaveRule(r *Rule) error {
 			r.AccountID, r.Name, r.Query, acts, r.Enabled, r.ID)
 		return err
 	}
+
 	res, err := s.db.Execute(ctx, "INSERT INTO rules (account_id, name, query, actions, enabled, sort_order) VALUES (NULLIF(?, 0), ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM rules))",
 		r.AccountID, r.Name, r.Query, acts, r.Enabled)
 	r.ID = res.LastInsertID
+
 	return err
 }
 
@@ -80,6 +84,7 @@ func (s *Store) SetRuleOrder(ids []int64) error {
 	for i, id := range ids {
 		stmts = append(stmts, sqlite.Statement{SQL: "UPDATE rules SET sort_order = ? WHERE id = ?", Args: []any{i, id}})
 	}
+
 	_, err := s.db.Transaction(ctx, stmts)
 	return err
 }
@@ -93,6 +98,7 @@ func (s *Store) ApplyRules(ms []Message, rules []Rule) (notify []Message, matche
 		folder  int64
 		special string
 	}
+
 	var read, flag []int64
 	moves := map[dest][]int64{}
 	var order []dest // moves in the order first met
@@ -103,10 +109,12 @@ func (s *Store) ApplyRules(ms []Message, rules []Rule) (notify []Message, matche
 			if !r.Enabled || r.AccountID != 0 && r.AccountID != m.AccountID {
 				continue
 			}
+
 			q := mail.ParseQuery(r.Query)
 			if q.Empty() || !q.Matches(m.Header) {
 				continue
 			}
+
 			hit = true
 			var to *dest
 			for _, a := range r.Actions {
@@ -119,42 +127,52 @@ func (s *Store) ApplyRules(ms []Message, rules []Rule) (notify []Message, matche
 					quiet = true
 				case "archive", "delete":
 					to = &dest{0, map[string]string{"archive": "archive", "delete": "trash"}[a.Op]}
+
 				case "move":
 					rows, err := s.db.Query(ctx, "SELECT id FROM folders WHERE account_id = ? AND path = ? AND noselect = 0", m.AccountID, a.Folder)
 					if err != nil {
 						return nil, 0, err
 					}
+
 					if len(rows.Values) > 0 { // a folder the account lacks: the rule doesn't move
 						to = &dest{rows.Values[0][0].(int64), ""}
 					}
 				}
 			}
+
 			if to != nil {
 				if _, ok := moves[*to]; !ok {
 					order = append(order, *to)
 				}
+
 				moves[*to] = append(moves[*to], m.ID)
 				break rules
 			}
 		}
+
 		if hit {
 			matched++
 		}
+
 		if !quiet {
 			notify = append(notify, m)
 		}
 	}
+
 	// Flags first: they are queued in the folder the messages leave.
 	if err := s.SetFlag(read, "seen", true); err != nil {
 		return nil, 0, err
 	}
+
 	if err := s.SetFlag(flag, "flagged", true); err != nil {
 		return nil, 0, err
 	}
+
 	for _, d := range order {
 		if _, err := s.Move(moves[d], d.folder, d.special); err != nil {
 			return nil, 0, err
 		}
 	}
+
 	return notify, matched, nil
 }

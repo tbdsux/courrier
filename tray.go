@@ -29,18 +29,22 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 		}
 		return
 	}
+
 	if mb.tray == nil {
 		t, err := mygo.NewTray(mygo.TrayOptions{ID: "inbox", Icon: trayIcon, ToolTip: "courrier"})
 		if err != nil {
 			log.Println("tray:", err)
 			return
 		}
+
 		mb.tray = t
 	}
+
 	title, tip := "", "courrier"
 	if unread > 0 {
 		title, tip = strconv.Itoa(unread), fmt.Sprintf("courrier · %d unread", unread)
 	}
+
 	mb.tray.SetTitle(title)
 	mb.tray.SetToolTip(tip)
 	a := mb.a
@@ -55,10 +59,12 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 	if len(recent) > 0 {
 		items = append(items, mygo.Separator())
 	}
+
 	for _, m := range recent {
 		id := fmt.Sprintf("msg:%d:%d", m.AccountID, m.ID)
 		items = append(items, &mygo.MenuItem{Label: clip(sender(m)+" — "+subject(m.Subject), 60), Click: do(func() { a.openNotification(id) })})
 	}
+
 	mb.tray.SetMenu(mygo.NewMenu(append(items, mygo.Separator(), &mygo.MenuItem{Label: "Quit courrier", Role: mygo.RoleQuit})))
 }
 

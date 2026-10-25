@@ -45,21 +45,25 @@ func TestDragOutOfGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer st.Close()
 	srv := store.Server{Name: "x", Protocol: "imap", InHost: "h", InPort: 993, InSecurity: "tls", SMTPHost: "h", SMTPPort: 465, SMTPSecurity: "tls", Hidden: true}
 	g := store.Group{Name: "Work"}
 	if err := st.SaveGroup(&g); err != nil {
 		t.Fatal(err)
 	}
+
 	var ids []int64
 	for _, e := range []string{"a@example.com", "b@example.com"} {
 		acc := store.Account{DisplayName: "A", Email: e, InUsername: e, SMTPUsername: e}
 		if err := st.SaveAccount(&acc, &srv, "pw", "pw"); err != nil {
 			t.Fatal(err)
 		}
+
 		st.SetAccountGroup(acc.ID, g.ID)
 		ids = append(ids, acc.ID)
 	}
+
 	a := newApp(st, func(fn func()) { fn() })
 	tt := ui.NewTester(a.view, 1100, 800)
 	tt.Frame()
@@ -67,21 +71,26 @@ func TestDragOutOfGroup(t *testing.T) {
 	if !ok {
 		t.Fatalf("no account: %v", tt.Texts())
 	}
+
 	x, y := r.X+r.W/2, r.Y+r.H/2
 	tt.Press(x, y)
+
 	for i := 1; i <= 5; i++ {
 		tt.Move(x, y+float32(i)*4)
 		tt.Frame()
 	}
+
 	z, ok := tt.Find("Move here, out of any group")
 	if !ok {
 		t.Fatalf("no drop zone while dragging: %v", tt.Texts())
 	}
+
 	tt.Move(z.X+z.W/2, z.Y+z.H/2)
 	tt.Frame()
 	tt.Release(z.X+z.W/2, z.Y+z.H/2)
 	tt.Frame()
 	tt.Frame()
+
 	for _, acc := range a.accounts {
 		if acc.ID == ids[1] && acc.GroupID != 0 {
 			t.Fatalf("still in the group: %+v", a.accounts)

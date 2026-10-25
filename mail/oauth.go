@@ -55,12 +55,14 @@ func SignIn(ctx context.Context, p *Provider, hint string, open func(url string)
 	if p.ClientID == "" {
 		return "", fmt.Errorf("this build has no %s client ID", p.Name)
 	}
+
 	ctx, cancel := context.WithTimeout(ctx, signInTimeout)
 	defer cancel()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", err
 	}
+
 	cfg := p.config(fmt.Sprintf("http://127.0.0.1:%d/", ln.Addr().(*net.TCPAddr).Port))
 	state, verifier := oauth2.GenerateVerifier(), oauth2.GenerateVerifier()
 	type result struct{ code, err string }
@@ -71,16 +73,20 @@ func SignIn(ctx context.Context, p *Provider, hint string, open func(url string)
 			http.Error(w, "Unexpected request.", http.StatusBadRequest)
 			return
 		}
+
 		res := result{code: q.Get("code"), err: q.Get("error_description")}
 		if res.err == "" {
 			res.err = q.Get("error")
 		}
+
 		msg := "Signed in. You can close this tab."
 		if res.code == "" {
 			msg = "Not signed in: " + res.err
 		}
+
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(w, "<!doctype html><title>courrier</title><p style=\"font:16px system-ui;margin:3em;text-align:center\">%s</p>", html.EscapeString(msg))
+
 		select {
 		case got <- res:
 		default:
@@ -92,9 +98,11 @@ func SignIn(ctx context.Context, p *Provider, hint string, open func(url string)
 	if hint != "" {
 		opts = append(opts, oauth2.SetAuthURLParam("login_hint", hint))
 	}
+
 	for k, v := range p.Params {
 		opts = append(opts, oauth2.SetAuthURLParam(k, v))
 	}
+
 	open(cfg.AuthCodeURL(state, opts...))
 	var res result
 	select {
@@ -103,18 +111,23 @@ func SignIn(ctx context.Context, p *Provider, hint string, open func(url string)
 			return "", errors.New("the sign-in timed out")
 		}
 		return "", ctx.Err()
+
 	case res = <-got:
 	}
+
 	if res.code == "" {
 		return "", fmt.Errorf("%w: %s", ErrAuth, res.err)
 	}
+
 	tok, err := cfg.Exchange(ctx, res.code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return "", tokenErr(err)
 	}
+
 	if tok.RefreshToken == "" {
 		return "", fmt.Errorf("%w: %s gave no refresh token", ErrProtocol, p.Name)
 	}
+
 	return tok.RefreshToken, nil
 }
 
@@ -127,6 +140,7 @@ func tokenErr(err error) error {
 		}
 		return fmt.Errorf("%w: %v", ErrProtocol, err)
 	}
+
 	return fmt.Errorf("%w: %v", ErrUnreachable, err)
 }
 
@@ -148,17 +162,22 @@ func NewTokens(p *Provider, refresh string, onRefresh func(string)) *Tokens {
 func (t *Tokens) Token(ctx context.Context, fresh bool) (string, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
 	if !fresh && t.tok.Valid() {
 		return t.tok.AccessToken, nil
 	}
+
 	nt, err := t.p.config("").TokenSource(ctx, &oauth2.Token{RefreshToken: t.tok.RefreshToken}).Token()
 	if err != nil {
 		return "", tokenErr(err)
 	}
+
 	if nt.RefreshToken != t.tok.RefreshToken && t.onRefresh != nil {
 		t.onRefresh(nt.RefreshToken)
 	}
+
 	t.tok = nt
+
 	return nt.AccessToken, nil
 }
 
@@ -194,11 +213,14 @@ func withToken(ctx context.Context, e Endpoint, login func(token string) error) 
 	if err != nil {
 		return err
 	}
+
 	if err = login(tok); !errors.Is(err, ErrAuth) {
 		return err
 	}
+
 	if tok, err = e.Token(ctx, true); err != nil {
 		return err
 	}
+
 	return login(tok)
 }

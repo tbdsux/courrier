@@ -28,6 +28,7 @@ func Parse(raw []byte) (Header, Body, error) {
 	if e == nil {
 		return Header{}, Body{}, err
 	}
+
 	h := headerOf(gomail.Header{Header: e.Header})
 	h.Size = int64(len(raw))
 	var b Body
@@ -39,6 +40,7 @@ func Parse(raw []byte) (Header, Body, error) {
 		if name == "" {
 			name = params["name"]
 		}
+
 		data, _ := io.ReadAll(p.Body) // a broken part shows what could be read
 		isText := mt == "text/plain" || mt == "text/html"
 		if isText && disp != "attachment" && name == "" {
@@ -49,30 +51,38 @@ func Parse(raw []byte) (Header, Body, error) {
 			}
 			return
 		}
+
 		if mt == "" {
 			mt = "application/octet-stream"
 		}
+
 		cid := strings.Trim(p.Header.Get("Content-Id"), "<> ")
 		if cid != "" && strings.HasPrefix(mt, "image/") && len(data) <= maxInline {
 			inline[cid] = "data:" + mt + ";base64," + base64.StdEncoding.EncodeToString(data)
 		}
+
 		if name == "" {
 			name = "attachment"
 			if cid != "" {
 				name = cid
 			}
 		}
+
 		b.Attachments = append(b.Attachments, Attachment{Part: part, Filename: name, MIMEType: mt, Size: int64(len(data)), ContentID: cid})
 	})
+
 	for cid, url := range inline {
 		b.HTML = strings.ReplaceAll(b.HTML, "cid:"+cid, url)
 	}
+
 	for _, a := range b.Attachments {
 		if inline[a.ContentID] == "" {
 			h.HasAttach = true
 		}
 	}
+
 	h.Snippet = Snippet(b)
+
 	return h, b, nil
 }
 
@@ -84,18 +94,22 @@ func walk(e *message.Entity, part string, leaf func(part string, e *message.Enti
 		if part == "" {
 			part = "1"
 		}
+
 		leaf(part, e)
 		return
 	}
+
 	for i := 1; ; i++ {
 		p, err := mr.NextPart()
 		if err != nil { // io.EOF, or a truncated message: keep what came
 			return
 		}
+
 		sub := strconv.Itoa(i)
 		if part != "" {
 			sub = part + "." + sub
 		}
+
 		walk(p, sub, leaf)
 	}
 }
@@ -106,6 +120,7 @@ func Part(raw []byte, part string) ([]byte, error) {
 	if e == nil {
 		return nil, err
 	}
+
 	var out []byte
 	found := false
 	walk(e, "", func(p string, pe *message.Entity) {
@@ -114,9 +129,11 @@ func Part(raw []byte, part string) ([]byte, error) {
 			found = true
 		}
 	})
+
 	if !found {
 		return nil, fmt.Errorf("the message has no part %s", part)
 	}
+
 	return out, err
 }
 
@@ -130,11 +147,13 @@ func Fields(raw []byte) ([]Field, error) {
 	if e == nil {
 		return nil, err
 	}
+
 	var out []Field
 	for fs := e.Header.Fields(); fs.Next(); {
 		v, _ := fs.Text() // an unknown charset leaves the value as sent
 		out = append(out, Field{fs.Key(), v})
 	}
+
 	return out, nil
 }
 
@@ -149,12 +168,16 @@ func headerOf(mh gomail.Header) Header {
 			h.Refs = append(h.Refs, id)
 		}
 	}
+
 	h.Date, _ = mh.Date()
+
 	if from, _ := mh.AddressList("From"); len(from) > 0 {
 		h.FromName, h.FromAddr = from[0].Name, from[0].Address
 	}
+
 	h.To = addrList(mh, "To")
 	h.Cc = addrList(mh, "Cc")
+
 	return h
 }
 
@@ -164,6 +187,7 @@ func addrList(mh gomail.Header, key string) string {
 		v, _ := mh.Text(key)
 		return v
 	}
+
 	var out []string
 	for _, a := range as {
 		if a.Name != "" {
@@ -172,6 +196,7 @@ func addrList(mh gomail.Header, key string) string {
 			out = append(out, a.Address)
 		}
 	}
+
 	return strings.Join(out, ", ")
 }
 
@@ -189,10 +214,12 @@ func Snippet(b Body) string {
 	if strings.TrimSpace(t) == "" {
 		t = HTMLText(b.HTML)
 	}
+
 	t = strings.Join(strings.Fields(t), " ")
 	if r := []rune(t); len(r) > 160 {
 		t = string(r[:160])
 	}
+
 	return t
 }
 
@@ -208,10 +235,12 @@ func HTMLText(s string) string {
 				return sb.String()
 			}
 			return strings.TrimSpace(collapseBlank(sb.String()))
+
 		case html.TextToken:
 			if skip == 0 {
 				sb.Write(z.Text())
 			}
+
 		case html.StartTagToken, html.SelfClosingTagToken, html.EndTagToken:
 			tok := z.Token()
 			tt := tok.Type
@@ -222,6 +251,7 @@ func HTMLText(s string) string {
 				} else if tt == html.EndTagToken && skip > 0 {
 					skip--
 				}
+
 			case "br", "p", "div", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "table", "hr":
 				sb.WriteByte('\n')
 			}
@@ -239,12 +269,15 @@ func collapseBlank(s string) string {
 			if !blank && len(out) > 0 {
 				out = append(out, "")
 			}
+
 			blank = true
 			continue
 		}
+
 		blank = false
 		out = append(out, l)
 	}
+
 	return strings.Join(out, "\n")
 }
 
@@ -257,6 +290,7 @@ func Topic(subject string) string {
 		if t == s {
 			return strings.ToLower(strings.TrimSpace(s))
 		}
+
 		s = t
 	}
 }

@@ -32,14 +32,17 @@ func (s *Store) openSearch() error {
 	if err != nil {
 		return err
 	}
+
 	for _, stmt := range searchSchema {
 		if _, err := s.db.Execute(ctx, stmt); err != nil {
 			return err
 		}
 	}
+
 	if len(rows.Values) == 0 {
 		_, err = s.db.Execute(ctx, "INSERT INTO messages_fts (messages_fts) VALUES ('rebuild')")
 	}
+
 	return err
 }
 
@@ -59,24 +62,30 @@ func (s *Store) Search(q mail.Query, folder int64, limit int) ([]Message, error)
 		from = "messages_fts JOIN messages m ON m.id = messages_fts.rowid"
 		where, args = where+" AND messages_fts MATCH ?", append(args, match)
 	}
+
 	if q.HasAttach {
 		where += " AND m.has_attach = 1"
 	}
+
 	if q.Unread {
 		where += " AND m.seen = 0"
 	}
+
 	if q.Flagged {
 		where += " AND m.flagged = 1"
 	}
+
 	rows, err := s.db.Query(ctx, "SELECT "+cols+" FROM "+from+" JOIN folders f ON f.id = m.folder_id WHERE "+where+" ORDER BY m.date DESC, m.id DESC LIMIT ?",
 		append(args, limit)...)
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Message, len(rows.Values))
 	for i, r := range rows.Values {
 		out[i] = scanMessage(r)
 		out[i].HitSubject, out[i].HitSnippet = r[21].(string), r[22].(string)
 	}
+
 	return out, nil
 }

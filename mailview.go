@@ -90,22 +90,29 @@ func (a *app) loadLayout() {
 		if l.SidebarW > 0 {
 			a.sidebarW = l.SidebarW
 		}
+
 		if l.ListW > 0 {
 			a.listW = l.ListW
 		}
+
 		a.sel = l.Sel
+
 		for _, id := range l.Closed {
 			a.sectionOpen(id) // makes it
 			*a.opens[id] = false
 		}
+
 		for _, g := range l.ClosedGroups {
 			*a.groupOpen(g) = false
 		}
+
 		a.unifiedOpen, a.settingsOpen = !l.UnifiedClosed, !l.SettingsClosed
+
 		if l.TreePct > 0 {
 			a.treePct = l.TreePct
 		}
 	}
+
 	if _, ok := a.mailbox(); !ok && len(a.accounts) > 0 {
 		a.sel = "u:inbox"
 	}
@@ -117,16 +124,19 @@ func (a *app) saveLayout() {
 	if _, ok := a.mailbox(); ok {
 		l.Sel = a.sel
 	}
+
 	for _, acc := range a.accounts {
 		if !*a.sectionOpen(acc.ID) {
 			l.Closed = append(l.Closed, acc.ID)
 		}
 	}
+
 	for _, g := range a.groups {
 		if !*a.groupOpen(g.ID) {
 			l.ClosedGroups = append(l.ClosedGroups, g.ID)
 		}
 	}
+
 	b, _ := json.Marshal(l)
 	if string(b) != a.savedLayout {
 		a.savedLayout = string(b)
@@ -156,18 +166,22 @@ func (a *app) groupOpen(g int64) *bool {
 func (a *app) startSync() {
 	a.stopSync()
 	a.syncOn = true
+
 	for _, acc := range a.accounts {
 		a.startAccount(acc)
 	}
+
 	a.wakeSnoozes() // those due while courrier was closed or asleep
 }
 
 func (a *app) stopSync() {
 	a.syncOn = false
+
 	for id, sy := range a.syncers {
 		if sy.s != nil {
 			sy.s.Stop()
 		}
+
 		delete(a.syncers, id)
 	}
 }
@@ -178,13 +192,16 @@ func (a *app) restartSync(ids ...int64) {
 	if !a.syncOn {
 		return
 	}
+
 	for _, id := range ids {
 		if sy := a.syncers[id]; sy != nil {
 			if sy.s != nil {
 				sy.s.Stop()
 			}
+
 			delete(a.syncers, id)
 		}
+
 		for _, acc := range a.accounts {
 			if acc.ID == id {
 				a.startAccount(acc)
@@ -201,12 +218,15 @@ func (a *app) startAccount(acc store.Account) {
 		sy.status.Err = err
 		return
 	}
+
 	pass, smtpPass, err := a.st.Passwords(acc.ID)
 	if err != nil {
 		sy.status.Err = fmt.Errorf("couldn't read the password from the keychain: %w", err)
 		return
 	}
+
 	sy.pop3 = srv.Protocol == "pop3"
+
 	sy.s = &courrier.Syncer{Account: acc.ID, Keep: acc.POP3Keep, Cache: a.st, From: acc.Email, NoSentCopy: savesSent(srv.SMTPHost),
 		Endpoint: courrier.Endpoint{Protocol: srv.Protocol, Host: srv.InHost, Port: srv.InPort, Security: srv.InSecurity, Username: acc.InUsername, Password: pass},
 		SMTP:     courrier.Endpoint{Protocol: "smtp", Host: srv.SMTPHost, Port: srv.SMTPPort, Security: srv.SMTPSecurity, Username: acc.SMTPUsername, Password: smtpPass}}
@@ -215,18 +235,22 @@ func (a *app) startAccount(acc store.Account) {
 		tk := courrier.NewTokens(p, pass, func(rt string) { st.SetPasswords(acc.ID, rt, rt) })
 		sy.s.Endpoint.Token, sy.s.SMTP.Token = tk.Token, tk.Token
 	}
+
 	sy.s.OnChange = func(st courrier.Status) {
 		a.update(func() {
 			if a.syncers[acc.ID] == sy {
 				sy.status = st
+
 				if st.Dropped != "" {
 					a.toast = st.Dropped
 				}
+
 				a.reloadMail()
 				a.notifyNew(acc.ID, a.sortNew(a.newMail(acc.ID, st.New)))
 			}
 		})
 	}
+
 	sy.s.Start()
 }
 
@@ -269,9 +293,11 @@ func (a *app) mailbox() (int64, bool) {
 		return store.UnifiedFlagged, true
 	case a.sel == "u:snoozed":
 		return store.UnifiedSnoozed, true
+
 	case strings.HasPrefix(a.sel, "s:"):
 		_, ok := a.savedSearch()
 		return store.AllMail, ok
+
 	case strings.HasPrefix(a.sel, "f:"):
 		id, err := strconv.ParseInt(a.sel[2:], 10, 64)
 		return id, err == nil
@@ -285,6 +311,7 @@ func (a *app) savedSearch() (string, bool) {
 	if !strings.HasPrefix(a.sel, "s:") || err != nil || i < 0 || i >= len(a.searches) {
 		return "", false
 	}
+
 	return a.searches[i], true
 }
 
@@ -307,12 +334,14 @@ func (a *app) syncSnoozed(account int64) {
 	if sy == nil || sy.s == nil || sy.pop3 {
 		return
 	}
+
 	path := "Snoozed"
 	for _, f := range a.folders {
 		if f.AccountID == account && isSnoozed(f) {
 			path = f.Path
 		}
 	}
+
 	sy.s.Refresh(path)
 }
 
@@ -335,6 +364,7 @@ func (a *app) openMailbox() {
 		a.searchChanged()
 		return
 	}
+
 	a.searchGen++
 	a.reloadMail()
 	id, _ := a.mailbox()
@@ -367,10 +397,12 @@ func (a *app) refresh() {
 		}
 		return
 	}
+
 	if id == store.UnifiedSnoozed {
 		a.refreshSnoozed()
 		return
 	}
+
 	a.checkAll()
 }
 
@@ -382,20 +414,24 @@ func (a *app) reloadMail() {
 		a.mailErr = err.Error()
 		return
 	}
+
 	if a.folders, err = a.st.Folders(); err != nil {
 		a.mailErr = err.Error()
 		return
 	}
+
 	a.mailErr = ""
 	a.showCounts()
 	id, ok := a.mailbox()
 	if !ok {
 		return
 	}
+
 	lead := int64(-1) // the row the keys move from, by ID
 	if a.msgRow >= 0 && a.msgRow < len(a.msgs) {
 		lead = a.msgs[a.msgRow].ID
 	}
+
 	f, isFolder := a.folder(id)
 	switch {
 	case strings.TrimSpace(a.query) != "":
@@ -405,29 +441,37 @@ func (a *app) reloadMail() {
 	default:
 		a.msgs, err = a.st.Messages(id, a.limit)
 	}
+
 	if err != nil {
 		a.mailErr = err.Error()
 	}
+
 	a.msgRow = -1
 	kept := ui.Selection[int64]{} // rows gone from the server leave the choice
 	for i, m := range a.msgs {
 		if slices.ContainsFunc(idsOf([]store.Message{m}), a.chosen.Has) { // a conversation's row is its newest message
 			kept.Add(m.ID)
 		}
+
 		if slices.Contains(idsOf([]store.Message{m}), lead) {
 			a.msgRow = i
 		}
 	}
+
 	a.chosen = kept
+
 	if a.msgRow < 0 && a.cur != nil {
 		a.msgRow = a.msgIndex(a.cur.m.ID)
 	}
+
 	if r := a.cur; r != nil {
 		if m, _, err := a.st.Message(r.m.ID); err == nil {
 			r.m = m
+
 			if th, err := a.st.Conversation(m); err == nil && a.set.Threads && m.Special != "drafts" {
 				r.thread = th // a reply sent joins it
 			}
+
 			a.loadBodies(r)
 		} else if a.msgRow < 0 {
 			a.cur = nil // gone from the server
@@ -441,30 +485,37 @@ func (a *app) loadMore() {
 	if a.loadingMore {
 		return
 	}
+
 	if len(a.msgs) >= a.limit {
 		a.limit += pageSize
 		a.reloadMail()
 		return
 	}
+
 	if strings.TrimSpace(a.query) != "" { // the server search fetches what it finds
 		return
 	}
+
 	id, _ := a.mailbox()
 	f, ok := a.folder(id)
 	s := a.syncer(f.AccountID)
 	if !ok || s == nil || a.noOlder[id] {
 		return
 	}
+
 	a.loadingMore = true
 	s.Older(f.Path, func(err error) {
 		a.update(func() {
 			a.loadingMore = false
+
 			if cur, _ := a.mailbox(); cur != id {
 				return
 			}
+
 			before := len(a.msgs)
 			a.limit += pageSize
 			a.reloadMail()
+
 			if err != nil || len(a.msgs) == before {
 				a.noOlder[id] = true
 			}
@@ -482,28 +533,36 @@ func (a *app) openMessage(m store.Message) {
 			thread = th
 		}
 	}
+
 	r := &reader{thread: thread, bodies: map[int64]courrier.Body{}, open: map[int64]bool{}, quotes: map[int64]bool{},
 		wasSeen: map[int64]bool{}, asked: map[int64]bool{}, remote: a.set.RemoteImages}
 	r.m = thread[len(thread)-1] // the newest, else the newest unread
 	for _, x := range thread {
 		r.wasSeen[x.ID] = x.Seen
+
 		if !x.Seen {
 			r.m = x
 		}
 	}
+
 	if a.set.HTMLFirst {
 		r.view = 1
 	}
+
 	a.cur = r
 	a.st.Opened(idsOf(thread)) // only keeps their bodies longer
+
 	if err := a.st.SetFlag(idsOf(thread), "seen", true); err != nil {
 		r.err = err.Error()
 	}
+
 	a.flush(thread)
 	a.loadBodies(r)
+
 	if a.allHeaders {
 		a.loadFields(r)
 	}
+
 	a.reloadMail()
 }
 
@@ -516,30 +575,39 @@ func (a *app) loadBodies(r *reader) {
 		if err != nil {
 			continue
 		}
+
 		r.thread[i] = m
+
 		if m.HasBody {
 			r.bodies[m.ID] = b
+
 			if hasRemote(b.HTML) && a.st.Pref("images:"+m.FromAddr) != "1" {
 				allowed = false
 			}
+
 			continue
 		}
+
 		s := a.syncer(m.AccountID)
 		if s == nil || a.syncers[m.AccountID].pop3 || r.asked[m.ID] {
 			continue
 		}
+
 		r.asked[m.ID] = true
 		r.pending++
 		s.Open(m.Path, m.UID, func(err error) {
 			a.update(func() {
 				r.pending--
+
 				if err != nil {
 					r.err = "Couldn't fetch the message: " + err.Error()
 				}
+
 				a.reloadMail()
 			})
 		})
 	}
+
 	r.remote = r.remote || allowed
 	r.body = r.bodies[r.m.ID]
 }
@@ -549,12 +617,14 @@ func (a *app) moveTo(d msgDrag, to store.Folder) {
 	if d.account != to.AccountID || d.folder == to.ID || to.NoSelect {
 		return
 	}
+
 	var ms []store.Message
 	for _, id := range d.ids {
 		if i := a.msgIndex(id); i >= 0 {
 			ms = append(ms, a.msgs[i])
 		}
 	}
+
 	name, _ := leaf(to)
 	a.move(ms, to.ID, "", "Moved to "+name)
 }
@@ -567,6 +637,7 @@ var specialOrder = map[string]int{"inbox": 0, "drafts": 1, "sent": 2, "archive":
 // order, then the others by path, which keeps children under parents.
 func treeOf(fs []store.Folder) []store.Folder {
 	out := append([]store.Folder(nil), fs...)
+
 	rank := func(f store.Folder) int {
 		if r, ok := specialOrder[f.Special]; ok {
 			return r
@@ -579,6 +650,7 @@ func treeOf(fs []store.Folder) []store.Folder {
 		}
 		return strings.ToLower(out[i].Path) < strings.ToLower(out[j].Path)
 	})
+
 	return out
 }
 
@@ -586,16 +658,20 @@ func treeOf(fs []store.Folder) []store.Folder {
 // at the top.
 func leaf(f store.Folder) (string, int) {
 	name := f.Path
+
 	if f.Special == "inbox" {
 		return "Inbox", 0
 	}
+
 	if f.Delim == "" {
 		return name, 0
 	}
+
 	parts := strings.Split(name, f.Delim)
 	if f.Special != "" {
 		return parts[len(parts)-1], 0
 	}
+
 	return parts[len(parts)-1], len(parts) - 1
 }
 
@@ -606,6 +682,7 @@ func (a *app) unread(account int64) int {
 			n += f.Unread
 		}
 	}
+
 	return n
 }
 
@@ -616,12 +693,15 @@ func (a *app) folderTree(c *ui.Context) {
 			for _, acc := range a.accounts {
 				total += a.unread(acc.ID)
 			}
+
 			badge(c, ui.SidebarItem(c, "u:inbox", inboxIcon, "Inbox"), total)
 			ui.SidebarItem(c, "u:flagged", flagIcon, "Flagged")
 			ui.SidebarItem(c, "u:snoozed", clockIcon, "Snoozed")
+
 			if len(a.outbox) > 0 {
 				badge(c, ui.SidebarItem(c, "u:outbox", outboxIcon, "Outbox"), len(a.outbox))
 			}
+
 			for i, q := range a.searches {
 				ui.SidebarItem(c, "s:"+strconv.Itoa(i), searchIcon, q).ContextMenu(func(m *ui.Menu) {
 					if m.Item("Remove saved search").Chosen() {
@@ -631,11 +711,13 @@ func (a *app) folderTree(c *ui.Context) {
 			}
 		})
 	}
+
 	// Ungrouped accounts and the groups that have accounts, in their order.
 	accs := map[int64]store.Account{}
 	for _, acc := range a.accounts {
 		accs[acc.ID] = acc
 	}
+
 	wasDragging := a.sideDragging // the zone takes the drop the frame after the drag ends
 	a.sideDragging = false        // the sections say, as they come
 	for _, b := range a.sideBlocks() {
@@ -643,18 +725,22 @@ func (a *app) folderTree(c *ui.Context) {
 			a.accountSection(c, accs[b[0].ID])
 			continue
 		}
+
 		if len(b) == 1 {
 			continue
 		}
+
 		id := b[0].ID
 		open := a.groupOpen(id)
 		title, n := a.groupName(id), 0
 		for _, p := range b[1:] {
 			n += a.unread(p.ID)
 		}
+
 		if !*open && n > 0 {
 			title += fmt.Sprintf("  ·  %d", n)
 		}
+
 		sec := ui.SidebarSection(c.Key("g:"+strconv.FormatInt(id, 10)), title, open, func() {
 			for _, p := range b[1:] {
 				a.accountSection(c, accs[p.ID]).PaddingStart(c.Theme().Space(2)).Margin(float32(a.set.GroupGap), 0, 0, 0)
@@ -663,6 +749,7 @@ func (a *app) folderTree(c *ui.Context) {
 		a.sideDrop(c, sec.Drag(sideDrag{group: id}), id, 0)
 		a.sideDragging = a.sideDragging || sec.Dragging()
 	}
+
 	if a.sideDragging || wasDragging { // somewhere to take accounts out of their groups
 		t := c.Theme()
 		zone := ui.Row(c).Margin(t.Space(3), 0, 0, 0).Padding(t.Space(2)).Radius(t.Radius).Border(1, t.Border).BorderStyle(ui.BorderDashed).Center()
@@ -682,12 +769,14 @@ func (a *app) sideBlocks() [][]store.Place {
 		order  int
 		places []store.Place
 	}
+
 	var bs []block
 	for _, acc := range a.accounts { // first, so they lead on ties as before
 		if acc.GroupID == 0 {
 			bs = append(bs, block{acc.SortOrder, []store.Place{{ID: acc.ID}}})
 		}
 	}
+
 	for _, g := range a.groups {
 		b := block{g.SortOrder, []store.Place{{Group: true, ID: g.ID}}}
 		for _, acc := range a.accounts {
@@ -695,13 +784,16 @@ func (a *app) sideBlocks() [][]store.Place {
 				b.places = append(b.places, store.Place{ID: acc.ID})
 			}
 		}
+
 		bs = append(bs, b)
 	}
+
 	slices.SortStableFunc(bs, func(x, y block) int { return x.order - y.order })
 	out := make([][]store.Place, len(bs))
 	for i, b := range bs {
 		out[i] = b.places
 	}
+
 	return out
 }
 
@@ -726,24 +818,30 @@ func (a *app) sideDrop(c *ui.Context, sec ui.Element, group, before int64) {
 				if below {
 					y += r.H - 2
 				}
+
 				p.Fill(ui.Rect{X: r.X, Y: y, W: r.W, H: 2}, accent, 1)
 			})
 		}
 	}
+
 	d, ok := ui.Drop[sideDrag](sec)
 	if !ok || !moves(d) {
 		return
 	}
+
 	var err error
 	if d.account != 0 {
 		err = a.st.SetAccountGroup(d.account, group)
 	}
+
 	if err == nil {
 		err = a.st.SetOrder(slices.Concat(moveBlock(a.sideBlocks(), d, group, before)...))
 	}
+
 	if err != nil {
 		a.toast = "Couldn't move it: " + err.Error()
 	}
+
 	a.reload()
 }
 
@@ -752,15 +850,18 @@ func moveBlock(bs [][]store.Place, d sideDrag, group, before int64) [][]store.Pl
 	at := func(p store.Place) int { // the block holding p
 		return slices.IndexFunc(bs, func(b []store.Place) bool { return slices.Contains(b, p) })
 	}
+
 	target := store.Place{ID: before}
 	if group != 0 {
 		target = store.Place{Group: true, ID: group}
 	}
+
 	me := placeOf(d)
 	down := 0
 	if dropsBelow(bs, d, group, before) {
 		down = 1
 	}
+
 	pos := func() int { // where a block goes at the top level
 		if group == 0 && before == 0 {
 			return len(bs)
@@ -777,6 +878,7 @@ func moveBlock(bs [][]store.Place, d sideDrag, group, before int64) [][]store.Pl
 		if len(bs[i]) == 0 { // it was ungrouped
 			bs = slices.Delete(bs, i, i+1)
 		}
+
 		if group == 0 {
 			bs = slices.Insert(bs, pos(), []store.Place{me})
 		} else if j := at(target); before == 0 {
@@ -785,6 +887,7 @@ func moveBlock(bs [][]store.Place, d sideDrag, group, before int64) [][]store.Pl
 			bs[j] = slices.Insert(bs[j], slices.Index(bs[j], store.Place{ID: before})+down, me)
 		}
 	}
+
 	return bs
 }
 
@@ -808,9 +911,11 @@ func (a *app) accountSection(c *ui.Context, acc store.Account) ui.Element {
 	if n := a.unread(acc.ID); !*open && n > 0 {
 		title += fmt.Sprintf("  ·  %d", n)
 	}
+
 	sec := ui.SidebarSection(c.Key(acc.ID), title, open, func() { a.folderItems(c, acc) }).Drag(sideDrag{account: acc.ID})
 	a.sideDrop(c, sec, acc.GroupID, acc.ID)
 	a.sideDragging = a.sideDragging || sec.Dragging()
+
 	return sec
 }
 
@@ -828,9 +933,11 @@ func (a *app) folderItems(c *ui.Context, acc store.Account) {
 			fs = append(fs, f)
 		}
 	}
+
 	if len(fs) == 0 {
 		ui.Text(c, "Not synced yet").FontSize(12).TextColor(t.TextMuted).Padding(4, 12)
 	}
+
 	for _, f := range treeOf(fs) {
 		name, depth := leaf(f)
 		indent := t.Space(2) + float32(depth)*14
@@ -838,16 +945,20 @@ func (a *app) folderItems(c *ui.Context, acc store.Account) {
 			ui.Text(c.Key(f.ID), name).TextColor(t.TextMuted).Padding(6, 8).PaddingStart(indent + 24)
 			continue
 		}
+
 		icon := specialIcons[f.Special]
 		if icon == nil {
 			icon = folderIcon
 		}
+
 		item := ui.SidebarItem(c, "f:"+strconv.FormatInt(f.ID, 10), icon, name).PaddingStart(indent)
 		badge(c, item, f.Unread)
 		item.ContextMenu(func(m *ui.Menu) { a.folderMenu(m, f, name) })
+
 		if d, over := ui.DragOver[msgDrag](item); over && d.account == f.AccountID && d.folder != f.ID {
 			item.Background(t.Accent.Alpha(0.22))
 		}
+
 		if d, ok := ui.Drop[msgDrag](item); ok {
 			a.moveTo(d, f)
 		}
@@ -856,32 +967,42 @@ func (a *app) folderItems(c *ui.Context, acc store.Account) {
 
 func (a *app) folderMenu(m *ui.Menu, f store.Folder, name string) {
 	pop3 := a.isPOP3(f.AccountID)
+
 	if m.Item("New folder…").Chosen() {
 		a.fe = &folderEdit{open: true, account: f.AccountID, delim: f.Delim}
 	}
+
 	if m.Item("New folder in “" + name + "”…").Chosen() {
 		a.fe = &folderEdit{open: true, account: f.AccountID, parent: f.Path, delim: f.Delim}
 	}
+
 	m.Separator()
 	// POP3 servers only have an Inbox: the folders made here are local.
 	editable := f.Special != "inbox" && (!pop3 || f.Local)
 	if m.Item("Rename…").Disabled(!editable).Chosen() {
 		a.fe = &folderEdit{open: true, account: f.AccountID, target: f, delim: f.Delim, name: name}
 	}
+
 	if m.Item("Delete…").Disabled(!editable).Chosen() {
 		a.fe = &folderEdit{account: f.AccountID, target: f, askDelete: true}
 	}
+
 	m.Separator()
+
 	if m.Item("Apply rules").Disabled(len(a.rules) == 0).Chosen() {
 		a.applyRules(f)
 	}
+
 	m.Separator()
+
 	if m.Item("Export as mbox…").Chosen() {
 		a.askExport(f, name)
 	}
+
 	if m.Item("Export every folder as mbox…").Chosen() {
 		a.askExportAccount(f.AccountID)
 	}
+
 	if m.Item("Import mbox…").Chosen() {
 		a.askImport(f)
 	}
@@ -892,6 +1013,7 @@ func (a *app) folderDialogs(c *ui.Context) {
 	if fe == nil {
 		return
 	}
+
 	ui.Modal(c, &fe.open, func() {
 		ui.Column(c).Gap(14).Width(min(380, a.width-80)).Children(func() {
 			title := "New folder"
@@ -900,32 +1022,40 @@ func (a *app) folderDialogs(c *ui.Context) {
 			} else if fe.parent != "" {
 				title = "New folder in " + fe.parent
 			}
+
 			ui.Text(c, title).FontSize(18).Bold().LetterSpacing(-0.3)
+
 			field(c, map[string]string{"name": fe.err}, "name", "Name", func() {
 				if ui.TextInput(c, &fe.name).Placeholder("Projects").AutoFocus().Submitted() {
 					a.applyFolderEdit(fe)
 				}
 			})
+
 			ui.Row(c).Gap(8).Children(func() {
 				if fe.busy {
 					ui.Spinner(c).Label("Saving")
 				}
+
 				ui.Spacer(c)
+
 				if ui.Button(c, "Cancel").Clicked() {
 					fe.open = false
 				}
+
 				if ui.PrimaryButton(c, "Save").Disabled(fe.busy).Clicked() {
 					a.applyFolderEdit(fe)
 				}
 			})
 		})
 	})
+
 	if fe.askDelete {
 		name, _ := leaf(fe.target)
 		msg := "Its messages are deleted from the server too."
 		if fe.target.Local {
 			msg = "Its messages are deleted."
 		}
+
 		if ui.AlertDialog(c, &fe.askDelete, "Delete “"+name+"”?", msg, "Cancel", "Delete") == 1 {
 			a.deleteFolder(fe.target)
 		}
@@ -937,10 +1067,12 @@ func (a *app) folderDone(fe *folderEdit) func(error) {
 	return func(err error) {
 		a.update(func() {
 			fe.busy = false
+
 			if err != nil {
 				fe.err = err.Error()
 				return
 			}
+
 			fe.open = false
 			a.reloadMail()
 		})
@@ -953,10 +1085,12 @@ func (a *app) applyFolderEdit(fe *folderEdit) {
 		fe.err = "Enter a name."
 		return
 	}
+
 	if fe.delim != "" && strings.Contains(name, fe.delim) {
 		fe.err = "A name can't hold “" + fe.delim + "”."
 		return
 	}
+
 	path := name
 	parent := fe.parent
 	if fe.target.ID != 0 {
@@ -964,10 +1098,13 @@ func (a *app) applyFolderEdit(fe *folderEdit) {
 			parent = fe.target.Path[:i]
 		}
 	}
+
 	if parent != "" {
 		path = parent + fe.delim + name
 	}
+
 	fe.err = ""
+
 	if a.isPOP3(fe.account) {
 		var err error
 		if fe.target.ID != 0 {
@@ -975,15 +1112,19 @@ func (a *app) applyFolderEdit(fe *folderEdit) {
 		} else {
 			err = a.st.AddLocalFolder(fe.account, path, "")
 		}
+
 		a.folderDone(fe)(err)
 		return
 	}
+
 	s := a.syncer(fe.account)
 	if s == nil {
 		fe.err = "Not connected to the server."
 		return
 	}
+
 	fe.busy = true
+
 	if fe.target.ID != 0 {
 		s.RenameFolder(fe.target.Path, path, a.folderDone(fe))
 	} else {
@@ -995,23 +1136,28 @@ func (a *app) deleteFolder(f store.Folder) {
 	if a.sel == "f:"+strconv.FormatInt(f.ID, 10) {
 		a.sel = "u:inbox"
 	}
+
 	if f.Local {
 		if err := a.st.DeleteFolder(f.ID); err != nil {
 			a.toast = "Couldn't delete: " + err.Error()
 		}
+
 		a.reloadMail()
 		return
 	}
+
 	s := a.syncer(f.AccountID)
 	if s == nil {
 		a.toast = "Couldn't delete: not connected"
 		return
 	}
+
 	s.DeleteFolder(f.Path, func(err error) {
 		a.update(func() {
 			if err != nil {
 				a.toast = "Couldn't delete: " + err.Error()
 			}
+
 			a.reloadMail()
 		})
 	})
@@ -1025,10 +1171,12 @@ func (a *app) syncStatus(c *ui.Context) {
 		if sy == nil {
 			continue
 		}
+
 		prefix := ""
 		if len(a.accounts) > 1 {
 			prefix = acc.Email + " · "
 		}
+
 		st := sy.status
 		switch {
 		case errors.Is(st.Err, courrier.ErrAuth) || errors.Is(st.SendErr, courrier.ErrAuth):
@@ -1036,9 +1184,11 @@ func (a *app) syncStatus(c *ui.Context) {
 			if acc.Auth != "password" {
 				label = "Sign in again"
 			}
+
 			if ui.Button(c.Key(acc.ID), prefix+label).FontSize(11).TextColor(t.Danger).Padding(2, 4).Clicked() {
 				a.sel = strconv.FormatInt(acc.ID, 10)
 			}
+
 		case st.Syncing:
 			ui.Text(c.Key(acc.ID), prefix+"Syncing…").FontSize(11).TextColor(t.TextMuted)
 		case st.Err != nil:
@@ -1071,6 +1221,7 @@ func (a *app) mailView(c *ui.Context) {
 		}
 		return
 	}
+
 	ui.Split(c, &a.listW, func() { a.messageList(c) }, func() { a.messageView(c, false) }).Fill()
 }
 
@@ -1084,9 +1235,11 @@ func (a *app) mailboxTitle() string {
 	case store.UnifiedSnoozed:
 		return "Snoozed"
 	}
+
 	if q, ok := a.savedSearch(); ok {
 		return q
 	}
+
 	f, _ := a.folder(id)
 	name, _ := leaf(f)
 	return name
@@ -1099,6 +1252,7 @@ func (a *app) messageList(c *ui.Context) {
 	searching := strings.TrimSpace(a.query) != ""
 	a.msgList.Key = func(i int) any { return a.msgs[i].ID }
 	a.msgList.Selected, a.msgList.Selection = &a.msgRow, &a.chosen
+
 	ui.Column(c).Fill().Background(a.pal.card).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(14, 16, 10, 16).Children(func() {
 			ui.Text(c, a.mailboxTitle()).FontSize(15).Bold().LetterSpacing(-0.3).SingleLine().Shrink(1)
@@ -1107,19 +1261,24 @@ func (a *app) messageList(c *ui.Context) {
 			if search.Changed() {
 				a.searchChanged()
 			}
+
 			search.OnShortcut(0, ui.KeyEscape, func() {
 				a.query = ""
 				a.searchChanged()
 			})
+
 			if q := strings.TrimSpace(a.query); searching && !slices.Contains(a.searches, q) && iconButton(c, bookmarkIcon, "Save search", "Save this search in the sidebar").Clicked() {
 				a.saveSearch(q)
 			}
+
 			if len(a.accounts) > 0 && iconButton(c, composeIcon, "Compose", "New message (⌘N)").Clicked() {
 				a.newMessage()
 			}
+
 			if len(a.accounts) > 0 && len(a.templates) > 0 {
 				ui.Button(c, "▾").Label("New from template").Padding(4).Menu(a.templatesMenu)
 			}
+
 			if sy := a.syncers[f.AccountID]; isFolder && sy != nil && sy.status.Syncing || a.loadingMore {
 				ui.Spinner(c).Label("Syncing")
 			} else if a.syncOn {
@@ -1128,6 +1287,7 @@ func (a *app) messageList(c *ui.Context) {
 				}
 			}
 		})
+
 		if _, saved := a.savedSearch(); searching && !saved {
 			ui.Row(c).Padding(0, 16, 10, 16).Children(func() {
 				if ui.Segmented(c, &a.searchAll, a.mailboxTitle(), "All mail").Changed() {
@@ -1135,18 +1295,23 @@ func (a *app) messageList(c *ui.Context) {
 				}
 			})
 		}
+
 		ui.Divider(c)
+
 		if a.mailErr != "" {
 			ui.Column(c).Padding(12).Children(func() { notice(c, "Couldn't read the mail cache: "+a.mailErr, t.Danger) })
 		}
+
 		if sy := a.syncers[f.AccountID]; isFolder && sy != nil && sy.status.Err != nil {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(10, 12).Children(func() {
 				ui.Column(c).Grow(1).Children(func() { notice(c, describe("The", sy.status.Err), t.Danger) })
+
 				if ui.Button(c, "Retry").Clicked() {
 					a.restartSync(f.AccountID)
 				}
 			})
 		}
+
 		// Folder names show where the rows come from several folders.
 		mixed := !isFolder || searching && a.searchAll == 1
 		list := ui.List(c, &a.msgList, len(a.msgs), func(i int) {
@@ -1160,28 +1325,35 @@ func (a *app) messageList(c *ui.Context) {
 				list.OnShortcut(k.mods, k.key, func() { k.run(a) })
 			}
 		}
+
 		list.OnShortcut(0, ui.KeyEscape, func() {
 			a.chosen.Clear()
 			a.cur = nil
 		})
+
 		list.Children(func() {
 			if len(a.msgs) == 0 {
 				empty := "No messages"
 				if searching {
 					empty = "No messages found"
 				}
+
 				ui.Text(c, empty).TextColor(t.TextMuted).Padding(24, 16)
 			}
 		})
+
 		if list.Changed() { // chosen with the keys
 			if a.chosen.Len() == 1 && a.msgRow >= 0 && a.msgRow < len(a.msgs) {
 				a.pivot = a.msgs[a.msgRow].ID
 			}
+
 			a.showChosen()
 		}
+
 		if _, last := a.msgList.Visible(); len(a.msgs) > 0 && last >= len(a.msgs)-5 {
 			a.loadMore()
 		}
+
 		if searching && a.searchNote != "" {
 			ui.Divider(c)
 			ui.Text(c, a.searchNote).FontSize(12).TextColor(t.TextMuted).Padding(8, 16)
@@ -1202,6 +1374,7 @@ func shortDate(d, now time.Time) string {
 	case y1 == y2:
 		return d.Format("Jan 2")
 	}
+
 	return d.Format("2006-01-02")
 }
 
@@ -1212,12 +1385,15 @@ func sender(m store.Message) string {
 			return "To: " + m.To
 		}
 	}
+
 	if m.FromName != "" {
 		return m.FromName
 	}
+
 	if m.FromAddr != "" {
 		return m.FromAddr
 	}
+
 	return "(unknown sender)"
 }
 
@@ -1238,58 +1414,72 @@ func (a *app) messageRow(c *ui.Context, m store.Message, folder bool) ui.Element
 	if chosen { // on the accent color
 		muted, accent, warn = t.AccentText.Alpha(0.75), t.AccentText, t.AccentText
 	}
+
 	drag := msgDrag{ids: []int64{m.ID}, account: m.AccountID, folder: m.FolderID}
 	if chosen {
 		drag.ids = nil
 		for _, x := range a.targets() {
 			drag.ids = append(drag.ids, x.ID)
+
 			if x.AccountID != m.AccountID {
 				drag.account = 0
 			}
+
 			if x.FolderID != m.FolderID {
 				drag.folder = 0
 			}
 		}
 	}
+
 	row := ui.Row(c).Gap(10).Padding(10, 14, 10, 10).Drag(drag)
 	if !m.Seen && !chosen { // translucent, so the list's hover still shows through
 		row.Background(t.SurfacePressed.Alpha(0.75))
 	}
+
 	return row.Children(func() {
 		dot := ui.Box(c).Size(7, 7).Radius(4).Margin(5, 0, 0, 0).Shrink(0).Label("")
 		if !m.Seen {
 			dot.Background(accent).Label("Unread")
 		}
+
 		ui.Column(c).Grow(1).Gap(3).Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 				name := sender(m)
 				if m.Count > 1 && m.People != "" {
 					name = fmt.Sprintf("%s (%d)", m.People, m.Count)
 				}
+
 				if f, ok := a.folder(m.FolderID); ok && folder {
 					where, _ := leaf(f)
 					name += " · " + where
 				}
+
 				who := ui.Text(c, name).SingleLine().Grow(1)
 				if !m.Seen {
 					who.Bold()
 				}
+
 				if m.Answered {
 					ui.Icon(c, replyIcon).FontSize(12).TextColor(muted).Label("Answered")
 				}
+
 				if m.HasAttach {
 					ui.Icon(c, paperclipIcon).FontSize(12).TextColor(muted).Label("Attachment")
 				}
+
 				if m.Flagged {
 					ui.Icon(c, flagIcon).FontSize(12).TextColor(warn).Label("Flagged")
 				}
+
 				ui.Text(c, shortDate(m.Date, time.Now())).FontSize(11).TextColor(muted)
 			})
+
 			if strings.Contains(m.HitSubject, store.Hit) {
 				ui.RichText(c, hits(m.HitSubject)...).SingleLine()
 			} else {
 				ui.Text(c, subject(m.Subject)).SingleLine()
 			}
+
 			switch {
 			case strings.Contains(m.HitSnippet, store.Hit):
 				ui.RichText(c, hits(m.HitSnippet)...).FontSize(12).TextColor(muted).SingleLine()
@@ -1314,6 +1504,7 @@ func sandbox(html string, remote bool) string {
 	if remote {
 		p = cspRemote
 	}
+
 	return `<meta http-equiv="Content-Security-Policy" content="` + p + `"><meta charset="utf-8">` + html
 }
 
@@ -1325,6 +1516,7 @@ func hasRemote(html string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -1334,12 +1526,14 @@ func (a *app) guardNavigation(e *mygo.NavigateEvent) {
 	if strings.HasPrefix(e.URL, "about:") { // the page LoadHTML shows
 		return
 	}
+
 	e.PreventDefault()
 	u, err := url.Parse(e.URL)
 	if err == nil && e.UserInitiated && u.Scheme == "courrier" {
 		a.update(func() { a.pageLink(u) })
 		return
 	}
+
 	if err == nil && e.UserInitiated && a.openURL != nil && (u.Scheme == "http" || u.Scheme == "https" || u.Scheme == "mailto") {
 		a.openURL(e.URL)
 	}
@@ -1352,17 +1546,20 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 		a.manyChosen(c)
 		return
 	}
+
 	if r == nil {
 		ui.Column(c).Fill().Center().Children(func() {
 			ui.Text(c, "No message selected").TextColor(t.TextMuted)
 		})
 		return
 	}
+
 	m := r.m
 	html := false
 	for _, b := range r.bodies {
 		html = html || b.HTML != ""
 	}
+
 	ui.Column(c).Fill().Children(func() {
 		ui.Column(c).Gap(6).Padding(18, 24, 10, 24).Children(func() {
 			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
@@ -1370,39 +1567,50 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 					a.cur, a.msgRow = nil, -1
 					a.chosen.Clear()
 				}
+
 				ui.Spacer(c)
+
 				if m.Special == "drafts" {
 					if ui.Button(c, "Edit draft").Clicked() {
 						a.editDraft(m)
 					}
 					return
 				}
+
 				if iconButton(c, replyIcon, "Reply", "Reply (r)").Clicked() {
 					a.respond("reply")
 				}
+
 				if iconButton(c, replyAllIcon, "Reply all", "Reply all (a)").Clicked() {
 					a.respond("all")
 				}
+
 				if iconButton(c, forwardIcon, "Forward", "Forward (f)").Clicked() {
 					a.respond("forward")
 				}
+
 				ui.Divider(c).Vertical().Height(18).Margin(0, 6)
 				a.actionButtons(c)
 			})
+
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, subject(r.thread[0].Subject)).FontSize(18).Bold().LetterSpacing(-0.3).Wrap().Selectable().Shrink(1)
+
 				if n := len(r.thread); n > 1 {
 					ui.Text(c, strconv.Itoa(n)).FontSize(11).TextColor(t.TextMuted).Padding(1, 6).Radius(4).Background(a.pal.sidebar).Label(fmt.Sprint(n, " messages"))
 				}
 			})
+
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				if html {
 					ui.Segmented(c, &r.view, "Text", "HTML")
 				}
+
 				label := "Show all headers"
 				if a.allHeaders {
 					label = "Hide headers"
 				}
+
 				if ui.Button(c, label).Tooltip("Of " + author(m) + "'s message, " + longDate(m.Date)).Clicked() {
 					a.allHeaders = !a.allHeaders
 					if a.allHeaders {
@@ -1410,17 +1618,22 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 					}
 				}
 			})
+
 			if a.allHeaders {
 				a.headerFields(c, r)
 			}
 		})
+
 		if r.err != "" {
 			ui.Column(c).Padding(0, 24, 10, 24).Children(func() { notice(c, r.err, t.Danger) })
 		}
+
 		ui.Divider(c)
+
 		switch {
 		case r.pending > 0 && a.web != nil:
 			ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c).Label("Loading conversation") })
+
 		case a.web != nil:
 			if !r.remote && r.view == 1 {
 				var blocked []string
@@ -1429,11 +1642,14 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 						blocked = append(blocked, x.FromAddr)
 					}
 				}
+
 				if len(blocked) > 0 {
 					ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8, 24).Background(t.Warning.Alpha(0.12)).Children(func() {
 						ui.Text(c, "Remote images are blocked.").TextColor(t.Text).Grow(1)
+
 						if ui.Button(c, "Load remote images").Clicked() {
 							r.remote = true
+
 							for _, from := range blocked {
 								a.st.SetPref("images:"+from, "1")
 							}
@@ -1441,13 +1657,16 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 					})
 				}
 			}
+
 			theme := pageTheme(t, a.pal)
 			if key := r.pageKey(theme); key != a.webShown {
 				a.webShown = key
 				a.web.SetBackgroundColor(fmt.Sprintf("#%02x%02x%02x", t.Background.R, t.Background.G, t.Background.B)) // no white flash as it loads
 				a.web.Page().LoadHTML(sandbox(r.conversationPage(theme), r.remote), "")
 			}
+
 			ui.WebView(c, a.web).Grow(1)
+
 		default:
 			a.conversationCards(c, r)
 		}
@@ -1460,11 +1679,13 @@ func (a *app) loadFields(r *reader) {
 	if r.fields != nil || r.fieldsBusy {
 		return
 	}
+
 	r.fieldsErr = ""
 	set := func(raw []byte, err error) {
 		if err == nil {
 			r.fields, err = courrier.Fields(raw)
 		}
+
 		if err != nil {
 			r.fieldsErr = "Couldn't read the headers: " + err.Error()
 		}
@@ -1473,11 +1694,13 @@ func (a *app) loadFields(r *reader) {
 		set(raw, nil)
 		return
 	}
+
 	s := a.syncer(r.m.AccountID)
 	if s == nil {
 		r.fieldsErr = "Couldn't read the headers: not connected to the server."
 		return
 	}
+
 	r.fieldsBusy = true
 	s.Header(r.m.Path, r.m.UID, func(raw []byte, err error) {
 		a.update(func() {
@@ -1494,6 +1717,7 @@ func (a *app) headerFields(c *ui.Context, r *reader) {
 		ui.Spinner(c).Label("Loading headers").AlignSelf(ui.Start)
 	case r.fieldsErr != "":
 		notice(c, r.fieldsErr, t.Danger)
+
 	default:
 		ui.Scroll(c).MaxHeight(220).Radius(8).Background(a.pal.sidebar).Children(func() {
 			ui.Column(c).Gap(3).Padding(10, 12).Selectable().Children(func() {
@@ -1537,6 +1761,7 @@ func (a *app) saveMessage(m store.Message, title, name string, part func(raw []b
 	if a.saveFile == nil {
 		return
 	}
+
 	s := a.syncer(m.AccountID)
 	st, update, saveFile := a.st, a.update, a.saveFile
 	report := func(msg string) { update(func() { a.toast = msg }) }
@@ -1548,6 +1773,7 @@ func (a *app) saveMessage(m store.Message, title, name string, part func(raw []b
 			}
 			return
 		}
+
 		write := func(raw []byte, err error) {
 			if err == nil {
 				var data []byte
@@ -1555,6 +1781,7 @@ func (a *app) saveMessage(m store.Message, title, name string, part func(raw []b
 					err = os.WriteFile(path, data, 0o644)
 				}
 			}
+
 			if err != nil {
 				report("Couldn't save: " + err.Error())
 			} else {
@@ -1576,21 +1803,26 @@ func (a *app) accountsView(c *ui.Context) {
 	t := c.Theme()
 	a.page(c, 12, func() {
 		header(c, "Settings", "Accounts", "The mailboxes courrier reads. Removing one removes its cached mail.")
+
 		if ui.PrimaryButton(c, "New account…").AlignSelf(ui.Start).Clicked() {
 			a.sel, a.shown = "new", ""
 		}
+
 		for _, acc := range a.accounts {
 			ui.Row(c.Key(acc.ID)).Gap(14).AlignItems(ui.Center).Padding(14, 16).Radius(12).Background(a.pal.card).Border(1, t.Border).Children(func() {
 				ui.Column(c).Size(36, 36).Radius(9).Background(a.pal.accentSoft).Center().Children(func() {
 					ui.Icon(c, userIcon).FontSize(16).TextColor(t.Accent)
 				})
+
 				ui.Column(c).Grow(1).Gap(4).Children(func() {
 					ui.Text(c, acc.Email).FontWeight(500)
 					ui.Text(c, acc.DisplayName).FontSize(12).TextColor(t.TextMuted)
 				})
+
 				if len(a.groups) > 0 && ui.Select(c, a.groupPick[acc.ID], a.groupNames()).Width(160).Label("Group of "+acc.Email).Changed() {
 					a.setGroup(acc, *a.groupPick[acc.ID])
 				}
+
 				if ui.Button(c, "Edit").Label("Edit " + acc.Email).Clicked() {
 					a.sel = strconv.FormatInt(acc.ID, 10)
 				}

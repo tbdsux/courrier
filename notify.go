@@ -30,6 +30,7 @@ func (a *app) saveNotifyOn(account int64) {
 	if !*a.notifyOn(account) {
 		v = "off"
 	}
+
 	if err := a.st.SetPref(notifyPref(account), v); err != nil {
 		a.toast = "Couldn't save settings: " + err.Error()
 	}
@@ -41,26 +42,31 @@ func (a *app) notifyNew(account int64, news []store.Message) {
 	if a.notify == nil || !*a.notifyOn(account) {
 		return
 	}
+
 	var ms []store.Message
 	for _, m := range news {
 		if !m.Seen { // read by a rule
 			ms = append(ms, m)
 		}
 	}
+
 	if len(ms) == 0 || a.focused != nil && a.focused() && a.showsInbox(account) {
 		return
 	}
+
 	email := ""
 	for _, acc := range a.accounts {
 		if acc.ID == account {
 			email = acc.Email
 		}
 	}
+
 	if len(ms) > 3 {
 		a.notify(mygo.NotificationOptions{ID: "inbox:" + strconv.FormatInt(account, 10), Group: email, Silent: !a.set.Sound,
 			Title: fmt.Sprintf("%d new messages", len(ms)), Subtitle: email, Body: senders(ms)})
 		return
 	}
+
 	for _, m := range ms {
 		a.notify(mygo.NotificationOptions{ID: fmt.Sprintf("msg:%d:%d", account, m.ID), Group: email, Silent: !a.set.Sound,
 			Title: sender(m), Subtitle: subject(m.Subject), Body: m.Snippet})
@@ -77,9 +83,11 @@ func senders(ms []store.Message) string {
 			names = append(names, s)
 		}
 	}
+
 	if len(names) > 3 {
 		return strings.Join(names[:3], ", ") + " and others"
 	}
+
 	return strings.Join(names, ", ")
 }
 
@@ -88,6 +96,7 @@ func (a *app) showsInbox(account int64) bool {
 	if a.sel == "u:inbox" {
 		return true
 	}
+
 	id, ok := a.mailbox()
 	f, isFolder := a.folder(id)
 	return ok && isFolder && f.AccountID == account && f.Special == "inbox"
@@ -100,9 +109,11 @@ func (a *app) openNotification(id string) {
 	if a.showWindow != nil {
 		a.showWindow()
 	}
+
 	kind, rest, _ := strings.Cut(id, ":")
 	accS, msgS, _ := strings.Cut(rest, ":")
 	account, _ := strconv.ParseInt(accS, 10, 64)
+
 	if kind == "msg" {
 		mid, _ := strconv.ParseInt(msgS, 10, 64)
 		if m, _, err := a.st.Message(mid); err == nil {
@@ -110,12 +121,14 @@ func (a *app) openNotification(id string) {
 			return
 		}
 	}
+
 	a.sel = "u:inbox"
 	for _, f := range a.folders {
 		if f.AccountID == account && f.Special == "inbox" {
 			a.sel = "f:" + strconv.FormatInt(f.ID, 10)
 		}
 	}
+
 	a.load()
 }
 
@@ -123,6 +136,7 @@ func (a *app) openNotification(id string) {
 func (a *app) showMessage(m store.Message) {
 	a.sel = "f:" + strconv.FormatInt(m.FolderID, 10)
 	a.load()
+
 	if i := a.msgIndex(m.ID); i >= 0 {
 		a.choose(i)
 	} else {
@@ -138,17 +152,21 @@ func (a *app) showCounts() {
 	for _, acc := range a.accounts {
 		n += a.unread(acc.ID)
 	}
+
 	badge := n
 	if !a.set.Badge {
 		badge = 0
 	}
+
 	if a.setBadge != nil && badge != a.badgeShown {
 		a.badgeShown = badge
 		a.setBadge(badge)
 	}
+
 	if a.setTray == nil {
 		return
 	}
+
 	var recent []store.Message
 	key := "off"
 	if a.set.MenuBar {
@@ -158,6 +176,7 @@ func (a *app) showCounts() {
 			key += fmt.Sprint(",", m.ID)
 		}
 	}
+
 	if key != a.trayShown {
 		a.trayShown = key
 		a.setTray(a.set.MenuBar, n, recent)

@@ -21,6 +21,7 @@ func TestStack(t *testing.T) {
 			}
 			return false
 		}, false)
+
 		var out []string
 		for _, c := range cards {
 			if c.more > 0 {
@@ -29,6 +30,7 @@ func TestStack(t *testing.T) {
 				out = append(out, fmt.Sprint(c.i))
 			}
 		}
+
 		return strings.Join(out, " ")
 	}
 	for _, c := range []struct {
@@ -50,12 +52,15 @@ func TestSplitQuote(t *testing.T) {
 	if body != "Sounds good." || !strings.HasPrefix(quote, "On Mon") {
 		t.Errorf("%q / %q", body, quote)
 	}
+
 	if b, q := splitQuote("> what?\nThis.\n> and?\nThat."); q != "" || b == "" {
 		t.Errorf("interleaved split: %q", q)
 	}
+
 	if _, q := splitQuote("> only a quote"); q != "" {
 		t.Errorf("all quote split: %q", q)
 	}
+
 	if b, q := splitQuote("Yes.\n-----Original Message-----\nFrom: Bob\nMonday?"); b != "Yes." || q == "" {
 		t.Errorf("outlook %q / %q", b, q)
 	}
@@ -91,6 +96,7 @@ func TestConversationPage(t *testing.T) {
 			t.Errorf("no %s in\n%s", want, page)
 		}
 	}
+
 	if strings.Contains(page, "x()") {
 		t.Error("the script stayed")
 	}
@@ -102,10 +108,12 @@ func TestAppearances(t *testing.T) {
 		if !ok {
 			t.Fatalf("no look for %q", n)
 		}
+
 		if th, _ := styled(ui.LightTheme(), n, 13); th.Dark != l.dark {
 			t.Errorf("%s: Dark = %v", n, th.Dark)
 		}
 	}
+
 	if th, _ := styled(ui.DarkTheme(), "System", 13); !th.Dark || th.Background != ui.Hex(looks["Dark"].bg) {
 		t.Error("System on a dark system isn't Dark")
 	}

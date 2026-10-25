@@ -41,33 +41,41 @@ const timeout = 15 * time.Second
 func Check(ctx context.Context, e Endpoint) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
 	switch {
 	case e.Protocol == "smtp":
 		conn, c, err := smtpConnect(ctx, e)
 		if err != nil {
 			return err
 		}
+
 		defer conn.Close()
 		return c.Quit()
+
 	case e.Protocol == "imap" && e.Token != nil:
 		ic, err := dialIMAP(ctx, e)
 		if err != nil {
 			return err
 		}
+
 		ic.close()
 		return nil
 	}
+
 	conn, err := dial(ctx, e)
 	if err != nil {
 		return err
 	}
+
 	defer conn.Close()
+
 	switch e.Protocol {
 	case "imap":
 		return checkIMAP(ctx, conn, e)
 	case "pop3":
 		return checkPOP3(ctx, conn, e)
 	}
+
 	return fmt.Errorf("unknown protocol %q", e.Protocol)
 }
 
@@ -79,16 +87,20 @@ func dial(ctx context.Context, e Endpoint) (net.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnreachable, err)
 	}
+
 	deadline, _ := ctx.Deadline()
 	conn.SetDeadline(deadline)
+
 	if e.Security == "tls" {
 		tc, err := startTLS(ctx, conn, e.Host)
 		if err != nil {
 			conn.Close()
 			return nil, err
 		}
+
 		return tc, nil
 	}
+
 	return conn, nil
 }
 
@@ -97,6 +109,7 @@ func startTLS(ctx context.Context, conn net.Conn, host string) (net.Conn, error)
 	if err := tc.HandshakeContext(ctx); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrTLS, err)
 	}
+
 	return tc, nil
 }
 
@@ -112,6 +125,7 @@ func (c *lineConn) readLine() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrProtocol, err)
 	}
+
 	return strings.TrimRight(s, "\r\n"), nil
 }
 
@@ -127,6 +141,7 @@ func (c *lineConn) imapTagged(tag string, cont bool) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		if strings.HasPrefix(l, tag+" ") || (cont && strings.HasPrefix(l, "+")) {
 			return l, nil
 		}
@@ -139,44 +154,57 @@ func checkIMAP(ctx context.Context, conn net.Conn, e Endpoint) error {
 	if err != nil {
 		return err
 	}
+
 	if !strings.HasPrefix(greet, "* OK") && !strings.HasPrefix(greet, "* PREAUTH") {
 		return fmt.Errorf("%w: %s", ErrProtocol, greet)
 	}
+
 	if e.Security == "starttls" {
 		c.send("a0 STARTTLS")
+
 		if l, err := c.imapTagged("a0", false); err != nil || !strings.HasPrefix(l, "a0 OK") {
 			return fmt.Errorf("%w: server refused STARTTLS: %s %v", ErrTLS, l, err)
 		}
+
 		tc, err := startTLS(ctx, conn, e.Host)
 		if err != nil {
 			return err
 		}
+
 		c = newLineConn(tc)
 	}
+
 	// Literals carry any byte a password may hold, unlike quoted strings.
 	c.send(fmt.Sprintf("a1 LOGIN {%d}", len(e.Username)))
+
 	for i, s := range []string{e.Username, e.Password} {
 		l, err := c.imapTagged("a1", true)
 		if err != nil {
 			return err
 		}
+
 		if !strings.HasPrefix(l, "+") {
 			return imapLoginErr(l)
 		}
+
 		if i == 0 {
 			c.send(fmt.Sprintf("%s {%d}", s, len(e.Password)))
 		} else {
 			c.send(s)
 		}
 	}
+
 	l, err := c.imapTagged("a1", false)
 	if err != nil {
 		return err
 	}
+
 	if !strings.HasPrefix(l, "a1 OK") {
 		return imapLoginErr(l)
 	}
+
 	c.send("a2 LOGOUT")
+
 	return nil
 }
 
@@ -192,7 +220,9 @@ func checkPOP3(ctx context.Context, conn net.Conn, e Endpoint) error {
 	if err != nil {
 		return err
 	}
+
 	c.send("QUIT")
+
 	return nil
 }
 

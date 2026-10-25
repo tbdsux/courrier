@@ -16,13 +16,16 @@ func fakeServer(t testing.TB, greet string, reply func(line string) string) int 
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(func() { ln.Close() })
+
 	go func() {
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
 				return
 			}
+
 			go func() {
 				defer conn.Close()
 				conn.Write([]byte(greet + "\r\n"))
@@ -32,6 +35,7 @@ func fakeServer(t testing.TB, greet string, reply func(line string) string) int 
 					if err != nil {
 						return
 					}
+
 					if out := reply(strings.TrimRight(l, "\r\n")); out != "" {
 						conn.Write([]byte(out + "\r\n"))
 					}
@@ -39,6 +43,7 @@ func fakeServer(t testing.TB, greet string, reply func(line string) string) int 
 			}()
 		}
 	}()
+
 	return ln.Addr().(*net.TCPAddr).Port
 }
 
@@ -51,16 +56,21 @@ func imapServer(t *testing.T) int {
 		case strings.HasPrefix(l, "a1 LOGIN"):
 			step = 1
 			return "+ go on"
+
 		case step == 1:
 			user, _, _ = strings.Cut(l, " {")
 			step = 2
 			return "+ go on"
+
 		case step == 2:
 			step = 0
+
 			if user == "jane" && l == "secret" {
 				return "a1 OK logged in"
 			}
+
 			return "a1 NO [AUTHENTICATIONFAILED] Invalid credentials"
+
 		case strings.HasPrefix(l, "a2 LOGOUT"):
 			return "a2 OK bye"
 		}
@@ -74,11 +84,15 @@ func TestCheckIMAP(t *testing.T) {
 	if err := Check(context.Background(), e); err != nil {
 		t.Fatalf("good login: %v", err)
 	}
+
 	e.Password = "wrong"
+
 	if err := Check(context.Background(), e); !errors.Is(err, ErrAuth) {
 		t.Fatalf("bad password: %v", err)
 	}
+
 	e.Security = "tls" // the fake speaks plain text
+
 	if err := Check(context.Background(), e); !errors.Is(err, ErrTLS) {
 		t.Fatalf("TLS: %v", err)
 	}
@@ -96,7 +110,9 @@ func TestCheckPOP3(t *testing.T) {
 	if err := Check(context.Background(), e); err != nil {
 		t.Fatalf("good login: %v", err)
 	}
+
 	e.Password = "nope"
+
 	if err := Check(context.Background(), e); !errors.Is(err, ErrAuth) {
 		t.Fatalf("bad password: %v", err)
 	}

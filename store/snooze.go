@@ -41,6 +41,7 @@ func (s *Store) Snooze(ids []int64, wake time.Time) error {
 	if err != nil {
 		return err
 	}
+
 	var stmts []sqlite.Statement
 	for _, m := range ms {
 		key := []any{m.AccountID, m.MessageID, m.Date.Unix()}
@@ -50,9 +51,11 @@ VALUES (?1, ?2, ?3, ?4, COALESCE((SELECT from_path FROM snoozes WHERE account_id
 				Args: append(key, wake.Unix(), m.Path)},
 			sqlite.Statement{SQL: "DELETE FROM snoozes WHERE account_id = ? AND message_id = ? AND date = ? AND id != last_insert_rowid()", Args: key})
 	}
+
 	if _, err := s.db.Transaction(ctx, stmts); err != nil {
 		return err
 	}
+
 	_, err = s.Move(ids, 0, "snoozed")
 	return err
 }
@@ -63,11 +66,13 @@ func (s *Store) DueSnoozes(now time.Time) ([]Snoozed, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Snoozed, len(rows.Values))
 	for i, r := range rows.Values {
 		out[i] = Snoozed{ID: r[0].(int64), AccountID: r[1].(int64), MessageID: r[2].(string), Date: time.Unix(r[3].(int64), 0),
 			WakeAt: time.Unix(r[4].(int64), 0), FromPath: r[5].(string)}
 	}
+
 	return out, nil
 }
 
@@ -84,6 +89,7 @@ func (s *Store) Wake(sn Snoozed) (found bool, err error) {
 	if err != nil {
 		return false, err
 	}
+
 	drop := func() error {
 		_, err := s.db.Execute(ctx, "DELETE FROM snoozes WHERE id = ?", sn.ID)
 		return err
@@ -94,26 +100,31 @@ func (s *Store) Wake(sn Snoozed) (found bool, err error) {
 		}
 		return false, nil
 	}
+
 	var ids []int64
 	for _, r := range rows.Values {
 		if r[1].(int64) != 0 {
 			ids = append(ids, r[0].(int64))
 		}
 	}
+
 	if len(ids) > 0 {
 		to, err := s.db.Query(ctx, "SELECT id FROM folders WHERE account_id = ? AND (path = ?2 OR special = 'inbox') AND noselect = 0 ORDER BY path = ?2 DESC LIMIT 1",
 			sn.AccountID, sn.FromPath)
 		if err != nil {
 			return false, err
 		}
+
 		if err := s.SetFlag(ids, "seen", false); err != nil {
 			return false, err
 		}
+
 		if len(to.Values) > 0 {
 			if _, err := s.Move(ids, to.Values[0][0].(int64), ""); err != nil {
 				return false, err
 			}
 		}
 	}
+
 	return true, drop()
 }

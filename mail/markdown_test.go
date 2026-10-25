@@ -33,6 +33,7 @@ func TestMarkdownHTML(t *testing.T) {
 			t.Errorf("missing %q in\n%s", want, h)
 		}
 	}
+
 	if strings.Contains(h, "javascript:") && strings.Contains(h, `href="javascript`) {
 		t.Error("unsafe link kept")
 	}
@@ -43,10 +44,12 @@ func TestBuildHTMLPart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	_, b, _ := mail.Parse(raw)
 	if strings.TrimSpace(b.Text) != "Hi **Bob**" || !strings.Contains(b.HTML, "Hi <strong>Bob</strong>") {
 		t.Errorf("text %q html %q", b.Text, b.HTML)
 	}
+
 	if d, _ := mail.DraftFrom(raw); strings.TrimSpace(d.Text) != "Hi **Bob**" {
 		t.Errorf("draft reads back %q", d.Text)
 	}

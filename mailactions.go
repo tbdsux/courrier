@@ -58,12 +58,15 @@ var keyNames = func() map[ui.Key]string {
 	for k := ui.KeyA; k <= ui.KeyZ; k++ {
 		m[k] = string(rune('A' + k - ui.KeyA))
 	}
+
 	for k := ui.Key0; k <= ui.Key9; k++ {
 		m[k] = string(rune('0' + k - ui.Key0))
 	}
+
 	for k := ui.KeyF1; k <= ui.KeyF12; k++ {
 		m[k] = fmt.Sprint("F", k-ui.KeyF1+1)
 	}
+
 	return m
 }()
 
@@ -75,6 +78,7 @@ func (k shortcut) label(i int) string {
 	if d := defaultShortcuts[i]; k.mods == d.mods && k.key == d.key {
 		return d.keys
 	}
+
 	s := ""
 	for _, m := range []struct {
 		mod  ui.Modifiers
@@ -84,6 +88,7 @@ func (k shortcut) label(i int) string {
 			s += m.sign
 		}
 	}
+
 	return s + keyNames[k.key]
 }
 
@@ -105,12 +110,14 @@ func (a *app) rebind(i int, mods ui.Modifiers, key ui.Key) {
 		a.toast = k.what + " works everywhere, so it needs ⌘, ⌃ or ⌥."
 		return
 	}
+
 	for j, o := range shortcuts {
 		if j != i && o.mods == mods && o.key == key {
 			a.toast = o.label(j) + " is already " + o.what + "."
 			return
 		}
 	}
+
 	k.mods, k.key = mods, key
 	a.saveShortcuts()
 }
@@ -126,6 +133,7 @@ func (a *app) loadShortcuts() {
 	copy(shortcuts, defaultShortcuts)
 	saved := map[string][2]int{}
 	json.Unmarshal([]byte(a.st.Pref("ui.shortcuts")), &saved) // a missing or bad pref keeps the defaults
+
 	for i, k := range shortcuts {
 		if b, ok := saved[k.keys]; ok && keyNames[ui.Key(b[1])] != "" {
 			shortcuts[i].mods, shortcuts[i].key = ui.Modifiers(b[0]), ui.Key(b[1])
@@ -141,10 +149,12 @@ func (a *app) saveShortcuts() {
 			saved[k.keys] = [2]int{int(k.mods), int(k.key)}
 		}
 	}
+
 	b, _ := json.Marshal(saved)
 	if err := a.st.SetPref("ui.shortcuts", string(b)); err != nil {
 		a.toast = "Couldn't save shortcuts: " + err.Error()
 	}
+
 	if a.setMenu != nil {
 		a.setMenu()
 	}
@@ -159,17 +169,22 @@ func (a *app) shortcutsCard(c *ui.Context) {
 			j := i + 1
 			for ; j < len(shortcuts) && shortcuts[j].what == shortcuts[i].what; j++ {
 			}
+
 			ui.Row(c.Key(i)).Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.Row(c).Gap(6).Width(220).Shrink(0).Children(func() {
 					for n := i; n < j; n++ {
 						a.keyButton(c, n)
 					}
 				})
+
 				ui.Text(c, shortcuts[i].what).TextColor(t.TextMuted)
 			})
+
 			i = j
 		}
+
 		ui.Text(c, "Click keys, then press the new ones. Esc cancels.").TextColor(t.TextMuted).FontSize(12)
+
 		if ui.Button(c, "Reset shortcuts").Clicked() {
 			a.resetShortcuts()
 		}
@@ -185,11 +200,14 @@ func (a *app) keyButton(c *ui.Context, i int) {
 		}
 		return
 	}
+
 	b := ui.Button(c.Key(i), "Press keys…").Focus()
 	if b.Clicked() {
 		a.recording = 0
 	}
+
 	b.OnShortcut(0, ui.KeyEscape, func() { a.recording = 0 })
+
 	// shortcut: no raw key events in ui, so every key a shortcut can take is
 	// listened for while recording; ~600 handlers, only on this one button.
 	for key := range keyNames {
@@ -221,27 +239,34 @@ func (a *app) clickRow(i int, mods ui.Modifiers) {
 		if p < 0 {
 			p = i
 		}
+
 		if mods&ui.Cmd == 0 {
 			a.chosen.Clear()
 		}
+
 		for j := min(p, i); j <= max(p, i); j++ {
 			a.chosen.Add(a.msgs[j].ID)
 		}
+
 	case mods&ui.Cmd != 0:
 		if a.chosen.Has(m.ID) {
 			a.chosen.Remove(m.ID)
 		} else {
 			a.chosen.Add(m.ID)
 		}
+
 		a.pivot = m.ID
+
 	default:
 		if m.Special == "drafts" {
 			a.editDraft(m)
 		}
+
 		a.chosen.Clear()
 		a.chosen.Add(m.ID)
 		a.pivot = m.ID
 	}
+
 	a.msgRow = i
 	a.showChosen()
 }
@@ -251,6 +276,7 @@ func (a *app) choose(i int) {
 	if i < 0 || i >= len(a.msgs) {
 		return
 	}
+
 	a.chosen.Clear()
 	a.chosen.Add(a.msgs[i].ID)
 	a.msgRow, a.pivot = i, a.msgs[i].ID
@@ -265,6 +291,7 @@ func (a *app) showChosen() {
 		a.cur = nil
 		return
 	}
+
 	for id := range a.chosen.All() {
 		if i := a.msgIndex(id); i >= 0 && (a.cur == nil || a.msgIndex(a.cur.m.ID) != i) {
 			a.openMessage(a.msgs[i])
@@ -284,6 +311,7 @@ func (a *app) targets() []store.Message {
 			out = append(out, m)
 		}
 	}
+
 	if len(out) == 0 && a.cur != nil {
 		if i := a.msgIndex(a.cur.m.ID); i >= 0 {
 			out = append(out, a.msgs[i])
@@ -291,6 +319,7 @@ func (a *app) targets() []store.Message {
 			out = append(out, a.cur.m)
 		}
 	}
+
 	return out
 }
 
@@ -304,6 +333,7 @@ func idsOf(ms []store.Message) []int64 {
 			out = append(out, m.ID)
 		}
 	}
+
 	return out
 }
 
@@ -316,6 +346,7 @@ func (a *app) flush(ms []store.Message) {
 		if sy := a.syncers[m.AccountID]; !done[m.AccountID] && sy != nil && sy.s != nil && !sy.pop3 {
 			sy.s.Act()
 		}
+
 		done[m.AccountID] = true
 	}
 }
@@ -326,9 +357,11 @@ func (a *app) setFlag(ms []store.Message, flag string, has func(store.Message) b
 	for _, m := range ms {
 		on = on || !has(m)
 	}
+
 	if err := a.st.SetFlag(idsOf(ms), flag, on); err != nil {
 		a.toast = "Couldn't change: " + err.Error()
 	}
+
 	a.flush(ms)
 	a.reloadMail()
 }
@@ -351,10 +384,12 @@ func (a *app) deleteMessages(ms []store.Message) {
 			out = append(out, m)
 		}
 	}
+
 	if len(out) == 0 && len(ms) > 0 {
 		a.expunging, a.askExpunge = ms, true
 		return
 	}
+
 	a.move(out, 0, "trash", "Moved to Trash")
 }
 
@@ -372,21 +407,26 @@ func (a *app) move(ms []store.Message, folder int64, special, done string) {
 	if len(ms) == 0 {
 		return
 	}
+
 	next := a.nextAfter(ms)
 	u, err := a.st.Move(idsOf(ms), folder, special)
 	if err != nil {
 		a.toast = "Couldn't move: " + err.Error()
 		return
 	}
+
 	if u.Empty() {
 		return
 	}
+
 	a.flush(ms)
 	a.reloadMail()
 	a.showNext(next)
+
 	if n := len(idsOf(ms)); n > 1 {
 		done += fmt.Sprintf(": %d messages", n)
 	}
+
 	a.undo = &undoMove{msg: done, u: u, ms: ms}
 }
 
@@ -397,22 +437,27 @@ func (a *app) nextAfter(ms []store.Message) int64 {
 	for _, id := range idsOf(ms) {
 		gone[id] = true
 	}
+
 	for _, m := range ms {
 		gone[m.ID] = true
 	}
+
 	if a.msgRow < 0 || a.msgRow >= len(a.msgs) || a.cur != nil && !gone[a.cur.m.ID] && a.chosen.Len() <= 1 {
 		return 0
 	}
+
 	for i := a.msgRow + 1; i < len(a.msgs); i++ {
 		if !gone[a.msgs[i].ID] {
 			return a.msgs[i].ID
 		}
 	}
+
 	for i := a.msgRow - 1; i >= 0; i-- {
 		if !gone[a.msgs[i].ID] {
 			return a.msgs[i].ID
 		}
 	}
+
 	return 0
 }
 
@@ -431,17 +476,21 @@ func (a *app) undoToast(c *ui.Context) {
 	if um == nil {
 		return
 	}
+
 	a.undo = nil
+
 	for _, m := range um.ms {
 		if s := a.syncer(m.AccountID); s != nil && !s.CanUndo() {
 			c.Toast(um.msg)
 			return
 		}
 	}
+
 	c.ToastAction(um.msg, "Undo", func() {
 		if err := a.st.Restore(um.u); err != nil {
 			a.toast = "Couldn't undo: " + err.Error()
 		}
+
 		a.flush(um.ms)
 		a.reloadMail()
 	})
@@ -464,16 +513,21 @@ func (a *app) snooze(ms []store.Message, at time.Time) {
 	if len(ms) == 0 {
 		return
 	}
+
 	next := a.nextAfter(ms)
+
 	if err := a.st.Snooze(idsOf(ms), at); err != nil {
 		a.toast = "Couldn't snooze: " + err.Error()
 		return
 	}
+
 	a.flush(ms)
 	a.reloadMail()
+
 	for _, m := range ms {
 		a.syncSnoozed(m.AccountID) // so it is cached there to wake
 	}
+
 	a.showNext(next)
 	a.toast = "Snoozed until " + laterLabel(at, time.Now())
 }
@@ -486,19 +540,23 @@ func (a *app) wakeSnoozes() {
 		a.toast = "Couldn't read the snoozed mail: " + err.Error()
 		return
 	}
+
 	woke := false
 	for _, sn := range due {
 		found, err := a.st.Wake(sn)
 		switch {
 		case err != nil:
 			a.toast = "Couldn't bring back a snoozed message: " + err.Error()
+
 		case found:
 			woke = true
 			a.flush([]store.Message{{AccountID: sn.AccountID}})
+
 		default:
 			a.syncSnoozed(sn.AccountID)
 		}
 	}
+
 	if woke {
 		a.reloadMail()
 	}
@@ -506,9 +564,11 @@ func (a *app) wakeSnoozes() {
 
 func (a *app) expunge(ms []store.Message) {
 	next := a.nextAfter(ms)
+
 	if err := a.st.Expunge(idsOf(ms)); err != nil {
 		a.toast = "Couldn't delete: " + err.Error()
 	}
+
 	a.flush(ms)
 	a.reloadMail()
 	a.showNext(next)
@@ -520,24 +580,29 @@ func (a *app) moveChoices(ms []store.Message) []store.Folder {
 	if len(ms) == 0 {
 		return nil
 	}
+
 	var fs []store.Folder
 	for _, f := range a.folders {
 		if f.AccountID != ms[0].AccountID {
 			continue
 		}
+
 		fs = append(fs, f)
 	}
+
 	for _, m := range ms {
 		if m.AccountID != ms[0].AccountID {
 			return nil
 		}
 	}
+
 	var out []store.Folder
 	for _, f := range treeOf(fs) {
 		if !f.NoSelect && (len(ms) > 1 || f.ID != ms[0].FolderID) {
 			out = append(out, f)
 		}
 	}
+
 	return out
 }
 
@@ -551,6 +616,7 @@ func (a *app) moveMenu(m *ui.Menu, ms []store.Message) {
 	if len(fs) == 0 {
 		m.Item("No folder to move to").Disabled(true)
 	}
+
 	for _, f := range fs {
 		if m.Item(indented(f)).Chosen() {
 			name, _ := leaf(f)
@@ -566,35 +632,46 @@ func (a *app) messageMenu(m *ui.Menu, row store.Message) {
 	if a.chosen.Has(row.ID) {
 		ms = a.targets()
 	}
+
 	unread, unflagged := false, false
 	for _, x := range ms {
 		unread, unflagged = unread || !x.Seen, unflagged || !x.Flagged
 	}
+
 	if m.Item(map[bool]string{true: "Mark as read", false: "Mark as unread"}[unread]).Shortcut(bound("U")).Chosen() {
 		a.toggleRead(ms)
 	}
+
 	if m.Item(map[bool]string{true: "Flag", false: "Unflag"}[unflagged]).Shortcut(bound("S")).Chosen() {
 		a.toggleFlag(ms)
 	}
+
 	m.Separator()
+
 	if m.Item("Archive").Shortcut(bound("E")).Chosen() {
 		a.archive(ms)
 	}
+
 	if m.Item("Delete").Shortcut(bound("Delete")).Chosen() {
 		a.deleteMessages(ms)
 	}
+
 	m.Submenu("Move to", func(sub *ui.Menu) { a.moveMenu(sub, ms) })
 	m.Submenu("Snooze", func(sub *ui.Menu) { a.snoozeMenu(sub, ms) })
+
 	if len(ms) == 1 && m.Item("Save as .eml…").Chosen() {
 		a.saveEML(row)
 	}
+
 	if len(ms) == 1 && row.Special != "drafts" {
 		m.Separator()
+
 		for _, r := range []struct{ label, how string }{{"Reply", "reply"}, {"Reply all", "all"}, {"Forward", "forward"}} {
 			if m.Item(r.label).Chosen() {
 				if a.cur == nil || a.msgIndex(a.cur.m.ID) != a.msgIndex(row.ID) {
 					a.choose(a.msgIndex(row.ID))
 				}
+
 				a.respond(r.how)
 			}
 		}
@@ -608,20 +685,25 @@ func (a *app) actionButtons(c *ui.Context) {
 	for _, m := range ms {
 		unread, unflagged = unread || !m.Seen, unflagged || !m.Flagged
 	}
+
 	if iconButton(c, archiveIcon, "Archive", "Archive (e)").Clicked() {
 		a.archive(ms)
 	}
+
 	if iconButton(c, trashIcon, "Delete", "Delete (#)").Clicked() {
 		a.deleteMessages(ms)
 	}
+
 	flag := map[bool]string{true: "Flag", false: "Unflag"}[unflagged]
 	if iconButton(c, flagIcon, flag, flag+" (s)").Clicked() {
 		a.toggleFlag(ms)
 	}
+
 	read := map[bool]string{true: "Mark as read", false: "Mark as unread"}[unread]
 	if iconButton(c, mailIcon, read, read+" (u)").Clicked() {
 		a.toggleRead(ms)
 	}
+
 	iconButton(c, moveIcon, "Move", "Move to… (v)").Menu(func(m *ui.Menu) { a.moveMenu(m, ms) })
 	iconButton(c, clockIcon, "Snooze", "Snooze (z)").Menu(func(m *ui.Menu) { a.snoozeMenu(m, ms) })
 }
@@ -645,14 +727,17 @@ func (a *app) moveDialogs(c *ui.Context) {
 		if n > 1 {
 			title = fmt.Sprintf("Delete %d messages for good?", n)
 		}
+
 		if ui.AlertDialog(c, &a.askExpunge, title, "They're deleted from the server too, and can't be brought back.", "Cancel", "Delete") == 1 {
 			a.expunge(a.expunging)
 		}
 	}
+
 	if !a.movePick {
 		a.moveFilter = ""
 		return
 	}
+
 	ms := a.targets()
 	var fs []store.Folder
 	for _, f := range a.moveChoices(ms) {
@@ -660,6 +745,7 @@ func (a *app) moveDialogs(c *ui.Context) {
 			fs = append(fs, f)
 		}
 	}
+
 	pick := func(f store.Folder) {
 		a.movePick = false
 		name, _ := leaf(f)
@@ -668,9 +754,11 @@ func (a *app) moveDialogs(c *ui.Context) {
 	ui.Modal(c, &a.movePick, func() {
 		ui.Column(c).Gap(10).Width(min(340, a.width-80)).Children(func() {
 			ui.Text(c, "Move to").FontSize(18).Bold().LetterSpacing(-0.3)
+
 			if ui.TextInput(c, &a.moveFilter).Placeholder("Folder").Label("Folder").AutoFocus().Submitted() && len(fs) > 0 {
 				pick(fs[0])
 			}
+
 			ui.Scroll(c).MaxHeight(320).Children(func() {
 				ui.Column(c).Gap(2).Children(func() {
 					for _, f := range fs {
@@ -691,6 +779,7 @@ func (a *app) searchScope() int64 {
 	if a.searchAll == 1 {
 		return store.AllMail
 	}
+
 	id, _ := a.mailbox()
 	return id
 }
@@ -704,9 +793,11 @@ func (a *app) searchChanged() {
 	a.chosen.Clear()
 	a.cur = nil
 	a.reloadMail()
+
 	if courrier.ParseQuery(a.query).Empty() || len(a.searchTargets()) == 0 {
 		return
 	}
+
 	gen := a.searchGen
 	time.AfterFunc(searchDelay, func() {
 		a.update(func() {
@@ -734,12 +825,14 @@ func (a *app) searchTargets() []searchTarget {
 		if sy == nil || sy.s == nil || sy.pop3 || f.Local || f.NoSelect {
 			continue
 		}
+
 		switch {
 		case id == store.AllMail && (f.Special == "inbox" || f.Special == "sent" || f.Special == "archive"),
 			id < 0 && id != store.AllMail && f.Special == "inbox", f.ID == id:
 			out = append(out, searchTarget{sy.s, f.Path})
 		}
 	}
+
 	return out
 }
 
@@ -748,16 +841,19 @@ func (a *app) serverSearch(gen int) {
 	if len(crit.Text)+len(crit.Header)+len(crit.Flag)+len(crit.NotFlag) == 0 { // has:attachment alone
 		return
 	}
+
 	var ts []searchTarget
 	for _, t := range a.searchTargets() {
 		if a.syncers[t.s.Account].status.Err == nil {
 			ts = append(ts, t)
 		}
 	}
+
 	if len(ts) == 0 {
 		a.searchNote = "Offline: showing mail cached here only."
 		return
 	}
+
 	a.searchNote = "Searching the server…"
 	left, found, failed := len(ts), 0, false
 	for _, t := range ts {
@@ -766,6 +862,7 @@ func (a *app) serverSearch(gen int) {
 				if gen != a.searchGen {
 					return
 				}
+
 				left, found, failed = left-1, found+n, failed || err != nil
 				switch {
 				case left > 0:
@@ -776,6 +873,7 @@ func (a *app) serverSearch(gen int) {
 				default:
 					a.searchNote = "Nothing more on the server."
 				}
+
 				a.reloadMail()
 			})
 		})
@@ -795,10 +893,12 @@ func (a *app) unsaveSearch(i int) {
 	switch _, ok := a.savedSearch(); {
 	case ok && j == i:
 		a.sel = "u:inbox"
+
 	case ok && j > i: // the same search, one up
 		a.sel = fmt.Sprint("s:", j-1)
 		a.shown = a.sel
 	}
+
 	a.searches = slices.Delete(a.searches, i, i+1)
 	a.saveSearches()
 }
@@ -823,12 +923,15 @@ func hits(s string) []ui.Span {
 		if !ok {
 			hit, rest = "", part
 		}
+
 		if hit != "" {
 			out = append(out, ui.Span{Text: hit, Weight: 700})
 		}
+
 		if rest != "" {
 			out = append(out, ui.Span{Text: rest})
 		}
 	}
+
 	return out
 }

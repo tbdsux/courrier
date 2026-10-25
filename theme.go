@@ -42,6 +42,7 @@ var appLogo = func() *ui.Bitmap {
 	if err != nil {
 		panic(err)
 	}
+
 	return b
 }()
 
@@ -54,6 +55,7 @@ func signInButton(c *ui.Context, auth, name string) ui.Element {
 			ui.Column(c).Size(22, 22).Radius(4).Background(ui.Hex("#ffffff")).Center().Children(func() {
 				ui.Image(c, logos[auth]).Size(18, 18)
 			})
+
 			ui.Text(c, label).FontWeight(500)
 		})
 	})
@@ -146,6 +148,7 @@ func styled(system *ui.Theme, appearance string, fontSize float32) (*ui.Theme, p
 	default:
 		base = ui.LightTheme()
 	}
+
 	t := *base
 	t.Font, t.FontSize, t.Radius, t.Spacing = fontFamily, fontSize, 8, 4
 	t.Background, t.Surface, t.SurfaceHover, t.SurfacePressed = ui.Hex(l.bg), ui.Hex(l.surface), ui.Hex(l.hover), ui.Hex(l.pressed)
@@ -153,6 +156,7 @@ func styled(system *ui.Theme, appearance string, fontSize float32) (*ui.Theme, p
 	t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = ui.Hex(l.accent), ui.Hex(l.accentHover), ui.Hex(l.accentPressed), ui.Hex(l.accentText)
 	t.Success, t.Danger = ui.Hex(l.success), ui.Hex(l.danger)
 	t.Selection, t.Focus = t.Accent.Alpha(0.28), t.Accent.Alpha(0.55)
+
 	return &t, palette{sidebar: ui.Hex(l.sidebar), card: ui.Hex(l.card), accentSoft: t.Accent.Alpha(0.14)}
 }
 
@@ -166,6 +170,7 @@ func header(c *ui.Context, kicker, title, sub string) {
 	ui.Column(c).Gap(6).Padding(0, 0, 8, 0).Children(func() {
 		eyebrow(c, kicker)
 		ui.Text(c, title).FontSize(24).Bold().LetterSpacing(-0.5)
+
 		if sub != "" {
 			ui.Text(c, sub).TextColor(c.Theme().TextMuted).Wrap()
 		}
@@ -190,6 +195,7 @@ func iconButton(c *ui.Context, icon *ui.SVG, label, tip string) ui.Element {
 	if b.Hovered() {
 		b.Background(t.SurfaceHover)
 	}
+
 	return b.Children(func() { ui.Icon(c, icon).FontSize(16).TextColor(t.TextMuted) })
 }
 
@@ -215,6 +221,7 @@ func (a *app) page(c *ui.Context, gap float32, fn func()) {
 	if a.contentWidth() < narrowContent {
 		pad = 18
 	}
+
 	ui.Scroll(c).Fill().Children(func() {
 		ui.Column(c).FillWidth().AlignItems(ui.Center).Children(func() {
 			ui.Column(c).Gap(gap).Padding(pad, pad, 40, pad).FillWidth().MaxWidth(pageMaxWidth).Children(fn)
@@ -229,6 +236,7 @@ func (a *app) formIn(c *ui.Context, width float32, fn func()) {
 		ui.Column(c).Gap(16).Children(fn)
 		return
 	}
+
 	ui.Form(c, fn).Gap(16)
 }
 
@@ -239,6 +247,7 @@ func titleBar(c *ui.Context, title string, bg ui.Color) {
 	if bar.Height == 0 {
 		return
 	}
+
 	ui.Row(c).Height(max(bar.Height, 32)).Padding(0, bar.Right+12, 0, bar.Left+12).AlignItems(ui.Center).Justify(ui.Center).
 		Background(bg).DragWindow().Children(func() {
 		ui.Text(c, title).FontSize(12).Bold().TextColor(c.Theme().TextMuted).SingleLine()

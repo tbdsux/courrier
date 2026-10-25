@@ -34,15 +34,19 @@ func (a *app) exportFolder(f store.Folder, path string, done func(n int, err err
 		done(0, err)
 		return
 	}
+
 	n := 0
 	each := func(raw []byte) error { n++; return courrier.WriteMbox(file, raw) }
+
 	finish := func(err error) {
 		if cerr := file.Close(); err == nil {
 			err = cerr
 		}
+
 		if err != nil {
 			os.Remove(path)
 		}
+
 		a.update(func() { done(n, err) })
 	}
 	if a.keepsAll(f) {
@@ -50,11 +54,13 @@ func (a *app) exportFolder(f store.Folder, path string, done func(n int, err err
 		go func() { finish(st.EachRaw(f.ID, each)) }()
 		return
 	}
+
 	s := a.syncer(f.AccountID)
 	if s == nil {
 		finish(errors.New("not connected to the server"))
 		return
 	}
+
 	s.Export(f.Path, each, finish)
 }
 
@@ -67,6 +73,7 @@ func (a *app) askExport(f store.Folder, name string) {
 	if a.saveFile == nil {
 		return
 	}
+
 	saveFile := a.saveFile
 	go func() {
 		path, err := saveFile("Export as mbox", fileName(name)+".mbox")
@@ -74,6 +81,7 @@ func (a *app) askExport(f store.Folder, name string) {
 			switch {
 			case err != nil:
 				a.toast = "Couldn't export: " + err.Error()
+
 			case path != "":
 				a.toast = "Exporting…"
 				a.exportFolder(f, path, func(n int, err error) {
@@ -92,6 +100,7 @@ func (a *app) askExportAccount(account int64) {
 	if a.pickDir == nil {
 		return
 	}
+
 	pickDir := a.pickDir
 	go func() {
 		dir, err := pickDir("Export every folder to")
@@ -99,6 +108,7 @@ func (a *app) askExportAccount(account int64) {
 			switch {
 			case err != nil:
 				a.toast = "Couldn't export: " + err.Error()
+
 			case dir != "":
 				var fs []store.Folder
 				for _, f := range a.folders {
@@ -106,6 +116,7 @@ func (a *app) askExportAccount(account int64) {
 						fs = append(fs, f)
 					}
 				}
+
 				a.toast = "Exporting…"
 				a.exportAll(fs, dir, 0)
 			}
@@ -118,12 +129,14 @@ func (a *app) exportAll(fs []store.Folder, dir string, total int) {
 		a.toast = exported(total, dir)
 		return
 	}
+
 	f := fs[0]
 	a.exportFolder(f, filepath.Join(dir, fileName(f.Path)+".mbox"), func(n int, err error) {
 		if err != nil {
 			a.toast = "Couldn't export " + f.Path + ": " + err.Error()
 			return
 		}
+
 		a.exportAll(fs[1:], dir, total+n)
 	})
 }
@@ -134,6 +147,7 @@ func (a *app) askImport(f store.Folder) {
 	if a.openFile == nil {
 		return
 	}
+
 	openFile, st, local := a.openFile, a.st, a.keepsAll(f)
 	go func() {
 		path, err := openFile("Import mbox")
@@ -143,12 +157,15 @@ func (a *app) askImport(f store.Folder) {
 			}
 			return
 		}
+
 		n, err := importMbox(st, f, path, local)
 		a.update(func() {
 			if s := a.syncer(f.AccountID); s != nil && !local {
 				s.Refresh(f.Path) // which stores what is queued first
 			}
+
 			a.reloadMail()
+
 			switch {
 			case err != nil:
 				a.toast = fmt.Sprintf("Couldn't import all of it, %d messages in: %v", n, err)
@@ -166,6 +183,7 @@ func importMbox(st *store.Store, f store.Folder, path string, local bool) (int, 
 	if err != nil {
 		return 0, err
 	}
+
 	defer file.Close()
 	n := 0
 	err = courrier.ReadMbox(file, func(raw []byte) error {
@@ -173,10 +191,13 @@ func importMbox(st *store.Store, f store.Folder, path string, local bool) (int, 
 		if local {
 			add = st.Import
 		}
+
 		if err := add(f.AccountID, f.Path, raw); err != nil {
 			return err
 		}
+
 		n++
+
 		return nil
 	})
 	return n, err

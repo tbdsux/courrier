@@ -31,6 +31,7 @@ func (s *Syncer) runActions(ic *imapConn) error {
 	if err != nil {
 		return err
 	}
+
 	for _, a := range acts {
 		dest, err := s.act(ic, a)
 		var refused *imap.Error
@@ -39,21 +40,26 @@ func (s *Syncer) runActions(ic *imapConn) error {
 			if err := s.Cache.ActionDone(a.ID, dest); err != nil {
 				return err
 			}
+
 		case errors.As(err, &refused):
 			dropped, err2 := s.Cache.ActionFailed(a.ID, err.Error())
 			if err2 != nil {
 				return err2
 			}
+
 			if dropped {
 				if a.Op == "move" || a.Op == "expunge" {
 					s.refetch(ic, a.Path, a.UIDs)
 				}
+
 				s.report(Status{Dropped: "The server refused a change: " + refused.Text})
 			}
+
 		default: // the connection
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -63,23 +69,28 @@ func (s *Syncer) act(ic *imapConn, a Action) ([]uint32, error) {
 		return nil, ic.setFlag(a.Path, a.UIDs, imap.FlagSeen, a.Op == "seen")
 	case "flag", "unflag":
 		return nil, ic.setFlag(a.Path, a.UIDs, imap.FlagFlagged, a.Op == "flag")
+
 	case "move":
 		if _, ok := s.known[a.Dest]; !ok { // an Archive or Trash the account lacks
 			if err := ic.c.Create(a.Dest, nil).Wait(); err != nil {
 				return nil, err
 			}
+
 			if err := s.listFolders(ic); err != nil {
 				return nil, err
 			}
 		}
 		return ic.move(a.Path, a.UIDs, a.Dest)
+
 	case "expunge":
 		return nil, ic.expunge(a.Path, a.UIDs...)
+
 	case "append": // an import
 		raw, err := s.Cache.ActionRaw(a.ID)
 		if err != nil {
 			return nil, err
 		}
+
 		h, _, _ := Parse(raw)
 		_, err = ic.append(a.Path, raw, h.Date, imap.FlagSeen)
 		return nil, err
@@ -92,6 +103,7 @@ func (s *Syncer) refetch(ic *imapConn, path string, uids []uint32) {
 	if _, err := ic.selectFolder(path); err != nil {
 		return
 	}
+
 	if hs, err := ic.fetchHeaders(uidSet(uids), 0); err == nil {
 		s.Cache.AddHeaders(s.Account, path, hs)
 	}
@@ -102,6 +114,7 @@ func uidSet(uids []uint32) imap.UIDSet {
 	for _, u := range uids {
 		set.AddNum(imap.UID(u))
 	}
+
 	return set
 }
 
@@ -117,18 +130,22 @@ func (s *Syncer) Export(path string, each func(raw []byte) error, done func(erro
 		if _, err := ic.selectFolder(path); err != nil {
 			return err
 		}
+
 		res, err := ic.c.UIDSearch(&imap.SearchCriteria{}, nil).Wait()
 		if err != nil {
 			return err
 		}
+
 		uids = res.AllUIDs()
 		slices.Sort(uids)
+
 		return nil
 	}, done: func(err error) {
 		if err != nil {
 			done(err)
 			return
 		}
+
 		s.exportFrom(path, uids, each, done)
 	}})
 }
@@ -138,17 +155,21 @@ func (s *Syncer) exportFrom(path string, uids []imap.UID, each func([]byte) erro
 		done(nil)
 		return
 	}
+
 	batch := uids[:min(len(uids), exportBatch)]
 	s.send(request{do: func(ic *imapConn) error {
 		if _, err := ic.selectFolder(path); err != nil {
 			return err
 		}
+
 		msgs, err := ic.c.Fetch(imap.UIDSetNum(batch...), &imap.FetchOptions{UID: true,
 			BodySection: []*imap.FetchItemBodySection{{Peek: true}}}).Collect()
 		if err != nil {
 			return err
 		}
+
 		slices.SortFunc(msgs, func(a, b *imapclient.FetchMessageBuffer) int { return int(a.UID) - int(b.UID) })
+
 		for _, m := range msgs {
 			if len(m.BodySection) > 0 {
 				if err := each(m.BodySection[0].Bytes); err != nil {
@@ -156,12 +177,14 @@ func (s *Syncer) exportFrom(path string, uids []imap.UID, each func([]byte) erro
 				}
 			}
 		}
+
 		return nil
 	}, done: func(err error) {
 		if err != nil {
 			done(err)
 			return
 		}
+
 		s.exportFrom(path, uids[len(batch):], each, done)
 	}})
 }
@@ -177,23 +200,29 @@ func (s *Syncer) Search(path string, crit *imap.SearchCriteria, done func(int, e
 		if _, err := ic.selectFolder(path); err != nil {
 			return err
 		}
+
 		res, err := ic.c.UIDSearch(crit, nil).Wait()
 		if err != nil {
 			return err
 		}
+
 		cached, err := s.Cache.CachedUIDs(s.Account, path)
 		if err != nil {
 			return err
 		}
+
 		uids := uncached(res.AllUIDs(), cached, maxSearchFetch)
 		if len(uids) == 0 {
 			return nil
 		}
+
 		hs, err := ic.fetchHeaders(uidSet(uids), 0)
 		if err != nil {
 			return err
 		}
+
 		n = len(hs)
+
 		return s.Cache.AddHeaders(s.Account, path, hs)
 	}, done: func(err error) { done(n, err) }})
 }
@@ -206,9 +235,12 @@ func uncached(uids []imap.UID, cached map[uint32]bool, max int) []uint32 {
 			out = append(out, uint32(u))
 		}
 	}
+
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+
 	if len(out) > max {
 		out = out[len(out)-max:]
 	}
+
 	return out
 }

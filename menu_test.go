@@ -10,9 +10,11 @@ func TestAccel(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		want = "Super+N"
 	}
+
 	if got := accel("⌘N"); got != want {
 		t.Errorf("accel(⌘N) = %q, want %q", got, want)
 	}
+
 	if got := accel("J"); got != "" {
 		t.Errorf("a key without modifier got %q", got)
 	}

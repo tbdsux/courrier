@@ -24,10 +24,12 @@ func wrap(r []rune, sel selection, marker, placeholder string) (string, selectio
 	if s >= len(m) && e+len(m) <= len(r) && string(r[s-len(m):s]) == marker && string(r[e:e+len(m)]) == marker {
 		return string(r[:s-len(m)]) + string(r[s:e]) + string(r[e+len(m):]), selection{s - len(m), e - len(m)}
 	}
+
 	inner := r[s:e]
 	if s == e {
 		inner = []rune(placeholder)
 	}
+
 	return string(r[:s]) + marker + string(inner) + marker + string(r[e:]), selection{s + len(m), s + len(m) + len(inner)}
 }
 
@@ -40,23 +42,29 @@ func prefixLines(r []rune, sel selection, prefix string) (string, selection) {
 	for ls > 0 && r[ls-1] != '\n' {
 		ls--
 	}
+
 	if le > ls && le > sel.start && r[le-1] == '\n' {
 		le-- // a selection to the start of the next line leaves that line
 	}
+
 	for le < len(r) && r[le] != '\n' {
 		le++
 	}
+
 	lines := strings.Split(string(r[ls:le]), "\n")
+
 	has := func(l string) bool {
 		if prefix == "1. " {
 			return orderedPrefix.MatchString(l)
 		}
 		return strings.HasPrefix(l, prefix)
 	}
+
 	all := true
 	for _, l := range lines {
 		all = all && has(l)
 	}
+
 	for i, l := range lines {
 		switch {
 		case all && prefix == "1. ":
@@ -69,6 +77,7 @@ func prefixLines(r []rune, sel selection, prefix string) (string, selection) {
 			lines[i] = prefix + l
 		}
 	}
+
 	block := strings.Join(lines, "\n")
 	return string(r[:ls]) + block + string(r[le:]), selection{ls, ls + len([]rune(block))}
 }
@@ -81,11 +90,13 @@ func format(text string, sel selection, action string) (string, selection) {
 	if sel.start > sel.end {
 		sel.start, sel.end = sel.end, sel.start
 	}
+
 	switch action {
 	case "bold":
 		return wrap(r, sel, "**", "bold text")
 	case "italic":
 		return wrap(r, sel, "*", "italic text")
+
 	case "code":
 		if inner := string(r[sel.start:sel.end]); strings.Contains(inner, "\n") { // a fenced block
 			before := string(r[:sel.start]) + "```\n"
@@ -93,14 +104,17 @@ func format(text string, sel selection, action string) (string, selection) {
 			return before + inner + "\n```" + string(r[sel.end:]), selection{at, at + sel.end - sel.start}
 		}
 		return wrap(r, sel, "`", "code")
+
 	case "link":
 		label := string(r[sel.start:sel.end])
 		if label == "" {
 			label = "link"
 		}
+
 		before := string(r[:sel.start]) + "[" + label + "]("
 		at := len([]rune(before))
 		return before + "https://)" + string(r[sel.end:]), selection{at, at + len("https://")}
+
 	case "bullet":
 		return prefixLines(r, sel, "- ")
 	case "ordered":
@@ -108,6 +122,7 @@ func format(text string, sel selection, action string) (string, selection) {
 	case "quote":
 		return prefixLines(r, sel, "> ")
 	}
+
 	return text, sel
 }
 
@@ -140,17 +155,21 @@ func (cm *compose) editor(c *ui.Context) {
 				cm.formatBody(tl.action)
 			}
 		}
+
 		ui.Spacer(c)
 		was := cm.preview
 		ui.Toggle(c, &cm.preview, "Preview")
+
 		if cm.preview != was { // the next message opens the same way
 			v := ""
 			if cm.preview {
 				v = "1"
 			}
+
 			cm.a.st.SetPref("ui.preview", v)
 		}
 	}).Label("Formatting").Padding(6, 14, 0, 14)
+
 	ui.Row(c).Grow(1).Gap(10).Margin(6, 14, 10, 14).AlignItems(ui.Stretch).Children(func() {
 		area := ui.TextArea(c, &cm.d.Text).Label("Message").Grow(1).Basis(0)
 		for _, tl := range tools {
@@ -159,12 +178,14 @@ func (cm *compose) editor(c *ui.Context) {
 				area.OnShortcut(ui.Cmd, tl.key, func() { cm.formatBody(action) })
 			}
 		}
+
 		if cm.selPending {
 			cm.selPending = false
 			area.Focus().SetTextSelection(cm.sel.start, cm.sel.end)
 		} else {
 			cm.sel.start, cm.sel.end = area.TextSelection()
 		}
+
 		if cm.preview {
 			ui.Scroll(c).Grow(1).Basis(0).Radius(8).Border(1, c.Theme().Border).Children(func() {
 				ui.Column(c).Gap(10).Padding(10, 12).Label("Preview").Children(func() {
@@ -182,13 +203,16 @@ func richSpans(t *ui.Theme, spans []courrier.MDSpan) []ui.Span {
 		if s.Bold {
 			out[i].Weight = 700
 		}
+
 		if s.Code {
 			out[i].Background, out[i].Radius = t.Surface, 3
 		}
+
 		if s.Link != "" {
 			out[i].Color, out[i].Underline = t.Accent, true
 		}
 	}
+
 	return out
 }
 
@@ -201,8 +225,10 @@ func markdownView(c *ui.Context, blocks []courrier.MDBlock) {
 		case "h1", "h2", "h3":
 			size := map[string]float32{"h1": 1.6, "h2": 1.35, "h3": 1.15}[b.Kind] * t.FontSize
 			ui.RichText(k, richSpans(t, b.Items[0])...).FontSize(size).Bold().Wrap()
+
 		case "p":
 			ui.RichText(k, richSpans(t, b.Items[0])...).Wrap()
+
 		case "ul", "ol":
 			ui.Column(k).Gap(4).Children(func() {
 				for j, it := range b.Items {
@@ -210,17 +236,20 @@ func markdownView(c *ui.Context, blocks []courrier.MDBlock) {
 					if b.Kind == "ol" {
 						mark = fmt.Sprintf("%d.", b.Start+j)
 					}
+
 					ui.Row(c.Key(j)).Gap(6).Children(func() {
 						ui.Text(c, mark).TextColor(t.TextMuted).Shrink(0)
 						ui.RichText(c, richSpans(t, it)...).Wrap().Grow(1)
 					})
 				}
 			})
+
 		case "quote":
 			ui.Row(k).Gap(10).AlignItems(ui.Stretch).Children(func() {
 				ui.Box(c).Width(2).Radius(1).Background(t.Border).Shrink(0)
 				ui.Column(c).Gap(8).Grow(1).TextColor(t.TextMuted).Children(func() { markdownView(c, b.Children) })
 			})
+
 		case "code":
 			ui.Text(k, b.Code).Wrap().Padding(8, 10).Radius(6).Background(t.Surface)
 		case "hr":

@@ -13,6 +13,9 @@ built on [MyGo](https://mygo.egoist.dev)'s native UI (no web frontend).
 - [.agents/skills/mygo-maintenance/SKILL.md](.agents/skills/mygo-maintenance/SKILL.md):
   MyGo rules (UI lifetime, identity, threading, testing). Read it before
   touching UI code.
+- [.agents/skills/golang-patterns/SKILL.md](.agents/skills/golang-patterns/SKILL.md):
+  idiomatic Go (errors, concurrency, interfaces). Its project layout
+  section doesn't apply: keep this repo's packages as they are.
 
 ## Layout
 
@@ -48,6 +51,14 @@ by MyGo plugins (for example the updater window) can't be changed from here.
 
 - Match the surrounding code: short doc comments in plain sentences that
   say what a thing is or why, not how.
+- Separate the steps of a function with blank lines: before and after
+  `if`, `for`, `switch` and `select` blocks and any statement of three
+  lines or more, and before a function's final `return` when its body
+  has three statements or more. Keep an assignment next to the statement
+  that uses it (`x, err := f()` then `if err != nil`), and a short
+  block's `return` or `break` next to what it follows.
+- `len` of a nil slice or map is 0: test `len(x) == 0`, not
+  `x == nil || len(x) == 0`.
 - Keep slow I/O off the UI thread; publish results with `a.update(...)`.
 - Add or update a test next to the code you change (`*_test.go` in the
   same package).

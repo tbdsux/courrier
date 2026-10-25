@@ -23,8 +23,10 @@ func threadsOf(t *testing.T, s *Store, acc int64, path string) map[uint32]int64 
 		if m.Thread == 0 {
 			t.Fatalf("uid %d in no conversation", m.UID)
 		}
+
 		out[m.UID] = m.Thread
 	}
+
 	return out
 }
 
@@ -32,6 +34,7 @@ func TestThreading(t *testing.T) {
 	s, _ := open(t)
 	acc := account(t, s)
 	must(t, s.SetFolders(acc, []mail.Folder{{Path: "INBOX", Special: "inbox", UIDValidity: 1}, {Path: "Sent", Special: "sent", UIDValidity: 1}}))
+
 	must(t, s.AddHeaders(acc, "INBOX", []mail.Header{
 		msg(1, "a@x", "Launch plan"),
 		msg(2, "b@x", "Re: Launch plan", "a@x"),
@@ -42,20 +45,25 @@ func TestThreading(t *testing.T) {
 		msg(8, "h@x", "Fwd: Other"),              // no references: by its subject
 		msg(9, "i@x", "Budget", "j@x"),           // a missing parent, merged below
 	}))
+
 	must(t, s.AddHeaders(acc, "Sent", []mail.Header{msg(3, "c@x", "Re: Launch plan", "a@x", "b@x")}))
 	in, sent := threadsOf(t, s, acc, "INBOX"), threadsOf(t, s, acc, "Sent")
 	if in[1] != in[2] || in[1] != in[4] || sent[3] != in[1] {
 		t.Errorf("replies, mine and one before its parent: %v %v", in, sent)
 	}
+
 	if in[5] == in[1] || in[8] != in[5] {
 		t.Errorf("forward by subject: %v", in)
 	}
+
 	if in[6] == in[7] {
 		t.Errorf("unrelated Re: hello merged: %v", in)
 	}
+
 	if in[9] == in[5] {
 		t.Errorf("%v", in)
 	}
+
 	// Two subjects merged by a message naming both.
 	must(t, s.AddHeaders(acc, "INBOX", []mail.Header{msg(10, "k@x", "Re: Budget", "j@x", "e@x")}))
 	in = threadsOf(t, s, acc, "INBOX")
@@ -67,20 +75,25 @@ func TestThreading(t *testing.T) {
 	inbox := folderNamed(t, s, "INBOX")
 	cs, err := s.Conversations(inbox.ID, 50)
 	must(t, err)
+
 	if len(cs) != 4 { // launch, budget+other, two hello
 		t.Fatalf("rows %+v", cs)
 	}
+
 	var launch Message
 	for _, c := range cs {
 		if c.Thread == in[1] {
 			launch = c
 		}
 	}
+
 	if launch.UID != 4 || len(launch.IDs) != 3 || launch.Count != 4 || launch.People != "me" || !launch.Seen {
 		t.Errorf("launch row %+v", launch)
 	}
+
 	conv, err := s.Conversation(launch)
 	must(t, err)
+
 	if len(conv) != 4 || conv[0].UID != 1 || conv[2].Special != "sent" {
 		t.Errorf("conversation %+v", conv)
 	}
@@ -93,6 +106,7 @@ func TestThreading(t *testing.T) {
 			t.Errorf("unread message, read row %+v", c)
 		}
 	}
+
 	// Moving the conversation moves every message; synced back, it is one again.
 	_, err = s.Move(launch.IDs, 0, "archive")
 	must(t, err)
@@ -100,9 +114,11 @@ func TestThreading(t *testing.T) {
 	if len(cs) != 3 {
 		t.Errorf("after the move %+v", cs)
 	}
+
 	must(t, s.SetFolders(acc, []mail.Folder{{Path: "INBOX", Special: "inbox", UIDValidity: 1}, {Path: "Sent", Special: "sent", UIDValidity: 1},
 		{Path: "Archive", Special: "archive", UIDValidity: 1}}))
 	must(t, s.AddHeaders(acc, "Archive", []mail.Header{msg(1, "a@x", "Launch plan"), msg(2, "b@x", "Re: Launch plan", "a@x")}))
+
 	if ar := threadsOf(t, s, acc, "Archive"); ar[1] != in[1] || ar[2] != in[1] {
 		t.Errorf("synced again in another conversation: %v, was %d", ar, in[1])
 	}
@@ -124,6 +140,7 @@ func TestThreadBackfill(t *testing.T) {
 	s, err = Open(path, fakeSecrets{})
 	must(t, err)
 	defer s.Close()
+
 	if in := threadsOf(t, s, acc, "INBOX"); in[1] != in[2] {
 		t.Errorf("back-filled by subject: %v", in)
 	}

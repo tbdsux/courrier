@@ -22,6 +22,7 @@ func TestOutboxSurvivesReopen(t *testing.T) {
 	defer s.Close()
 	os, err := s.Outbox(acc)
 	must(t, err)
+
 	if len(os) != 1 || os[0].ID != id || string(os[0].Raw) != "raw" || len(os[0].Rcpts) != 2 {
 		t.Fatalf("after reopen: %+v", os)
 	}
@@ -30,27 +31,35 @@ func TestOutboxSurvivesReopen(t *testing.T) {
 	if _, ok, _ := s.TakeOutgoing(id); !ok {
 		t.Fatal("undo refused")
 	}
+
 	id, _ = s.Enqueue(acc, 0, mail.Outgoing{Raw: []byte("raw"), Rcpts: []string{"a@x.com"}, SendAfter: time.Now()}, "")
 	if ok, _ := s.Claim(id, time.Now().Add(time.Minute)); !ok {
 		t.Fatal("claim refused")
 	}
+
 	if ok, _ := s.Claim(id, time.Now().Add(time.Minute)); ok {
 		t.Error("claimed twice")
 	}
+
 	if _, ok, _ := s.TakeOutgoing(id); ok {
 		t.Error("taken back while being sent")
 	}
+
 	// A failed send keeps the row with its error, free to retry or take back.
 	must(t, s.SendFailed(id, "the server refused the recipient a@x.com"))
 	os, _ = s.Outbox(acc)
 	if len(os) != 1 || os[0].LastError == "" || os[0].Attempts != 1 || os[0].Sent {
 		t.Fatalf("failed: %+v", os)
 	}
+
 	must(t, s.SentOK(id))
+
 	if _, ok, _ := s.TakeOutgoing(id); ok {
 		t.Error("taken back once sent")
 	}
+
 	must(t, s.CopyStored(id))
+
 	if os, _ := s.Outbox(acc); len(os) != 0 {
 		t.Errorf("left %+v", os)
 	}
@@ -66,6 +75,7 @@ func TestContactsRanking(t *testing.T) {
 		{UID: 2, FromName: "New", FromAddr: "new@x.com", Date: day.Add(time.Hour)},
 		{UID: 3, FromAddr: "NEW@x.com", Date: day},
 	}))
+
 	must(t, s.AddHeaders(acc, "Sent", []mail.Header{{UID: 1, FromAddr: "me@x.com", Date: day}}))
 	_, err := s.Enqueue(acc, 0, mail.Outgoing{Raw: []byte("r"), Rcpts: []string{"pal@x.com"}, SendAfter: day}, "Pal <pal@x.com>")
 	must(t, err)
@@ -75,6 +85,7 @@ func TestContactsRanking(t *testing.T) {
 	if len(got) != len(want) {
 		t.Fatalf("contacts %v", got)
 	}
+
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("contacts %v, want %v", got, want)
@@ -88,12 +99,15 @@ func TestRemoveAccountClearsDrafts(t *testing.T) {
 	for _, a := range []int64{a1, a2} {
 		d := Draft{AccountID: a, Open: true, Draft: mail.Draft{From: "Help <help@x.com>", To: "b@x.com", Subject: "hi"}, Attached: []DraftFile{{File: mail.File{Name: "f.txt", MIMEType: "text/plain", Data: []byte("x")}}}}
 		must(t, s.SaveDraft(&d))
+
 		if d.Attached[0].ID == 0 {
 			t.Fatal("file not saved")
 		}
+
 		_, err := s.Enqueue(a, 0, mail.Outgoing{Raw: []byte("r"), Rcpts: []string{"b@x.com"}, SendAfter: time.Now()}, "")
 		must(t, err)
 	}
+
 	must(t, s.DeleteAccount(a1))
 	ds, _ := s.OpenDrafts()
 	all, _ := s.AllOutbox()

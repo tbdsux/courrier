@@ -40,6 +40,7 @@ func TestEditorToolbar(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer st.Close()
 	acc := store.Account{DisplayName: "Jane", Email: "jane@example.com", InUsername: "j", SMTPUsername: "j"}
 	srv := store.Server{Name: "x", Protocol: "imap", InHost: "h", InPort: 993, InSecurity: "tls", SMTPHost: "h", SMTPPort: 465, SMTPSecurity: "tls", Hidden: true}
@@ -54,18 +55,24 @@ func TestEditorToolbar(t *testing.T) {
 	cm.sel, cm.selPending = selection{5, 11}, true // as if "monday" were selected
 	ct.Frame()
 	ct.Frame()
+
 	if err := ct.Click("Bold"); err != nil {
 		t.Fatal(err)
 	}
+
 	ct.Frame()
+
 	if cm.d.Text != "ship **monday**" {
 		t.Fatalf("text %q", cm.d.Text)
 	}
+
 	if !ct.HasText("monday") || ct.HasText("**monday**") && !ct.HasText("ship **monday**") {
 		t.Errorf("preview: %v", ct.Texts())
 	}
+
 	ct.Key(ui.Cmd, ui.KeyB) // the shortcut takes it off again, in the focused text area
 	ct.Frame()
+
 	if cm.d.Text != "ship monday" {
 		t.Errorf("after ⌘B: %q", cm.d.Text)
 	}
@@ -76,6 +83,7 @@ func TestPreviewRemembered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer st.Close()
 	acc := store.Account{DisplayName: "Jane", Email: "jane@example.com", InUsername: "j", SMTPUsername: "j"}
 	srv := store.Server{Name: "x", Protocol: "imap", InHost: "h", InPort: 993, InSecurity: "tls", SMTPHost: "h", SMTPPort: 465, SMTPSecurity: "tls", Hidden: true}
@@ -86,17 +94,23 @@ func TestPreviewRemembered(t *testing.T) {
 	a.newMessage()
 	ct := ui.NewTester(cm.view, 900, 640)
 	ct.Frame()
+
 	if cm.preview {
 		t.Fatal("preview shown by default")
 	}
+
 	if err := ct.Click("Preview"); err != nil {
 		t.Fatal(err)
 	}
+
 	ct.Frame()
+
 	if !cm.preview {
 		t.Fatal("toggle didn't turn the preview on")
 	}
+
 	a.newMessage()
+
 	if !cm.preview {
 		t.Error("the next message didn't open with the preview")
 	}

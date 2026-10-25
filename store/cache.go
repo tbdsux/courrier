@@ -32,22 +32,27 @@ func (s *Store) Sweep(before, opened time.Time) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	freed := rows.Values[0][0].(int64)
 	if freed == 0 {
 		return 0, nil
 	}
+
 	if _, err := s.db.Transaction(ctx, []sqlite.Statement{
 		{SQL: "DELETE FROM attachments WHERE message_id IN (" + cond + ")", Args: args},
 		{SQL: "UPDATE messages SET body_text = NULL, body_html = NULL WHERE id IN (" + cond + ")", Args: args},
 	}); err != nil {
 		return 0, err
 	}
+
 	if freed >= compactAt {
 		if _, err := s.db.Execute(ctx, "INSERT INTO messages_fts (messages_fts) VALUES ('optimize')"); err != nil {
 			return freed, err
 		}
+
 		_, err = s.db.Execute(ctx, "VACUUM")
 	}
+
 	return freed, err
 }
 
@@ -58,6 +63,7 @@ func (s *Store) ClearCache() (int64, error) {
 	if err == nil && freed < compactAt {
 		_, err = s.db.Execute(ctx, "VACUUM")
 	}
+
 	return freed, err
 }
 
@@ -70,13 +76,16 @@ FROM messages m JOIN folders f ON f.id = m.folder_id GROUP BY f.account_id`)
 	if err != nil {
 		return nil, 0, err
 	}
+
 	out := map[int64]int64{}
 	for _, r := range rows.Values {
 		out[r[0].(int64)] = r[1].(int64)
 	}
+
 	size, err := s.db.Query(ctx, "SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()")
 	if err != nil {
 		return nil, 0, err
 	}
+
 	return out, size.Values[0][0].(int64), nil
 }

@@ -38,13 +38,16 @@ func stack(n int, open func(i int) bool, unfold bool) []card {
 		for i > 0 && !unfold && j < n && !open(j) {
 			j++
 		}
+
 		if j-i >= 3 {
 			out = append(out, card{i: i, more: j - 1 - i}, card{i: j - 1})
 			i = j - 1
 			continue
 		}
+
 		out = append(out, card{i: i})
 	}
+
 	return out
 }
 
@@ -62,6 +65,7 @@ func splitQuote(text string) (body, quote string) {
 		if l == "" {
 			continue
 		}
+
 		rest := true // only quoted or blank lines after i
 		for _, k := range lines[i+1:] {
 			if k = strings.TrimSpace(k); k != "" && !strings.HasPrefix(k, ">") {
@@ -69,14 +73,17 @@ func splitQuote(text string) (body, quote string) {
 				break
 			}
 		}
+
 		if wrote.MatchString(l) && (rest || strings.HasPrefix(l, "-")) || strings.HasPrefix(l, ">") && rest {
 			body = strings.TrimRight(strings.Join(lines[:i], "\n"), " \t\r\n")
 			if strings.TrimSpace(body) == "" {
 				return text, ""
 			}
+
 			return body, strings.Join(lines[i:], "\n")
 		}
 	}
+
 	return text, ""
 }
 
@@ -101,10 +108,12 @@ func names(list string) string {
 		if i := strings.Index(p, " <"); i > 0 {
 			p = strings.Trim(p[:i], `"`)
 		}
+
 		if p != "" {
 			out = append(out, p)
 		}
 	}
+
 	return strings.Join(out, ", ")
 }
 
@@ -113,9 +122,11 @@ func recipients(m store.Message) string {
 	if cc := names(m.Cc); cc != "" {
 		to = strings.TrimPrefix(to+", "+cc, ", ")
 	}
+
 	if to == "" {
 		return ""
 	}
+
 	return "to " + to
 }
 
@@ -127,6 +138,7 @@ func avatar(m store.Message) (initial, color string) {
 	r, _ := utf8.DecodeRuneInString(who)
 	h := fnv.New32a()
 	h.Write([]byte(strings.ToLower(m.FromAddr + who)))
+
 	return string(unicode.ToUpper(r)), avatarColors[h.Sum32()%uint32(len(avatarColors))]
 }
 
@@ -138,6 +150,7 @@ func (r *reader) isOpen(i int) bool {
 	if o, ok := r.open[m.ID]; ok {
 		return o
 	}
+
 	return i == len(r.thread)-1 || !r.wasSeen[m.ID] || m.ID == r.m.ID
 }
 
@@ -151,6 +164,7 @@ func (a *app) conversationCards(c *ui.Context, r *reader) {
 					a.foldCard(c, r, cd.more)
 					continue
 				}
+
 				a.messageCard(c, r, cd.i)
 			}
 		})
@@ -176,27 +190,34 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 		if i > 0 {
 			ui.Divider(c)
 		}
+
 		head := ui.Row(c).Gap(12).AlignItems(ui.Start).Padding(12, 8).Label(map[bool]string{true: "Close", false: "Open"}[open] + " message from " + author(m))
 		head.Children(func() {
 			initial, color := avatar(m)
 			ui.Column(c).Size(32, 32).Radius(16).Background(ui.Hex(color)).Center().Shrink(0).Children(func() {
 				ui.Text(c, initial).TextColor(ui.Hex("#ffffff")).Bold()
 			})
+
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 					who := ui.Text(c, author(m)).Bold().SingleLine().Shrink(1)
 					if !r.wasSeen[m.ID] {
 						who.TextColor(t.Accent)
 					}
+
 					if open && m.FromAddr != "" && author(m) != m.FromAddr {
 						ui.Text(c, "<"+m.FromAddr+">").FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(1)
 					}
+
 					ui.Spacer(c)
+
 					if m.HasAttach {
 						ui.Icon(c, paperclipIcon).FontSize(12).TextColor(t.TextMuted).Label("Attachment")
 					}
+
 					ui.Text(c, longDate(m.Date)).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(0)
 				})
+
 				if open {
 					ui.Text(c, recipients(m)).FontSize(12).TextColor(t.TextMuted).SingleLine()
 				} else {
@@ -204,36 +225,45 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 				}
 			})
 		})
+
 		head.OnClick(func() {
 			r.open[m.ID] = !open
+
 			if !open {
 				a.focusOn(r, m)
 			}
 		})
+
 		if !open {
 			return
 		}
+
 		ui.Column(c).Gap(10).Padding(0, 8, 14, 52).Children(func() {
 			switch {
 			case !has && r.pending > 0:
 				ui.Spinner(c).Label("Loading message").AlignSelf(ui.Start)
 			case !has:
 				ui.Text(c, "This message isn't downloaded yet. It will be once courrier is online.").TextColor(t.TextMuted).Wrap()
+
 			default:
 				text := body.Text
 				if strings.TrimSpace(text) == "" {
 					text = courrier.HTMLText(body.HTML)
 				}
+
 				main, quote := splitQuote(text)
 				ui.Text(c, main).Wrap().Selectable().FillWidth()
+
 				if quote != "" {
 					if ui.Button(c, "•••").Label("Show quoted text").Tooltip("Show quoted text").Padding(0, 8).AlignSelf(ui.Start).Clicked() {
 						r.quotes[m.ID] = !r.quotes[m.ID]
 					}
+
 					if r.quotes[m.ID] {
 						ui.Text(c, quote).Wrap().Selectable().TextColor(t.TextMuted).FillWidth()
 					}
 				}
+
 				a.cardAttachments(c, m, body)
 			}
 		})
@@ -246,10 +276,12 @@ func (a *app) cardAttachments(c *ui.Context, m store.Message, b courrier.Body) {
 		if at.ContentID != "" && strings.HasPrefix(at.MIMEType, "image/") {
 			continue // shows in the HTML
 		}
+
 		ui.Row(c.Key(at.Part)).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, paperclipIcon).FontSize(14).TextColor(t.TextMuted)
 			ui.Text(c, at.Filename).SingleLine().Shrink(1)
 			ui.Text(c, at.MIMEType+" · "+humanSize(at.Size)).FontSize(11).TextColor(t.TextMuted).SingleLine().Grow(1)
+
 			if ui.Button(c, "Save").Label("Save " + at.Filename).Clicked() {
 				a.saveAttachment(m, at)
 			}
@@ -262,8 +294,10 @@ func (a *app) focusOn(r *reader, m store.Message) {
 	if r.m.ID == m.ID {
 		return
 	}
+
 	r.m, r.body = m, r.bodies[m.ID]
 	r.fields, r.fieldsErr = nil, ""
+
 	if a.allHeaders {
 		a.loadFields(r)
 	}
@@ -278,15 +312,18 @@ func (a *app) pageLink(u *url.URL) {
 	if r == nil {
 		return
 	}
+
 	id, _ := strconv.ParseInt(strings.Trim(u.Path, "/"), 10, 64)
 	for _, m := range r.thread {
 		if m.ID != id {
 			continue
 		}
+
 		switch u.Host {
 		case "reply", "all", "forward":
 			a.focusOn(r, m)
 			a.respond(u.Host)
+
 		case "save":
 			for _, at := range r.bodies[m.ID].Attachments {
 				if at.Part == u.Query().Get("part") {
@@ -301,10 +338,12 @@ func (a *app) pageLink(u *url.URL) {
 func (r *reader) pageKey(theme string) string {
 	var sb strings.Builder
 	fmt.Fprint(&sb, theme, r.remote, r.view)
+
 	for _, m := range r.thread {
 		b := r.bodies[m.ID]
 		fmt.Fprint(&sb, " ", m.ID, len(b.Text), len(b.HTML), len(b.Attachments))
 	}
+
 	return sb.String()
 }
 
@@ -373,47 +412,61 @@ func scopedHTML(src, scope string) string {
 	if err != nil {
 		return textHTML(courrier.HTMLText(src))
 	}
+
 	var css, out strings.Builder
 	var body *xhtml.Node
 	var walk func(n *xhtml.Node)
 	walk = func(n *xhtml.Node) {
 		for k := n.FirstChild; k != nil; {
 			next := k.NextSibling
+
 			switch {
 			case k.Type == xhtml.ElementNode && k.Data == "style":
 				for t := k.FirstChild; t != nil; t = t.NextSibling {
 					css.WriteString(t.Data)
 				}
+
 				n.RemoveChild(k)
+
 			case k.Type == xhtml.ElementNode && (k.Data == "script" || k.Data == "meta" || k.Data == "link" || k.Data == "base" || k.Data == "title"):
 				n.RemoveChild(k)
+
 			default:
 				if k.Type == xhtml.ElementNode && k.Data == "body" {
 					body = k
 				}
+
 				walk(k)
 			}
+
 			k = next
 		}
 	}
 	walk(doc)
+
 	if css.Len() > 0 {
-		out.WriteString("<style>@scope (#" + scope + ") {" + strings.ReplaceAll(css.String(), "</", "<\\/") + "}</style>")
+		fmt.Fprintf(&out, "<style>@scope (#%s) {%s}</style>", scope, strings.ReplaceAll(css.String(), "</", "<\\/"))
 	}
+
 	if body == nil {
 		return out.String()
 	}
+
 	style := ""
 	for _, at := range body.Attr {
 		if at.Key == "style" {
 			style = at.Val
 		}
 	}
-	out.WriteString(`<div id="` + scope + `" class="html" style="` + html.EscapeString(style) + `">`)
+
+	fmt.Fprintf(&out, `<div id="%s" class="html" style="%s">`, scope, html.EscapeString(style))
+
 	for k := body.FirstChild; k != nil; k = k.NextSibling {
 		xhtml.Render(&out, k)
 	}
+
 	out.WriteString("</div>")
+
 	return out.String()
 }
 
@@ -421,23 +474,30 @@ func scopedHTML(src, scope string) string {
 // theme (pageTheme's).
 func (r *reader) conversationPage(theme string) string {
 	var sb strings.Builder
-	sb.WriteString("<!doctype html><html><head><style>" + theme + pageCSS + "</style></head><body>")
+	fmt.Fprintf(&sb, "<!doctype html><html><head><style>%s%s</style></head><body>", theme, pageCSS)
+
 	for _, cd := range stack(len(r.thread), r.isOpen, r.unfold) {
 		if cd.more > 0 {
 			fmt.Fprintf(&sb, `<details class="more"><summary>%d more messages</summary>`, cd.more)
+
 			for i := cd.i; i < cd.i+cd.more; i++ {
 				r.pageCard(&sb, i)
 			}
+
 			sb.WriteString("</details>")
 			continue
 		}
+
 		r.pageCard(&sb, cd.i)
 	}
+
 	if n := len(r.thread); n > 0 {
 		id := r.thread[n-1].ID
 		fmt.Fprintf(&sb, `<div class="acts"><a href="courrier://reply/%d">Reply</a><a href="courrier://all/%d">Reply all</a><a href="courrier://forward/%d">Forward</a></div>`, id, id, id)
 	}
+
 	sb.WriteString("</body></html>")
+
 	return sb.String()
 }
 
@@ -449,20 +509,25 @@ func (r *reader) pageCard(sb *strings.Builder, i int) {
 	if r.isOpen(i) {
 		open = " open"
 	}
+
 	if !r.wasSeen[m.ID] {
 		unread = " unread"
 	}
+
 	initial, color := avatar(m)
 	fmt.Fprintf(sb, `<details class="msg%s"%s><summary class="head"><div class="av" style="background:%s">%s</div><div class="who">`, unread, open, color, esc(initial))
 	addr := ""
 	if m.FromAddr != "" && author(m) != m.FromAddr {
 		addr = "&lt;" + esc(m.FromAddr) + "&gt;"
 	}
+
 	fmt.Fprintf(sb, `<div class="line"><span class="name">%s</span><span class="addr">%s</span><span class="date">%s</span></div>`, esc(author(m)), addr, esc(longDate(m.Date)))
 	fmt.Fprintf(sb, `<div class="sub snip">%s</div><div class="sub to">%s</div></div></summary><div class="content">`, esc(m.Snippet), esc(recipients(m)))
+
 	switch {
 	case !has:
 		sb.WriteString(`<p class="sub">This message isn't downloaded yet. It will be once courrier is online.</p>`)
+
 	case r.view == 1 && b.HTML != "":
 		scope := fmt.Sprint("m", m.ID)
 		body := scopedHTML(b.HTML, scope)
@@ -471,25 +536,31 @@ func (r *reader) pageCard(sb *strings.Builder, i int) {
 		} else {
 			sb.WriteString(body)
 		}
+
 	default:
 		text := b.Text
 		if strings.TrimSpace(text) == "" {
 			text = courrier.HTMLText(b.HTML)
 		}
+
 		main, quote := splitQuote(text)
-		sb.WriteString(`<pre class="text">` + textHTML(main) + `</pre>`)
+		fmt.Fprintf(sb, `<pre class="text">%s</pre>`, textHTML(main))
+
 		if quote != "" {
-			sb.WriteString(`<details class="q"><summary title="Show quoted text">•••</summary><pre class="text quote">` + textHTML(quote) + `</pre></details>`)
+			fmt.Fprintf(sb, `<details class="q"><summary title="Show quoted text">•••</summary><pre class="text quote">%s</pre></details>`, textHTML(quote))
 		}
 	}
+
 	var atts []string
 	for _, at := range b.Attachments {
 		if at.ContentID == "" || !strings.HasPrefix(at.MIMEType, "image/") {
 			atts = append(atts, fmt.Sprintf(`<a href="courrier://save/%d?part=%s">📎 %s · %s</a>`, m.ID, url.QueryEscape(at.Part), esc(at.Filename), humanSize(at.Size)))
 		}
 	}
+
 	if len(atts) > 0 {
-		sb.WriteString(`<div class="att">` + strings.Join(atts, "") + `</div>`)
+		fmt.Fprintf(sb, `<div class="att">%s</div>`, strings.Join(atts, ""))
 	}
+
 	sb.WriteString("</div></details>")
 }

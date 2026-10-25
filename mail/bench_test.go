@@ -16,6 +16,7 @@ func benchCache(b *testing.B) (*store.Store, int64) {
 	if err := st.SetFolders(acc, []mail.Folder{{Path: "INBOX", Special: "inbox", UIDValidity: 1}}); err != nil {
 		b.Fatal(err)
 	}
+
 	var hs []mail.Header
 	for u := uint32(1); u <= benchN; u++ {
 		hs = append(hs, mail.Header{UID: u, Subject: fmt.Sprint("M", u)})
@@ -23,9 +24,11 @@ func benchCache(b *testing.B) (*store.Store, int64) {
 			if err := st.AddHeaders(acc, "INBOX", hs); err != nil {
 				b.Fatal(err)
 			}
+
 			hs = nil
 		}
 	}
+
 	return st, acc
 }
 
@@ -35,12 +38,14 @@ func BenchmarkResyncUnchanged100k_50ms(b *testing.B) {
 	for u := uint32(1); u <= benchN; u++ {
 		srv.set(u, `\Seen`)
 	}
+
 	port := mail.FakeServer(b, "* OK [CAPABILITY IMAP4rev1 CONDSTORE] ready", srv.reply)
 	e := mail.Endpoint{Protocol: "imap", Host: "127.0.0.1", Port: port, Security: "none", Username: "jane", Password: "secret"}
 	st, acc := benchCache(b)
 	if err := mail.SyncOnce(e, st, acc, "INBOX"); err != nil { // the first, which fetches every flag
 		b.Fatal(err)
 	}
+
 	for b.Loop() {
 		if err := mail.SyncOnce(e, st, acc, "INBOX"); err != nil {
 			b.Fatal(err)
@@ -57,6 +62,7 @@ func BenchmarkResyncUnchangedNoCondStore100k(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+
 	e := mail.Endpoint{Protocol: "imap", Host: "127.0.0.1", Port: port, Security: "none", Username: "jane", Password: "secret"}
 	st, acc := benchCache(b)
 	for b.Loop() {

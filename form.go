@@ -51,6 +51,7 @@ func defaultPort(protocol, security string) int {
 	case tls:
 		return 465
 	}
+
 	return 587
 }
 
@@ -82,6 +83,7 @@ func presetFor(email string) string {
 			}
 		}
 	}
+
 	return ""
 }
 
@@ -105,6 +107,7 @@ func presetOf(s store.Server) string {
 	for _, p := range presets {
 		v := p.server
 		v.ID, v.Name, v.Hidden = s.ID, s.Name, s.Hidden
+
 		if v == s {
 			return p.server.Name
 		}
@@ -144,10 +147,13 @@ func serverFormFrom(s store.Server) serverForm {
 	if s.Protocol == "pop3" {
 		f.protocol = 1
 	}
+
 	if s.Hidden {
 		f.name = ""
 	}
+
 	f.adjustPorts()
+
 	return f
 }
 
@@ -164,17 +170,22 @@ func (f *serverForm) adjustPorts() bool {
 	if now == f.last {
 		return false
 	}
+
 	prev := f.last
 	f.last = now
+
 	if prev[0] == "" { // first call: remember, keep the loaded ports
 		return false
 	}
+
 	if f.inPort == 0 || int(f.inPort) == defaultPort(prev[0], prev[1]) {
 		f.inPort = float64(defaultPort(now[0], now[1]))
 	}
+
 	if f.smtpPort == 0 || int(f.smtpPort) == defaultPort("smtp", prev[2]) {
 		f.smtpPort = float64(defaultPort("smtp", now[2]))
 	}
+
 	return true
 }
 
@@ -187,15 +198,19 @@ func (f *serverForm) validate(errs map[string]string, named bool) {
 	} else if named && (isPreset(strings.TrimSpace(f.name)) || strings.TrimSpace(f.name) == custom) {
 		errs["name"] = "That name is reserved."
 	}
+
 	if strings.TrimSpace(f.inHost) == "" {
 		errs["inHost"] = "Enter the incoming server."
 	}
+
 	if !validPort(f.inPort) {
 		errs["inPort"] = "Enter a port from 1 to 65535."
 	}
+
 	if strings.TrimSpace(f.smtpHost) == "" {
 		errs["smtpHost"] = "Enter the outgoing server."
 	}
+
 	if !validPort(f.smtpPort) {
 		errs["smtpPort"] = "Enter a port from 1 to 65535."
 	}
@@ -254,9 +269,11 @@ func (f *accountForm) inUsername() string {
 	if f.oauth() != "" {
 		return strings.TrimSpace(f.email)
 	}
+
 	if u := strings.TrimSpace(f.inUser); u != "" {
 		return u
 	}
+
 	return strings.TrimSpace(f.email)
 }
 
@@ -264,12 +281,15 @@ func (f *accountForm) smtpCreds() (user, pass string) {
 	if f.oauth() != "" {
 		return f.inUsername(), f.refresh
 	}
+
 	if f.sameCreds {
 		return f.inUsername(), f.inPass
 	}
+
 	if u := strings.TrimSpace(f.smtpUser); u != "" {
 		return u, f.smtpPass
 	}
+
 	return strings.TrimSpace(f.email), f.smtpPass
 }
 
@@ -280,11 +300,13 @@ func lookup(name string, profiles []store.Server) (store.Server, bool) {
 			return p, true
 		}
 	}
+
 	for _, p := range presets {
 		if p.server.Name == name {
 			return p.server, true
 		}
 	}
+
 	return store.Server{}, false
 }
 
@@ -307,6 +329,7 @@ func (f *accountForm) syncChoice(profiles []store.Server) {
 			f.srv.name = ""
 		}
 	}
+
 	f.prevChoice = f.choice
 }
 
@@ -315,9 +338,11 @@ func (f *accountForm) validate() map[string]string {
 	if strings.TrimSpace(f.displayName) == "" {
 		errs["displayName"] = "Enter your name."
 	}
+
 	if a, err := mail.ParseAddress(strings.TrimSpace(f.email)); err != nil || a.Address != strings.TrimSpace(f.email) || !strings.Contains(a.Address, ".") {
 		errs["email"] = "Enter an email address like jane@example.com."
 	}
+
 	if k := f.oauth(); k != "" {
 		if f.refreshFor != k {
 			errs["signIn"] = "Sign in with " + providers[k].Name + " first."
@@ -326,21 +351,26 @@ func (f *accountForm) validate() map[string]string {
 		if f.inPass == "" {
 			errs["inPass"] = "Enter the password."
 		}
+
 		if !f.sameCreds && f.smtpPass == "" {
 			errs["smtpPass"] = "Enter the password."
 		}
 	}
+
 	for i, id := range f.idents {
 		if strings.TrimSpace(id.Name) == "" {
 			errs[fmt.Sprint("identName", i)] = "Enter the name."
 		}
+
 		if a, err := mail.ParseAddress(strings.TrimSpace(id.Email)); err != nil || a.Address != strings.TrimSpace(id.Email) {
 			errs[fmt.Sprint("identEmail", i)] = "Enter an email address."
 		}
 	}
+
 	if f.choice == custom {
 		f.srv.validate(errs, f.saveProfile)
 	}
+
 	return errs
 }
 
@@ -354,5 +384,6 @@ func (f *accountForm) endpoints(profiles []store.Server) (in, out courrier.Endpo
 		tk := courrier.NewTokens(providers[k], f.refresh, nil)
 		in.Token, out.Token = tk.Token, tk.Token
 	}
+
 	return in, out
 }

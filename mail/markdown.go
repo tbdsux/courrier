@@ -58,33 +58,41 @@ func mdBlocks(lines []string) []MDBlock {
 		switch {
 		case t == "":
 			i++
+
 		case isFence(l):
 			j := i + 1
 			for j < len(lines) && !isFence(lines[j]) {
 				j++
 			}
+
 			out = append(out, MDBlock{Kind: "code", Code: strings.Join(lines[i+1:j], "\n")})
 			i = j + 1
+
 		case mdHeading.MatchString(t):
 			m := mdHeading.FindStringSubmatch(t)
 			out = append(out, MDBlock{Kind: "h" + strconv.Itoa(min(len(m[1]), 3)), Items: [][]MDSpan{mdInline(m[2])}})
 			i++
+
 		case mdRule.MatchString(l):
 			out = append(out, MDBlock{Kind: "hr"})
 			i++
+
 		case isQuote(l):
 			var inner []string
 			for ; i < len(lines) && isQuote(lines[i]); i++ {
 				q := strings.TrimPrefix(strings.TrimLeft(lines[i], " "), ">")
 				inner = append(inner, strings.TrimPrefix(q, " "))
 			}
+
 			out = append(out, MDBlock{Kind: "quote", Children: mdBlocks(inner)})
+
 		case mdBullet.MatchString(l), mdOrdered.MatchString(l):
 			b, re := MDBlock{Kind: "ul"}, mdBullet
 			if !mdBullet.MatchString(l) {
 				b.Kind, re = "ol", mdOrdered
 				b.Start, _ = strconv.Atoi(mdOrdered.FindStringSubmatch(l)[1])
 			}
+
 			var items []string
 			for ; i < len(lines); i++ {
 				if m := re.FindStringSubmatch(lines[i]); m != nil {
@@ -95,23 +103,29 @@ func mdBlocks(lines []string) []MDBlock {
 					break
 				}
 			}
+
 			for _, it := range items {
 				b.Items = append(b.Items, mdInline(it))
 			}
+
 			out = append(out, b)
+
 		default:
 			j := i + 1
 			for j < len(lines) && strings.TrimSpace(lines[j]) != "" && !startsBlock(lines[j]) {
 				j++
 			}
+
 			var para []string
 			for _, p := range lines[i:j] {
 				para = append(para, strings.TrimSpace(p))
 			}
+
 			out = append(out, MDBlock{Kind: "p", Items: [][]MDSpan{mdInline(strings.Join(para, "\n"))}})
 			i = j
 		}
 	}
+
 	return out
 }
 
@@ -129,6 +143,7 @@ func mdInline(s string) []MDSpan {
 			buf.Reset()
 		}
 	}
+
 	r := []rune(s)
 	rest := func(i int) string { return string(r[i:]) }
 	for i := 0; i < len(r); i++ {
@@ -137,25 +152,31 @@ func mdInline(s string) []MDSpan {
 		if i > 0 {
 			prev = r[i-1]
 		}
+
 		if i+1 < len(r) {
 			next = r[i+1]
 		}
+
 		switch {
 		case c == '\\' && i+1 < len(r) && (unicode.IsPunct(next) || unicode.IsSymbol(next)):
 			buf.WriteRune(next)
 			i++
+
 		case c == '`':
 			end := i + 1
 			for end < len(r) && r[end] != '`' {
 				end++
 			}
+
 			if end < len(r) {
 				flush()
 				out = append(out, MDSpan{Text: string(r[i+1 : end]), Code: true, Bold: cur.Bold, Italic: cur.Italic})
 				i = end
 				continue
 			}
+
 			buf.WriteRune(c)
+
 		case (c == '*' || c == '_') && next == c:
 			m := string([]rune{c, c})
 			if cur.Bold || strings.Contains(rest(i+2), m) {
@@ -164,15 +185,19 @@ func mdInline(s string) []MDSpan {
 				i++
 				continue
 			}
+
 			buf.WriteString(m)
 			i++
+
 		case c == '*' || c == '_' && (cur.Italic && !isWord(next) || !cur.Italic && !isWord(prev)):
 			if cur.Italic || strings.ContainsRune(rest(i+1), c) && next != ' ' {
 				flush()
 				cur.Italic = !cur.Italic
 				continue
 			}
+
 			buf.WriteRune(c)
+
 		case c == '[':
 			if m := mdLink.FindStringSubmatch(rest(i)); m != nil {
 				flush()
@@ -180,17 +205,22 @@ func mdInline(s string) []MDSpan {
 				i += len([]rune(m[0])) - 1
 				continue
 			}
+
 			buf.WriteRune(c)
+
 		case (c == 'h' || c == 'H') && !isWord(prev) && mdURL.MatchString(rest(i)):
 			u := strings.TrimRight(mdURL.FindString(rest(i)), ".,;:!?)'\"")
 			flush()
 			out = append(out, MDSpan{Text: u, Link: u, Bold: cur.Bold, Italic: cur.Italic})
 			i += len([]rune(u)) - 1
+
 		default:
 			buf.WriteRune(c)
 		}
 	}
+
 	flush()
+
 	return out
 }
 
@@ -211,15 +241,19 @@ func spansHTML(b *strings.Builder, spans []MDSpan) {
 		if s.Code {
 			t = `<code style="background:#f2f2f5;padding:0 3px;border-radius:3px">` + t + "</code>"
 		}
+
 		if s.Italic {
 			t = "<em>" + t + "</em>"
 		}
+
 		if s.Bold {
 			t = "<strong>" + t + "</strong>"
 		}
+
 		if s.Link != "" && safeLink(s.Link) {
 			t = `<a href="` + html.EscapeString(s.Link) + `">` + t + "</a>"
 		}
+
 		b.WriteString(t)
 	}
 }
@@ -229,27 +263,32 @@ func blocksHTML(b *strings.Builder, blocks []MDBlock) {
 		switch bl.Kind {
 		case "p", "h1", "h2", "h3":
 			tag := bl.Kind
-			b.WriteString("<" + tag + ">")
+			fmt.Fprintf(b, "<%s>", tag)
 			spansHTML(b, bl.Items[0])
-			b.WriteString("</" + tag + ">\n")
+			fmt.Fprintf(b, "</%s>\n", tag)
+
 		case "ul", "ol":
 			if bl.Kind == "ol" && bl.Start != 1 {
 				fmt.Fprintf(b, `<ol start="%d">`+"\n", bl.Start)
 			} else {
-				b.WriteString("<" + bl.Kind + ">\n")
+				fmt.Fprintf(b, "<%s>\n", bl.Kind)
 			}
+
 			for _, it := range bl.Items {
 				b.WriteString("<li>")
 				spansHTML(b, it)
 				b.WriteString("</li>\n")
 			}
-			b.WriteString("</" + bl.Kind + ">\n")
+
+			fmt.Fprintf(b, "</%s>\n", bl.Kind)
+
 		case "quote":
 			b.WriteString(`<blockquote style="margin:0 0 0 .8ex;border-left:2px solid #ccc;padding-left:1ex;color:#555">` + "\n")
 			blocksHTML(b, bl.Children)
 			b.WriteString("</blockquote>\n")
+
 		case "code":
-			b.WriteString(`<pre style="background:#f2f2f5;padding:8px;border-radius:4px"><code>` + html.EscapeString(bl.Code) + "</code></pre>\n")
+			fmt.Fprintf(b, `<pre style="background:#f2f2f5;padding:8px;border-radius:4px"><code>%s</code></pre>`+"\n", html.EscapeString(bl.Code))
 		case "hr":
 			b.WriteString("<hr>\n")
 		}
@@ -263,5 +302,6 @@ func MarkdownHTML(src string) string {
 		`<body style="font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.45">` + "\n")
 	blocksHTML(&b, Markdown(src))
 	b.WriteString("</body></html>\n")
+
 	return b.String()
 }

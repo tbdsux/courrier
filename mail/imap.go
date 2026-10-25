@@ -31,6 +31,7 @@ func dialIMAP(ctx context.Context, e Endpoint) (*imapConn, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	conn.SetDeadline(time.Time{}) // imapclient times its own reads and writes
 	ic := &imapConn{changed: make(chan struct{}, 1)}
 	poke := func() {
@@ -58,6 +59,7 @@ func dialIMAP(ctx context.Context, e Endpoint) (*imapConn, error) {
 	} else {
 		ic.c = imapclient.New(conn, opts)
 	}
+
 	fail := func(kind error, err error) (*imapConn, error) {
 		ic.c.Close()
 		return nil, fmt.Errorf("%w: %v", kind, err)
@@ -65,16 +67,19 @@ func dialIMAP(ctx context.Context, e Endpoint) (*imapConn, error) {
 	if err := ic.c.WaitGreeting(); err != nil {
 		return fail(ErrProtocol, err)
 	}
+
 	login := func() error { return ic.c.Login(e.Username, e.Password).Wait() }
 	if e.Token != nil {
 		login = func() error {
 			return withToken(dctx, e, func(tok string) error { return imapAuthErr(ic.c.Authenticate(xoauth2{e.Username, tok})) })
 		}
 	}
+
 	if err := imapAuthErr(login()); err != nil {
 		ic.c.Close()
 		return nil, err
 	}
+
 	return ic, nil
 }
 
@@ -87,6 +92,7 @@ func imapAuthErr(err error) error {
 	case errors.As(err, &ie) && ie.Type == imap.StatusResponseTypeNo:
 		return fmt.Errorf("%w: %s", ErrAuth, ie.Text)
 	}
+
 	return fmt.Errorf("%w: %v", ErrProtocol, err)
 }
 
@@ -117,6 +123,7 @@ func specialOf(path string, delim rune, attrs []imap.MailboxAttr) string {
 	if strings.EqualFold(path, "INBOX") {
 		return "inbox"
 	}
+
 	for _, a := range attrs {
 		for k, s := range specialAttrs {
 			if strings.EqualFold(string(a), string(k)) { // attributes ignore case
@@ -124,12 +131,14 @@ func specialOf(path string, delim rune, attrs []imap.MailboxAttr) string {
 			}
 		}
 	}
+
 	name := path
 	if delim != 0 {
 		if i := strings.LastIndex(path, string(delim)); i >= 0 {
 			name = path[i+1:]
 		}
 	}
+
 	return specialNames[strings.ToLower(name)]
 }
 
@@ -140,43 +149,53 @@ func (ic *imapConn) folders() ([]Folder, error) {
 	if caps.Has(imap.CapSpecialUse) && caps.Has(imap.CapListExtended) {
 		opts.ReturnSpecialUse = true
 	}
+
 	if caps.Has(imap.CapListStatus) || caps.Has(imap.CapIMAP4rev2) {
 		opts.ReturnStatus = statusItems
 	}
+
 	list, err := ic.c.List("", "*", opts).Collect()
 	if err != nil {
 		return nil, err
 	}
+
 	var out []Folder
 	for _, l := range list {
 		f := Folder{Path: l.Mailbox, Delim: "/", Special: specialOf(l.Mailbox, l.Delim, l.Attrs)}
 		if l.Delim != 0 {
 			f.Delim = string(l.Delim)
 		}
+
 		for _, a := range l.Attrs {
 			if strings.EqualFold(string(a), string(imap.MailboxAttrNoSelect)) || strings.EqualFold(string(a), string(imap.MailboxAttrNonExistent)) {
 				f.NoSelect = true
 			}
 		}
+
 		st := l.Status
 		if st == nil && !f.NoSelect {
 			if st, err = ic.c.Status(l.Mailbox, statusItems).Wait(); err != nil {
 				return nil, err
 			}
 		}
+
 		if st != nil {
 			setStatus(&f, st)
 		}
+
 		out = append(out, f)
 	}
+
 	return out, nil
 }
 
 func setStatus(f *Folder, st *imap.StatusData) {
 	f.UIDValidity, f.UIDNext = st.UIDValidity, uint32(st.UIDNext)
+
 	if st.NumUnseen != nil {
 		f.Unread = int(*st.NumUnseen)
 	}
+
 	if st.NumMessages != nil {
 		f.Total = int(*st.NumMessages)
 	}
@@ -206,6 +225,7 @@ func flagsOf(fs []imap.Flag) Flags {
 			f.Answered = true
 		}
 	}
+
 	return f
 }
 
@@ -218,6 +238,7 @@ func addrs(as []imap.Address) string {
 			out = append(out, a.Addr())
 		}
 	}
+
 	return strings.Join(out, ", ")
 }
 
@@ -226,32 +247,41 @@ func headerFrom(m *imapclient.FetchMessageBuffer) Header {
 	if len(m.BodySection) > 0 {
 		h, _, _ = Parse(m.BodySection[0].Bytes) // the start of the message only
 	}
+
 	if env := m.Envelope; env != nil {
 		if h.Subject == "" {
 			h.Subject = env.Subject
 		}
+
 		if h.Date.IsZero() {
 			h.Date = env.Date
 		}
+
 		if h.FromAddr == "" && len(env.From) > 0 {
 			h.FromName, h.FromAddr = env.From[0].Name, env.From[0].Addr()
 		}
+
 		if h.To == "" {
 			h.To = addrs(env.To)
 		}
+
 		if h.Cc == "" {
 			h.Cc = addrs(env.Cc)
 		}
+
 		if h.MessageID == "" {
 			h.MessageID = env.MessageID
 		}
+
 		if len(h.Refs) == 0 { // the header block was cut short
 			h.Refs = env.InReplyTo
 		}
 	}
+
 	if h.Date.IsZero() {
 		h.Date = m.InternalDate
 	}
+
 	h.UID, h.Flags, h.Size = uint32(m.UID), flagsOf(m.Flags), m.RFC822Size
 	h.HasAttach = false
 	if m.BodyStructure != nil {
@@ -265,6 +295,7 @@ func headerFrom(m *imapclient.FetchMessageBuffer) Header {
 			return true
 		})
 	}
+
 	return h
 }
 
@@ -288,12 +319,14 @@ func (ic *imapConn) fetchWith(set imap.NumSet, after uint32, opts *imap.FetchOpt
 	if err != nil {
 		return nil, err
 	}
+
 	var out []Header
 	for _, m := range msgs {
 		if uint32(m.UID) > after { // "n:*" also returns the last message
 			out = append(out, headerFrom(m))
 		}
 	}
+
 	return out, nil
 }
 
@@ -309,31 +342,40 @@ func (ic *imapConn) syncFolder(cache Cache, account int64, f *Folder) (fresh []u
 	if err != nil {
 		return nil, err
 	}
+
 	setStatus(f, st)
+
 	if err := cache.UpdateFolder(account, *f); err != nil {
 		return nil, err
 	}
+
 	sel, err := ic.selectFolder(f.Path)
 	if err != nil {
 		return nil, err
 	}
+
 	oldest, newest, err := cache.UIDRange(account, f.Path)
 	if err != nil {
 		return nil, err
 	}
+
 	modseq, exists, err := cache.SyncState(account, f.Path)
 	if err != nil {
 		return nil, err
 	}
+
 	var hs []Header
 	switch {
 	case sel.NumMessages == 0:
+
 	case newest == 0:
 		from := uint32(1)
 		if sel.NumMessages > pageSize {
 			from = sel.NumMessages - pageSize + 1
 		}
+
 		hs, err = ic.fetchHeaders(imap.SeqSet{{Start: from, Stop: sel.NumMessages}}, 0)
+
 	case uint32(sel.UIDNext) > newest+1:
 		hs, err = ic.fetchHeaders(imap.UIDSet{{Start: imap.UID(newest + 1), Stop: 0}}, newest)
 		for _, h := range hs {
@@ -342,25 +384,31 @@ func (ic *imapConn) syncFolder(cache Cache, account int64, f *Folder) (fresh []u
 			}
 		}
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	if err := cache.AddHeaders(account, f.Path, hs); err != nil {
 		return nil, err
 	}
+
 	if oldest != 0 {
 		if sel.HighestModSeq != 0 && modseq != 0 {
 			err = ic.syncChanges(cache, account, f.Path, oldest, newest, modseq, sel, exists+uint32(len(hs)))
 		} else {
 			err = ic.syncAllFlags(cache, account, f.Path, oldest, newest)
 		}
+
 		if err != nil {
 			return fresh, err
 		}
 	}
+
 	if sel.HighestModSeq != 0 {
 		err = cache.SetSyncState(account, f.Path, sel.HighestModSeq, sel.NumMessages)
 	}
+
 	return fresh, err
 }
 
@@ -371,10 +419,12 @@ func (ic *imapConn) syncAllFlags(cache Cache, account int64, path string, oldest
 	if err != nil {
 		return err
 	}
+
 	flags := make(map[uint32]Flags, len(msgs))
 	for _, m := range msgs {
 		flags[uint32(m.UID)] = flagsOf(m.Flags)
 	}
+
 	return cache.SyncFlags(account, path, oldest, newest, flags)
 }
 
@@ -388,21 +438,25 @@ func (ic *imapConn) syncChanges(cache Cache, account int64, path string, oldest,
 		if err != nil {
 			return err
 		}
+
 		for _, m := range msgs {
 			flags[uint32(m.UID)] = flagsOf(m.Flags)
 		}
 	}
+
 	var present map[uint32]bool
 	if sel.NumMessages != expected {
 		res, err := ic.c.UIDSearch(&imap.SearchCriteria{UID: []imap.UIDSet{set}}, nil).Wait()
 		if err != nil {
 			return err
 		}
+
 		present = map[uint32]bool{}
 		for _, u := range res.AllUIDs() {
 			present[uint32(u)] = true
 		}
 	}
+
 	return cache.ChangeFlags(account, path, flags, oldest, newest, present)
 }
 
@@ -413,25 +467,31 @@ func (ic *imapConn) fetchOlder(cache Cache, account int64, path string) error {
 	if err != nil || newest == 0 {
 		return err
 	}
+
 	if _, err := ic.selectFolder(path); err != nil {
 		return err
 	}
+
 	res, err := ic.c.UIDSearch(&imap.SearchCriteria{UID: []imap.UIDSet{{{Start: 1, Stop: imap.UID(newest)}}}}, nil).Wait()
 	if err != nil {
 		return err
 	}
+
 	cached, err := cache.CachedUIDs(account, path)
 	if err != nil {
 		return err
 	}
+
 	uids := uncached(res.AllUIDs(), cached, pageSize)
 	if len(uids) == 0 {
 		return nil
 	}
+
 	hs, err := ic.fetchHeaders(uidSet(uids), 0)
 	if err != nil {
 		return err
 	}
+
 	return cache.AddHeaders(account, path, hs)
 }
 
@@ -442,23 +502,28 @@ func (ic *imapConn) fillOlder(cache Cache, account int64, path string) (bool, er
 	if err != nil || oldest <= 1 {
 		return false, err
 	}
+
 	if _, err := ic.selectFolder(path); err != nil {
 		return false, err
 	}
+
 	// The older mail is the messages numbered before the oldest cached.
 	msgs, err := ic.c.Fetch(imap.UIDSetNum(imap.UID(oldest)), &imap.FetchOptions{UID: true}).Collect()
 	if err != nil || len(msgs) == 0 || msgs[0].SeqNum <= 1 { // gone: the next sync drops it, then filling goes on
 		return false, err
 	}
+
 	to := msgs[0].SeqNum - 1
 	from := uint32(1)
 	if to > fillPage {
 		from = to - fillPage + 1
 	}
+
 	hs, err := ic.fetchWith(imap.SeqSet{{Start: from, Stop: to}}, 0, fillFetch)
 	if err != nil {
 		return false, err
 	}
+
 	return len(hs) > 0, cache.AddHeaders(account, path, hs)
 }
 
@@ -473,14 +538,17 @@ func (ic *imapConn) section(path string, uid uint32, spec imap.PartSpecifier) ([
 	if _, err := ic.selectFolder(path); err != nil {
 		return nil, err
 	}
+
 	msgs, err := ic.c.Fetch(imap.UIDSetNum(imap.UID(uid)), &imap.FetchOptions{UID: true,
 		BodySection: []*imap.FetchItemBodySection{{Specifier: spec, Peek: true}}}).Collect()
 	if err != nil {
 		return nil, err
 	}
+
 	if len(msgs) == 0 || len(msgs[0].BodySection) == 0 {
 		return nil, errors.New("the message is no longer on the server")
 	}
+
 	return msgs[0].BodySection[0].Bytes, nil
 }
 
@@ -490,10 +558,12 @@ func (ic *imapConn) open(cache Cache, account int64, path string, uid uint32) er
 	if err != nil {
 		return err
 	}
+
 	_, b, _ := Parse(raw)
 	if b.Text == "" && b.HTML == "" && len(b.Attachments) == 0 {
 		b.Text = string(raw)
 	}
+
 	return cache.SetBody(account, path, uid, b)
 }
 
@@ -504,10 +574,12 @@ func (ic *imapConn) move(path string, uids []uint32, to string) ([]uint32, error
 	if _, err := ic.selectFolder(path); err != nil {
 		return nil, err
 	}
+
 	d, err := ic.c.Move(uidSet(uids), to).Wait()
 	if err != nil {
 		return nil, err
 	}
+
 	var dest []uint32
 	if set, ok := d.DestUIDs.(imap.UIDSet); ok {
 		nums, _ := set.Nums()
@@ -515,6 +587,7 @@ func (ic *imapConn) move(path string, uids []uint32, to string) ([]uint32, error
 			dest = append(dest, uint32(u))
 		}
 	}
+
 	return dest, nil
 }
 
@@ -526,13 +599,16 @@ func (ic *imapConn) append(path string, raw []byte, t time.Time, flags ...imap.F
 		cmd.Close()
 		return 0, err
 	}
+
 	if err := cmd.Close(); err != nil {
 		return 0, err
 	}
+
 	d, err := cmd.Wait()
 	if err != nil {
 		return 0, err
 	}
+
 	return uint32(d.UID), nil
 }
 
@@ -541,10 +617,12 @@ func (ic *imapConn) setFlag(path string, uids []uint32, flag imap.Flag, on bool)
 	if _, err := ic.selectFolder(path); err != nil {
 		return err
 	}
+
 	op := imap.StoreFlagsAdd
 	if !on {
 		op = imap.StoreFlagsDel
 	}
+
 	return ic.c.Store(uidSet(uids), &imap.StoreFlags{Op: op, Silent: true, Flags: []imap.Flag{flag}}, nil).Close()
 }
 
@@ -554,8 +632,10 @@ func (ic *imapConn) expunge(path string, uids ...uint32) error {
 	if err := ic.setFlag(path, uids, imap.FlagDeleted, true); err != nil {
 		return err
 	}
+
 	if caps := ic.c.Caps(); caps.Has(imap.CapUIDPlus) || caps.Has(imap.CapIMAP4rev2) {
 		return ic.c.UIDExpunge(uidSet(uids)).Close()
 	}
+
 	return ic.c.Expunge().Close()
 }

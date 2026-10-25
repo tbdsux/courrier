@@ -115,6 +115,7 @@ func newApp(st *store.Store, update func(func())) *app {
 	a.loadSettings()
 	a.loadLayout()
 	a.reloadMail()
+
 	return a
 }
 
@@ -126,10 +127,12 @@ func (a *app) reload() {
 	a.idents, err4 = a.st.Identities()
 	a.rules, err5 = a.st.Rules()
 	a.templates, err6 = a.st.Templates()
+
 	for _, acc := range a.accounts {
 		name := a.groupName(acc.GroupID)
 		a.groupPick[acc.ID] = &name
 	}
+
 	if err := errors.Join(err1, err2, err3, err4, err5, err6); err != nil {
 		a.loadErr = err.Error()
 	}
@@ -140,6 +143,7 @@ func (a *app) profileNames() []string {
 	for _, p := range a.profiles {
 		names = append(names, p.Name)
 	}
+
 	return names
 }
 
@@ -147,29 +151,36 @@ func (a *app) view(c *ui.Context) {
 	if a.sel != a.shown {
 		a.load()
 	}
+
 	t, pal := styled(c.Theme(), a.set.Appearance, float32(a.set.FontSize))
 	c.SetTheme(t)
 	a.pal = pal
 	a.width, _ = c.Size()
+
 	if a.toast != "" {
 		c.Toast(a.toast)
 		a.toast = ""
 	}
+
 	if id := a.undoID; id != 0 {
 		a.undoID = 0
 		c.ToastAction("Sending…", "Undo", func() { a.takeBack(id) })
 	}
+
 	a.undoToast(c)
+
 	for _, k := range shortcuts {
 		// The menu bar's items take the shortcuts they show.
 		if k.window && len(a.accounts) > 0 && (a.setMenu == nil || accel(k.keys) == "") {
 			c.OnShortcut(k.mods, k.key, func() { k.run(a) })
 		}
 	}
+
 	ui.Column(c).Fill().Children(func() {
 		titleBar(c, "courrier", a.pal.sidebar)
 		a.panes(c)
 	})
+
 	a.folderDialogs(c)
 	a.moveDialogs(c)
 	laterDialog(c, &a.later, min(380, a.width-80))
@@ -209,24 +220,30 @@ func (a *app) panes(c *ui.Context) {
 // load opens what the sidebar picked.
 func (a *app) load() {
 	a.shown = a.sel
+
 	if a.form != nil && a.form.cancelSignIn != nil {
 		a.form.cancelSignIn()
 	}
+
 	a.form = nil
+
 	if _, ok := a.mailbox(); ok {
 		a.openMailbox()
 		return
 	}
+
 	switch a.sel {
 	case "general":
 		if a.sys != nil {
 			a.sys.read(a.sys)
 		}
+
 	case "storage":
 		a.readStorage()
 	case "", "servers", "accounts", "groups", "rules", "u:outbox":
 	case "new":
 		a.form = newAccountForm()
+
 	default:
 		id, _ := strconv.ParseInt(a.sel, 10, 64)
 		for _, acc := range a.accounts {
@@ -244,6 +261,7 @@ func (a *app) editForm(acc store.Account) *accountForm {
 	if err != nil {
 		f.saveErr = err.Error()
 	}
+
 	f.srv = serverFormFrom(srv)
 	f.choice = custom
 	if !srv.Hidden {
@@ -251,27 +269,35 @@ func (a *app) editForm(acc store.Account) *accountForm {
 	} else if p := presetOf(srv); p != "" {
 		f.choice = p
 	}
+
 	f.prevChoice = f.choice
+
 	for _, id := range a.idents {
 		if id.AccountID == acc.ID {
 			f.idents = append(f.idents, id)
 		}
 	}
+
 	f.inPass, f.smtpPass, err = a.st.Passwords(acc.ID)
 	if err != nil {
 		f.saveErr = "Couldn't read the passwords from the keychain: " + err.Error()
 	}
+
 	f.appPassword = acc.Auth == "password"
 	if !f.appPassword { // the secrets hold the refresh token
 		f.refresh, f.refreshFor, f.inPass, f.smtpPass = f.inPass, acc.Auth, "", ""
 	}
+
 	f.sameCreds = f.inUser == f.smtpUser && f.inPass == f.smtpPass
+
 	if f.inUser == f.email {
 		f.inUser = ""
 	}
+
 	if f.smtpUser == f.email {
 		f.smtpUser = ""
 	}
+
 	return f
 }
 
@@ -281,23 +307,28 @@ func (a *app) sidebar(c *ui.Context) {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(16, 12, 12, 16).Children(func() {
 			ui.Image(c, appLogo).Size(26, 26)
 			ui.Text(c, "courrier").FontSize(15).Bold().LetterSpacing(-0.3).Grow(1)
+
 			add := ui.Button(c, "").Label("Add account").Tooltip("Add account").
 				Size(28, 28).Padding(0).Radius(7).Justify(ui.Center).AlignItems(ui.Center).
 				Border(1, t.Border).Background(a.pal.card)
 			if add.Hovered() {
 				add.Background(t.SurfaceHover)
 			}
+
 			add.Children(func() { ui.Icon(c, plusIcon).FontSize(16).TextColor(t.Text) })
+
 			if add.Clicked() {
 				a.sel, a.shown = "new", "" // reload even when already on "new"
 			}
 		})
+
 		ui.SplitVerticalPercent(c, &a.treePct, func() { a.sidebarTree(c) }, func() {
 			ui.Scroll(c).Fill().Children(func() {
 				ui.Column(c).Gap(2).Padding(10, 16, 20, 16).Children(func() {
 					if len(a.accounts) == 0 {
 						ui.Text(c, "No accounts").FontSize(11).TextColor(t.TextMuted)
 					}
+
 					a.syncStatus(c)
 				})
 			})
@@ -308,6 +339,7 @@ func (a *app) sidebar(c *ui.Context) {
 func (a *app) sidebarTree(c *ui.Context) {
 	ui.Sidebar(c, &a.sel, func() {
 		a.folderTree(c)
+
 		ui.SidebarSection(c, "Settings", &a.settingsOpen, func() {
 			ui.SidebarItem(c, "general", settingsIcon, "General")
 			ui.SidebarItem(c, "accounts", userIcon, "Accounts")
@@ -325,9 +357,11 @@ func (a *app) emptyView(c *ui.Context) {
 		ui.Column(c).Size(72, 72).Radius(20).Background(a.pal.accentSoft).Center().Children(func() {
 			ui.Text(c, "@").FontSize(34).Bold().TextColor(t.Accent)
 		})
+
 		if len(a.accounts) == 0 {
 			ui.Text(c, "No accounts yet").FontSize(20).Bold().LetterSpacing(-0.4).Margin(6, 0, 0, 0)
 			ui.Text(c, "Connect an IMAP or POP3 mailbox to get started.").TextColor(t.TextMuted)
+
 			if ui.PrimaryButton(c, "Add your first account").Padding(10, 18).Margin(8, 0, 0, 0).Clicked() {
 				a.sel = "new"
 			}
@@ -367,6 +401,7 @@ func (a *app) accountView(c *ui.Context, f *accountForm) {
 	if f.srv.adjustPorts() {
 		c.Invalidate()
 	}
+
 	t := c.Theme()
 	errs := f.errs
 	// Keyed by the form so its inputs start fresh, not with the last form's text.
@@ -376,6 +411,7 @@ func (a *app) accountView(c *ui.Context, f *accountForm) {
 		} else {
 			header(c, "Account", f.email, f.displayName)
 		}
+
 		isCustom := f.choice == custom
 		// One form around the cards, so their labels share one column.
 		a.formIn(c, a.contentWidth(), func() {
@@ -386,65 +422,83 @@ func (a *app) accountView(c *ui.Context, f *accountForm) {
 				}).Changed() {
 					f.choiceSet = true
 				}
+
 				f.syncChoice(a.profiles)
 				field(c, errs, "displayName", "Name", func() { ui.TextInput(c, &f.displayName).Placeholder("Jane Doe") })
+
 				if field(c, errs, "email", "Email", func() { ui.TextInput(c, &f.email).Placeholder("jane@example.com") }).Changed() && !f.choiceSet {
 					if p := presetFor(f.email); p != "" {
 						f.choice = p
 					}
 				}
+
 				if isPreset(f.choice) && f.oauth() == "" {
 					notice(c, f.choice+" needs an app password, not your usual one.", t.Warning)
+
 					if k := presetAuth(f.choice); k != "" && ui.Button(c, "Sign in with "+providers[k].Name+" instead").Clicked() {
 						f.appPassword = false
 					}
 				}
 			})
+
 			if k := f.oauth(); k != "" {
 				a.card(c, "signin", "Sign-in", func() { a.signInCard(c, f, k) })
 			}
+
 			a.card(c, "in", "Incoming", func() {
 				if isCustom {
 					incomingFields(c, &f.srv, errs)
 				}
+
 				if f.oauth() == "" {
 					field(c, errs, "inUser", "Username", func() { ui.TextInput(c, &f.inUser).Placeholder(f.email) })
 					field(c, errs, "inPass", "Password", func() { ui.TextInput(c, &f.inPass).Password() })
 				} else if !isCustom {
 					ui.Text(c, f.resolve(a.profiles).InHost+" · signed in with "+providers[f.oauth()].Name).TextColor(t.TextMuted)
 				}
+
 				if f.resolve(a.profiles).Protocol == "pop3" {
 					ui.Field(c, "Keep on server", func() { ui.Switch(c, &f.keep) }).Description("Leave messages on the server after download.")
 				}
 			})
+
 			a.card(c, "out", "Outgoing · SMTP", func() {
 				if isCustom {
 					smtpFields(c, &f.srv, errs)
 				}
+
 				if f.oauth() != "" {
 					ui.Text(c, f.resolve(a.profiles).SMTPHost+" · signed in with "+providers[f.oauth()].Name).TextColor(t.TextMuted)
 					return
 				}
+
 				ui.Field(c, "Same login", func() { ui.Switch(c, &f.sameCreds) }).Description("Use the incoming username and password.")
+
 				if !f.sameCreds {
 					field(c, errs, "smtpUser", "Username", func() { ui.TextInput(c, &f.smtpUser).Placeholder(f.email) })
 					field(c, errs, "smtpPass", "Password", func() { ui.TextInput(c, &f.smtpPass).Password() })
 				}
 			})
+
 			a.card(c, "sig", "Signature", func() {
 				ui.Row(c).Gap(10).AlignItems(ui.Stretch).Children(func() {
 					ui.TextArea(c, &f.signature).Label("Signature").Placeholder("**Jane Doe**\nAcme · +1 555 0100").Height(96).Grow(1).Basis(0)
+
 					ui.Column(c).Gap(10).Padding(10, 12).Grow(1).Basis(0).Radius(8).Border(1, t.Border).Label("Signature preview").Children(func() {
 						markdownView(c, courrier.Markdown(f.signature))
 					})
 				})
+
 				ui.Text(c, "Markdown. New messages, replies and forwards start with it.").FontSize(12).TextColor(t.TextMuted)
 			})
+
 			a.card(c, "idents", "Other addresses", func() { a.identsCard(c, f) })
+
 			if isCustom {
 				a.card(c, "profile", "Server profile", func() {
 					ui.Field(c, "Save profile", func() { ui.Switch(c, &f.saveProfile) }).
 						Description("Reuse these settings for other accounts.")
+
 					if f.saveProfile {
 						field(c, errs, "name", "Profile name", func() { ui.TextInput(c, &f.srv.name).Placeholder("Work mail") })
 					}
@@ -454,6 +508,7 @@ func (a *app) accountView(c *ui.Context, f *accountForm) {
 					ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 						ui.Text(c, "Linked to “"+f.choice+"”. Detach to change this account's server on its own.").
 							TextColor(t.TextMuted).Wrap().Grow(1)
+
 						if ui.Button(c, "Detach").Clicked() {
 							f.choice = custom
 							f.syncChoice(a.profiles)
@@ -462,37 +517,46 @@ func (a *app) accountView(c *ui.Context, f *accountForm) {
 				})
 			}
 		})
+
 		switch {
 		case f.testing:
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(10, 14).Children(func() {
 				ui.Spinner(c).Label("Testing")
 				ui.Text(c, "Connecting…").TextColor(t.TextMuted)
 			})
+
 		case f.testMsg != "" && f.testOK:
 			notice(c, f.testMsg, t.Success)
 		case f.testMsg != "":
 			notice(c, f.testMsg, t.Danger)
 		}
+
 		if f.saveErr != "" {
 			notice(c, f.saveErr, t.Danger)
 		}
+
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Margin(8, 0, 0, 0).Children(func() {
 			if f.id != 0 && ui.Button(c, "Remove account…").TextColor(t.Danger).Clicked() {
 				f.askRemove = true
 			}
+
 			ui.Spacer(c)
+
 			if ui.Button(c, "Test connection").Disabled(f.testing || f.signingIn).Clicked() {
 				a.test(f, false)
 			}
+
 			if ui.PrimaryButton(c, "Save").Padding(8, 22).Disabled(f.testing || f.signingIn).Clicked() {
 				a.test(f, true)
 			}
 		})
 	})
+
 	switch ui.AlertDialog(c, &f.askAnyway, "Couldn't connect", f.testMsg, "Cancel", "Save anyway") {
 	case 1:
 		a.saveAccount(f)
 	}
+
 	switch ui.AlertDialog(c, &f.askRemove, "Remove "+f.email+"?",
 		"Its passwords and cached mail are deleted. Its server profile stays.", "Cancel", "Remove") {
 	case 1:
@@ -509,26 +573,32 @@ func (a *app) signInCard(c *ui.Context, f *accountForm, k string) {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Spinner(c).Label("Signing in")
 			ui.Text(c, "Waiting for "+p.Name+" in your browser…").TextColor(t.TextMuted).Grow(1)
+
 			if ui.Button(c, "Cancel").Clicked() {
 				f.cancelSignIn()
 			}
 		})
+
 	default:
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Wrap().Children(func() {
 			if signInButton(c, k, p.Name).Clicked() {
 				a.startSignIn(f, k)
 			}
+
 			if f.refreshFor == k {
 				ui.Text(c, "Signed in.").TextColor(t.Success)
 			}
 		})
 	}
+
 	if e := f.errs["signIn"]; e != "" && f.refreshFor != k {
 		ui.Text(c, e).TextColor(t.Danger)
 	}
+
 	if f.signInErr != "" {
 		notice(c, f.signInErr, t.Danger)
 	}
+
 	if ui.Button(c, "Use an app password instead").FontSize(12).TextColor(t.TextMuted).Padding(2, 0).Clicked() {
 		f.appPassword = true
 	}
@@ -542,12 +612,14 @@ func (a *app) startSignIn(f *accountForm, k string) {
 	if open == nil {
 		open = func(string) {}
 	}
+
 	signIn, email := a.signIn, strings.TrimSpace(f.email)
 	go func() {
 		rt, err := signIn(ctx, providers[k], email, open)
 		a.update(func() {
 			cancel()
 			f.signingIn, f.cancelSignIn = false, nil
+
 			switch {
 			case errors.Is(err, context.Canceled):
 			case err != nil:
@@ -572,16 +644,20 @@ func (a *app) identsCard(c *ui.Context, f *accountForm) {
 					field(c, f.errs, fmt.Sprint("identName", i), "Name", func() { ui.TextInput(c, &id.Name).Placeholder("Jane Doe") })
 					field(c, f.errs, fmt.Sprint("identEmail", i), "Email", func() { ui.TextInput(c, &id.Email).Placeholder("jane@work.com") })
 				})
+
 				if iconButton(c, trashIcon, "Remove address", "Remove").Clicked() {
 					remove = i
 				}
 			})
+
 			ui.TextArea(c, &id.Signature).Label("Signature").Placeholder("Signature, in Markdown").Height(64)
 		})
 	}
+
 	if remove >= 0 {
 		f.idents = append(f.idents[:remove], f.idents[remove+1:]...)
 	}
+
 	if ui.Button(c, "Add address").Clicked() {
 		f.idents = append(f.idents, store.Identity{Name: strings.TrimSpace(f.displayName)})
 	}
@@ -592,6 +668,7 @@ func presetNames() []string {
 	for _, p := range presets {
 		names = append(names, p.server.Name)
 	}
+
 	return names
 }
 
@@ -603,6 +680,7 @@ func (a *app) test(f *accountForm, save bool) {
 		f.testMsg = ""
 		return
 	}
+
 	in, out := f.endpoints(a.profiles)
 	f.testing, f.testMsg, f.saveErr = true, "", ""
 	f.testGen++
@@ -614,7 +692,9 @@ func (a *app) test(f *accountForm, save bool) {
 			if f.testGen != gen {
 				return
 			}
+
 			f.testing, f.testMsg, f.testOK = false, msg, ok
+
 			switch {
 			case save && ok:
 				a.saveAccount(f)
@@ -635,9 +715,11 @@ func checkBoth(check func(context.Context, courrier.Endpoint) error, in, out cou
 			msgs = append(msgs, describe(e.name, err))
 		}
 	}
+
 	if len(msgs) == 0 {
 		return "Connected to both servers.", true
 	}
+
 	return strings.Join(msgs, "\n"), false
 }
 
@@ -660,6 +742,7 @@ func (a *app) saveAccount(f *accountForm) {
 	if k := f.oauth(); k != "" {
 		acc.Auth, inPass = k, f.refresh
 	}
+
 	var srv *store.Server
 	if s := f.resolve(a.profiles); s.ID != 0 {
 		acc.ServerID = s.ID // a saved profile
@@ -667,19 +750,23 @@ func (a *app) saveAccount(f *accountForm) {
 		s.Hidden = !(f.choice == custom && f.saveProfile)
 		srv = &s
 	}
+
 	if err := a.st.SaveAccount(&acc, srv, inPass, smtpPass); err != nil {
 		f.saveErr = "Couldn't save: " + err.Error()
 		return
 	}
+
 	var ids []store.Identity
 	for _, id := range f.idents {
 		ids = append(ids, store.Identity{Name: strings.TrimSpace(id.Name), Email: strings.TrimSpace(id.Email), Signature: id.Signature})
 	}
+
 	if err := a.st.SetIdentities(acc.ID, ids); err != nil {
 		f.id = acc.ID // saved already: a retry updates it
 		f.saveErr = "Couldn't save the other addresses: " + err.Error()
 		return
 	}
+
 	a.reload()
 	a.restartSync(acc.ID)
 	a.reloadMail()
@@ -692,6 +779,7 @@ func (a *app) removeAccount(f *accountForm) {
 		f.saveErr = "Couldn't remove: " + err.Error()
 		return
 	}
+
 	a.reload()
 	a.restartSync(f.id)
 	a.cur = nil

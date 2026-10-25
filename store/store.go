@@ -98,20 +98,25 @@ func Open(path string, secrets Secrets) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	s := &Store{db: db, secrets: secrets}
+
 	if _, err := db.Execute(ctx, "PRAGMA foreign_keys = ON"); err != nil {
 		db.Close()
 		return nil, err
 	}
+
 	for _, stmt := range strings.Split(schema, ";") {
 		if strings.TrimSpace(stmt) == "" {
 			continue
 		}
+
 		if _, err := db.Execute(ctx, stmt); err != nil {
 			db.Close()
 			return nil, err
 		}
 	}
+
 	// Added after the first release; existing databases lack them.
 	for _, stmt := range []string{
 		"ALTER TABLE accounts ADD COLUMN group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL",
@@ -134,18 +139,22 @@ func Open(path string, secrets Secrets) (*Store, error) {
 			return nil, err
 		}
 	}
+
 	if err := s.openSearch(); err != nil {
 		db.Close()
 		return nil, err
 	}
+
 	if err := s.backfillThreads(); err != nil {
 		db.Close()
 		return nil, err
 	}
+
 	if err := s.backfillContacts(); err != nil {
 		db.Close()
 		return nil, err
 	}
+
 	return s, nil
 }
 
@@ -168,10 +177,12 @@ func (s *Store) Servers() ([]Server, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Server, len(rows.Values))
 	for i, r := range rows.Values {
 		out[i] = scanServer(r)
 	}
+
 	return out, nil
 }
 
@@ -180,9 +191,11 @@ func (s *Store) Server(id int64) (Server, error) {
 	if err != nil {
 		return Server{}, err
 	}
+
 	if len(rows.Values) == 0 {
 		return Server{}, fmt.Errorf("server %d not found", id)
 	}
+
 	return scanServer(rows.Values[0]), nil
 }
 
@@ -207,9 +220,11 @@ func (s *Store) SaveServer(v *Server) error {
 		if err != nil {
 			return nameErr(err)
 		}
+
 		v.ID = r.LastInsertID
 		return nil
 	}
+
 	_, err := s.db.Execute(ctx, `UPDATE servers SET name = CASE WHEN hidden THEN name ELSE ? END, protocol = ?, in_host = ?, in_port = ?,
 in_security = ?, smtp_host = ?, smtp_port = ?, smtp_security = ? WHERE id = ?`,
 		append(append([]any{v.Name}, serverArgs(*v)...), v.ID)...)
@@ -223,6 +238,7 @@ func nameErr(err error) error {
 	if errors.As(err, &se) && strings.Contains(se.Message, "UNIQUE") {
 		return ErrNameTaken
 	}
+
 	return err
 }
 
@@ -239,13 +255,16 @@ func (s *Store) DeleteServer(id int64) error {
 	if err != nil {
 		return err
 	}
+
 	if len(used) > 0 {
 		e := &InUseError{}
 		for _, a := range used {
 			e.Emails = append(e.Emails, a.Email)
 		}
+
 		return e
 	}
+
 	_, err = s.db.Execute(ctx, "DELETE FROM servers WHERE id = ?", id)
 	return err
 }
@@ -257,6 +276,7 @@ func (s *Store) accounts(where string, args ...any) ([]Account, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Account, len(rows.Values))
 	for i, r := range rows.Values {
 		out[i] = Account{
@@ -266,6 +286,7 @@ func (s *Store) accounts(where string, args ...any) ([]Account, error) {
 		}
 		out[i].GroupID, _ = r[8].(int64) // NULL when ungrouped
 	}
+
 	return out, nil
 }
 
@@ -287,41 +308,51 @@ func (s *Store) SaveAccount(a *Account, srv *Server, inPass, smtpPass string) er
 		if err := s.SaveServer(srv); err != nil {
 			return err
 		}
+
 		a.ServerID = srv.ID
 	}
+
 	if a.Auth == "" {
 		a.Auth = "password"
 	}
+
 	args := []any{a.DisplayName, a.Email, a.InUsername, a.SMTPUsername, a.POP3Keep, a.Signature, a.Auth}
 	sid := "last_insert_rowid()"
 	if !newServer {
 		sid = "?"
 		args = append([]any{a.ServerID}, args...)
 	}
+
 	id, idArgs := "last_insert_rowid()", []any(nil) // the account inserted just before
 	if a.ID != 0 {
 		id, idArgs = "?", []any{a.ID}
 	}
+
 	pw, err := s.passwordsStmt(id, idArgs, inPass, smtpPass)
 	if err != nil {
 		return err
 	}
+
 	if a.ID == 0 {
 		stmts = append(stmts, sqlite.Statement{SQL: "INSERT INTO accounts (server_id, display_name, email, in_username, smtp_username, pop3_keep, signature, auth, sort_order) VALUES (" + sid + ", ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM accounts))", Args: args})
 	} else {
 		stmts = append(stmts, sqlite.Statement{SQL: "UPDATE accounts SET server_id = " + sid + ", display_name = ?, email = ?, in_username = ?, smtp_username = ?, pop3_keep = ?, signature = ?, auth = ? WHERE id = ?", Args: append(args, a.ID)})
 	}
+
 	res, err := s.db.Transaction(ctx, append(stmts, pw))
 	if err != nil {
 		return nameErr(err)
 	}
+
 	if newServer {
 		srv.ID = res[0].LastInsertID
 		a.ServerID = srv.ID
 	}
+
 	if a.ID == 0 {
 		a.ID = res[len(res)-2].LastInsertID
 	}
+
 	return s.pruneHidden()
 }
 
@@ -336,7 +367,9 @@ func (s *Store) DeleteAccount(id int64) error {
 	if _, err := s.db.Execute(ctx, "DELETE FROM accounts WHERE id = ?", id); err != nil {
 		return err
 	}
+
 	s.deleteLegacy(id)
+
 	return s.pruneHidden()
 }
 
@@ -361,8 +394,10 @@ func (s *Store) SetOrder(places []Place) error {
 		if p.Group {
 			table = "groups"
 		}
+
 		stmts = append(stmts, sqlite.Statement{SQL: "UPDATE " + table + " SET sort_order = ? WHERE id = ?", Args: []any{i, p.ID}})
 	}
+
 	_, err := s.db.Transaction(ctx, stmts)
 	return err
 }
@@ -373,10 +408,12 @@ func (s *Store) Groups() ([]Group, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Group, len(rows.Values))
 	for i, r := range rows.Values {
 		out[i] = Group{ID: r[0].(int64), Name: r[1].(string), SortOrder: int(r[2].(int64))}
 	}
+
 	return out, nil
 }
 
@@ -393,9 +430,11 @@ func (s *Store) SaveGroup(g *Group) error {
 	} else {
 		_, err = s.db.Execute(ctx, "UPDATE groups SET name = ? WHERE id = ?", g.Name, g.ID)
 	}
+
 	if errors.Is(nameErr(err), ErrNameTaken) {
 		return ErrGroupTaken
 	}
+
 	return err
 }
 

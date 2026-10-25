@@ -116,9 +116,11 @@ ON CONFLICT (account_id, path) DO UPDATE SET delim = excluded.delim, special = e
 
 func jsonList[T any](v []T) string {
 	b, _ := json.Marshal(v)
+
 	if v == nil {
 		return "[]"
 	}
+
 	return string(b)
 }
 
@@ -129,6 +131,7 @@ func (s *Store) SetFolders(account int64, fs []mail.Folder) error {
 		stmts = append(stmts, folderStmts(account, f)...)
 		paths = append(paths, f.Path)
 	}
+
 	stmts = append(stmts, sqlite.Statement{SQL: "DELETE FROM folders WHERE account_id = ? AND local = 0 AND path NOT IN (SELECT value FROM json_each(?))",
 		Args: []any{account, jsonList(paths)}})
 	_, err := s.db.Transaction(ctx, stmts)
@@ -149,6 +152,7 @@ func (s *Store) Folders() ([]Folder, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Folder, len(rows.Values))
 	for i, r := range rows.Values {
 		out[i] = Folder{ID: r[0].(int64), AccountID: r[1].(int64), Folder: mail.Folder{
@@ -156,6 +160,7 @@ func (s *Store) Folders() ([]Folder, error) {
 			UIDValidity: uint32(r[7].(int64)), UIDNext: uint32(r[8].(int64)), Unread: int(r[9].(int64)), Total: int(r[10].(int64)),
 		}}
 	}
+
 	return out, nil
 }
 
@@ -164,6 +169,7 @@ func (s *Store) UIDRange(account int64, path string) (oldest, newest uint32, err
 	if err != nil {
 		return 0, 0, err
 	}
+
 	return uint32(rows.Values[0][0].(int64)), uint32(rows.Values[0][1].(int64)), nil
 }
 
@@ -190,12 +196,14 @@ func (s *Store) AddHeaders(account int64, path string, hs []mail.Header) error {
 	if len(hs) == 0 {
 		return nil
 	}
+
 	var stmts []sqlite.Statement
 	for _, h := range hs {
 		stmts = append(stmts, headerStmt([]any{account, path}, "?", []any{int64(h.UID)}, h), seenStmt([]any{account, path}, h))
 		stmts = append(stmts, threadStmts(account, "(SELECT id FROM messages WHERE folder_id = (SELECT id FROM folders WHERE account_id = ?1 AND path = ?6) AND uid = ?7)",
 			[]any{path, int64(h.UID)}, h)...)
 	}
+
 	_, err := s.db.Transaction(ctx, stmts)
 	return err
 }
@@ -205,11 +213,12 @@ func (s *Store) SyncFlags(account int64, path string, from, to uint32, flags map
 	for uid := range flags {
 		present[uid] = true
 	}
+
 	return s.ChangeFlags(account, path, flags, from, to, present)
 }
 
 func (s *Store) ChangeFlags(account int64, path string, flags map[uint32]mail.Flags, from, to uint32, present map[uint32]bool) error {
-	var stmts []sqlite.Statement
+	stmts := make([]sqlite.Statement, 0, len(flags)+1)
 	for uid, f := range flags {
 		// A change of the user's still waiting for the server keeps its flags.
 		stmts = append(stmts, sqlite.Statement{SQL: `UPDATE messages SET seen = ?1, flagged = ?2, answered = ?3 WHERE folder_id = (SELECT id FROM folders WHERE account_id = ?4 AND path = ?5) AND uid = ?6
@@ -217,17 +226,21 @@ AND (seen != ?1 OR flagged != ?2 OR answered != ?3)
 AND NOT EXISTS (SELECT 1 FROM actions a, json_each(a.uids) j WHERE a.account_id = ?4 AND a.path = ?5 AND a.op IN ('seen', 'unseen', 'flag', 'unflag') AND j.value = ?6)`,
 			Args: []any{f.Seen, f.Flagged, f.Answered, account, path, int64(uid)}})
 	}
+
 	if present != nil {
 		uids := make([]uint32, 0, len(present))
 		for uid := range present {
 			uids = append(uids, uid)
 		}
+
 		stmts = append(stmts, sqlite.Statement{SQL: "DELETE FROM messages WHERE folder_id = " + folderID + " AND uid BETWEEN ? AND ? AND uid NOT IN (SELECT value FROM json_each(?))",
 			Args: []any{account, path, int64(from), int64(to), jsonList(uids)}})
 	}
+
 	if len(stmts) == 0 {
 		return nil
 	}
+
 	_, err := s.db.Transaction(ctx, stmts)
 	return err
 }
@@ -237,6 +250,7 @@ func (s *Store) SyncState(account int64, path string) (modseq uint64, exists uin
 	if err != nil || len(rows.Values) == 0 {
 		return 0, 0, err
 	}
+
 	return uint64(rows.Values[0][0].(int64)), uint32(rows.Values[0][1].(int64)), nil
 }
 
@@ -251,6 +265,7 @@ func attachStmts(msgID string, args []any, as []mail.Attachment) []sqlite.Statem
 		out = append(out, sqlite.Statement{SQL: "INSERT INTO attachments (message_id, part, filename, mime_type, size, content_id) VALUES (" + msgID + ", ?, ?, ?, ?, ?)",
 			Args: append(append([]any{}, args...), a.Part, a.Filename, a.MIMEType, a.Size, a.ContentID)})
 	}
+
 	return out
 }
 
@@ -269,10 +284,12 @@ func (s *Store) SeenUIDLs(account int64) (map[string]bool, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := map[string]bool{}
 	for _, r := range rows.Values {
 		out[r[0].(string)] = true
 	}
+
 	return out, nil
 }
 
@@ -306,12 +323,14 @@ func (s *Store) AddLocal(account int64, special string, raw []byte) error {
 	if err != nil {
 		return err
 	}
+
 	path := specialNames[special]
 	if len(rows.Values) > 0 {
 		path = rows.Values[0][0].(string)
 	} else if err := s.AddLocalFolder(account, path, special); err != nil {
 		return err
 	}
+
 	return s.Import(account, path, raw)
 }
 
@@ -322,7 +341,9 @@ func (s *Store) Import(account int64, path string, raw []byte) error {
 	if h.Date.IsZero() {
 		h.Date = time.Now()
 	}
+
 	h.Seen = true
+
 	return s.addStored(account, path, h, b, raw)
 }
 
@@ -368,10 +389,12 @@ func (s *Store) Messages(folder int64, limit int) ([]Message, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Message, len(rows.Values))
 	for i, r := range rows.Values {
 		out[i] = scanMessage(r)
 	}
+
 	return out, nil
 }
 
@@ -381,18 +404,22 @@ func (s *Store) Message(id int64) (Message, mail.Body, error) {
 	if err != nil {
 		return Message{}, mail.Body{}, err
 	}
+
 	if len(rows.Values) == 0 {
 		return Message{}, mail.Body{}, fmt.Errorf("message %d not found", id)
 	}
+
 	r := rows.Values[0]
 	b := mail.Body{Text: r[21].(string), HTML: r[22].(string)}
 	att, err := s.db.Query(ctx, "SELECT part, filename, mime_type, size, content_id FROM attachments WHERE message_id = ? ORDER BY id", id)
 	if err != nil {
 		return Message{}, mail.Body{}, err
 	}
+
 	for _, a := range att.Values {
 		b.Attachments = append(b.Attachments, mail.Attachment{Part: a[0].(string), Filename: a[1].(string), MIMEType: a[2].(string), Size: a[3].(int64), ContentID: a[4].(string)})
 	}
+
 	return scanMessage(r), b, nil
 }
 
@@ -403,6 +430,7 @@ func (s *Store) MessageByUID(account int64, path string, uid uint32) (m Message,
 	if err != nil || len(rows.Values) == 0 {
 		return Message{}, false, err
 	}
+
 	return scanMessage(rows.Values[0]), true, nil
 }
 
@@ -412,9 +440,11 @@ func (s *Store) Raw(id int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if len(rows.Values) == 0 || rows.Values[0][0] == nil {
 		return nil, fmt.Errorf("message %d has no stored copy", id)
 	}
+
 	return rows.Values[0][0].([]byte), nil
 }
 
@@ -427,8 +457,10 @@ func (s *Store) EachRaw(folder int64, each func(raw []byte) error) error {
 		if err != nil || len(rows.Values) == 0 {
 			return err
 		}
+
 		for _, r := range rows.Values {
 			after = r[0].(int64)
+
 			if err := each(r[1].([]byte)); err != nil {
 				return err
 			}
@@ -463,6 +495,7 @@ func (s *Store) Pref(key string) string {
 	if err != nil || len(rows.Values) == 0 {
 		return ""
 	}
+
 	return rows.Values[0][0].(string)
 }
 

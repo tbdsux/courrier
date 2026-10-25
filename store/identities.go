@@ -30,10 +30,12 @@ func (s *Store) Identities() ([]Identity, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Identity, len(rows.Values))
 	for i, r := range rows.Values {
 		out[i] = Identity{ID: r[0].(int64), AccountID: r[1].(int64), Name: r[2].(string), Email: r[3].(string), Signature: r[4].(string)}
 	}
+
 	return out, nil
 }
 
@@ -44,6 +46,7 @@ func (s *Store) SetIdentities(account int64, ids []Identity) error {
 		stmts = append(stmts, sqlite.Statement{SQL: "INSERT INTO identities (account_id, name, email, signature, sort_order) VALUES (?, ?, ?, ?, ?)",
 			Args: []any{account, id.Name, id.Email, id.Signature, i}})
 	}
+
 	_, err := s.db.Transaction(ctx, stmts)
 	return err
 }

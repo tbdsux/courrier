@@ -20,6 +20,7 @@ func laterChoices(now time.Time) []later {
 		y, m, dd := now.Date()
 		return time.Date(y, m, dd+d, h, 0, 0, 0, now.Location())
 	}
+
 	var out []later
 	switch h := now.Hour(); {
 	case h < 15:
@@ -27,19 +28,23 @@ func laterChoices(now time.Time) []later {
 	case h < 21:
 		out = append(out, later{"Later today", day(0, h+3)})
 	}
+
 	out = append(out, later{"Tomorrow morning", day(1, 8)})
 	wd := int(now.Weekday())
 	weekend, sat := "This weekend", (6-wd+7)%7
 	if wd == 0 || wd == 6 {
 		weekend = "Next weekend"
 	}
+
 	if sat == 0 {
 		sat = 7
 	}
+
 	mon := (1 - wd + 7) % 7
 	if mon == 0 {
 		mon = 7
 	}
+
 	return append(out, later{weekend, day(sat, 8)}, later{"Next week", day(mon, 8)})
 }
 
@@ -70,7 +75,9 @@ func laterMenu(m *ui.Menu, ask *laterAsk, title string, pick func(time.Time)) {
 			pick(l.at)
 		}
 	}
+
 	m.Separator()
+
 	if m.Item("Pick a time…").Chosen() {
 		ask.ask(title, pick)
 	}
@@ -93,27 +100,35 @@ func laterDialog(c *ui.Context, l *laterAsk, width float32) {
 						l.open = false
 						l.pick(ch.at)
 					}
+
 					ui.Text(c, laterLabel(ch.at, now)).TextColor(t.TextMuted).AlignSelf(ui.Center).Padding(0, 8)
 				})
 			}
+
 			ui.Divider(c)
+
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.DateInput(c, &l.at).Label("Day").Grow(1)
 				ui.TimeInput(c, &l.at).Label("Time")
 			})
+
 			if l.err != "" {
 				ui.Text(c, l.err).TextColor(t.Danger)
 			}
+
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Spacer(c)
+
 				if ui.Button(c, "Cancel").Clicked() {
 					l.open = false
 				}
+
 				if ui.PrimaryButton(c, l.title).Clicked() {
 					if !l.at.After(time.Now()) {
 						l.err = "Pick a time to come."
 						return
 					}
+
 					l.open = false
 					l.pick(l.at)
 				}

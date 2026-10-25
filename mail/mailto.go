@@ -14,23 +14,30 @@ func ParseMailto(raw string) (Draft, error) {
 	if !ok || !strings.EqualFold(scheme, "mailto") {
 		return Draft{}, errors.New("not a mailto: URL")
 	}
+
 	rest, _, _ = strings.Cut(rest, "#")
 	addrs, query, _ := strings.Cut(rest, "?")
 	var d Draft
+
 	add := func(list *string, v string) {
 		if v = strings.TrimSpace(v); v == "" {
 			return
 		}
+
 		if *list != "" {
 			*list += ", "
 		}
+
 		*list += v
 	}
+
 	to, err := url.PathUnescape(addrs)
 	if err != nil {
 		return Draft{}, err
 	}
+
 	add(&d.To, to)
+
 	for _, field := range strings.Split(query, "&") {
 		k, v, _ := strings.Cut(field, "=")
 		k, err1 := url.PathUnescape(k)
@@ -38,6 +45,7 @@ func ParseMailto(raw string) (Draft, error) {
 		if err := errors.Join(err1, err2); err != nil {
 			return Draft{}, err
 		}
+
 		switch strings.ToLower(k) {
 		case "to":
 			add(&d.To, v)
@@ -51,5 +59,6 @@ func ParseMailto(raw string) (Draft, error) {
 			d.Text = strings.ReplaceAll(v, "\r\n", "\n")
 		}
 	}
+
 	return d, nil
 }

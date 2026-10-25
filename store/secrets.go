@@ -31,9 +31,11 @@ var ErrSecretNotFound = mygo.ErrSecretNotFound
 func (s *Store) gcm() (cipher.AEAD, error) {
 	s.keyMu.Lock()
 	defer s.keyMu.Unlock()
+
 	if s.aead != nil {
 		return s.aead, nil
 	}
+
 	key, err := s.secrets.Get(sealKeyName)
 	if errors.Is(err, ErrSecretNotFound) {
 		// Only when there is none: another error (a denied prompt, a locked
@@ -43,16 +45,20 @@ func (s *Store) gcm() (cipher.AEAD, error) {
 			err = s.secrets.Set(sealKeyName, key)
 		}
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("couldn't read the key from the keychain: %w", err)
 	}
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
+
 	if s.aead, err = cipher.NewGCM(block); err != nil {
 		return nil, err
 	}
+
 	return s.aead, nil
 }
 
@@ -61,10 +67,12 @@ func (s *Store) seal(plain string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	nonce := make([]byte, g.NonceSize())
 	if _, err := rand.Read(nonce); err != nil {
 		return nil, err
 	}
+
 	return g.Seal(nonce, nonce, []byte(plain), nil), nil
 }
 
@@ -73,13 +81,16 @@ func (s *Store) open(sealed []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	if len(sealed) < g.NonceSize() {
 		return "", errors.New("stored password is damaged")
 	}
+
 	plain, err := g.Open(nil, sealed[:g.NonceSize()], sealed[g.NonceSize():], nil)
 	if err != nil {
 		return "", errors.New("stored password is damaged or was sealed with another key")
 	}
+
 	return string(plain), nil
 }
 
@@ -89,10 +100,12 @@ func (s *Store) passwordsStmt(id string, args []any, in, smtp string) (sqlite.St
 	if err != nil {
 		return sqlite.Statement{}, err
 	}
+
 	ssmtp, err := s.seal(smtp)
 	if err != nil {
 		return sqlite.Statement{}, err
 	}
+
 	return sqlite.Statement{SQL: "INSERT INTO secrets (account_id, incoming, smtp) VALUES (" + id + ", ?, ?) ON CONFLICT (account_id) DO UPDATE SET incoming = excluded.incoming, smtp = excluded.smtp",
 		Args: append(args, sin, ssmtp)}, nil
 }
@@ -104,6 +117,7 @@ func (s *Store) SetPasswords(id int64, incoming, smtp string) error {
 	if err != nil {
 		return err
 	}
+
 	_, err = s.db.Execute(ctx, st.SQL, st.Args...)
 	return err
 }
@@ -114,12 +128,15 @@ func (s *Store) Passwords(id int64) (incoming, smtp string, err error) {
 	if err != nil {
 		return "", "", err
 	}
+
 	if len(rows.Values) == 0 {
 		return s.migratePasswords(id)
 	}
+
 	if incoming, err = s.open(rows.Values[0][0].([]byte)); err != nil {
 		return "", "", err
 	}
+
 	smtp, err = s.open(rows.Values[0][1].([]byte))
 	return incoming, smtp, err
 }
@@ -133,14 +150,18 @@ func (s *Store) migratePasswords(id int64) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
+
 	out, err := s.secrets.Get(legacyKey(id, "smtp"))
 	if err != nil {
 		return "", "", err
 	}
+
 	if err := s.SetPasswords(id, string(in), string(out)); err != nil {
 		return "", "", err
 	}
+
 	s.deleteLegacy(id)
+
 	return string(in), string(out), nil
 }
 

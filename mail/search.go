@@ -39,6 +39,7 @@ func ParseQuery(s string) Query {
 			q.Text = appendWord(q.Text, tok)
 		}
 	}
+
 	return q
 }
 
@@ -51,20 +52,25 @@ func tokens(s string) []string {
 		switch {
 		case r == '"':
 			quoted, any = !quoted, true
+
 		case unicode.IsSpace(r) && !quoted:
 			if any {
 				out = append(out, cur.String())
 			}
+
 			cur.Reset()
 			any = false
+
 		default:
 			cur.WriteRune(r)
 			any = true
 		}
 	}
+
 	if any {
 		out = append(out, cur.String())
 	}
+
 	return out
 }
 
@@ -94,6 +100,7 @@ func (q Query) Match() string {
 	add("{from_name from_addr} : ", q.From)
 	add("to_addrs : ", q.To)
 	add("subject : ", q.Subject)
+
 	return strings.Join(parts, " AND ")
 }
 
@@ -109,12 +116,15 @@ func (q Query) Criteria() *imap.SearchCriteria {
 			c.Header = append(c.Header, imap.SearchCriteriaHeaderField{Key: h.key, Value: w})
 		}
 	}
+
 	if q.Unread {
 		c.NotFlag = append(c.NotFlag, imap.FlagSeen)
 	}
+
 	if q.Flagged {
 		c.Flag = append(c.Flag, imap.FlagFlagged)
 	}
+
 	return c
 }
 

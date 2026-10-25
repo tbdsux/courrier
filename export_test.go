@@ -17,11 +17,14 @@ func TestMboxExportImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer st.Close()
 	acc := store.Account{DisplayName: "Jane", Email: "jane@example.com", InUsername: "jane", SMTPUsername: "jane"}
 	srv := store.Server{Name: "x", Protocol: "pop3", InHost: "h", InPort: 995, InSecurity: "tls", SMTPHost: "h", SMTPPort: 465, SMTPSecurity: "tls", Hidden: true}
+
 	must := func(err error) {
 		t.Helper()
+
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -37,6 +40,7 @@ func TestMboxExportImport(t *testing.T) {
 		h, b, _ := courrier.Parse(raw)
 		must(st.AddPOP3(acc.ID, string(rune('a'+i)), h, b, raw))
 	}
+
 	must(st.AddLocalFolder(acc.ID, "Imported", ""))
 	a := newApp(st, func(fn func()) { fn() })
 	var inbox, imported store.Folder
@@ -53,17 +57,22 @@ func TestMboxExportImport(t *testing.T) {
 	done := make(chan error, 1)
 	var n int
 	a.exportFolder(inbox, path, func(got int, err error) { n = got; done <- err })
+
 	if err := <-done; err != nil || n != 2 {
 		t.Fatalf("exported %d: %v", n, err)
 	}
+
 	if n, err := importMbox(st, imported, path, true); err != nil || n != 2 {
 		t.Fatalf("imported %d: %v", n, err)
 	}
+
 	ms, err := st.Messages(imported.ID, 10)
 	must(err)
+
 	if len(ms) != 2 {
 		t.Fatalf("%d messages imported", len(ms))
 	}
+
 	for _, m := range ms {
 		raw, err := st.Raw(m.ID)
 		must(err)
@@ -72,10 +81,12 @@ func TestMboxExportImport(t *testing.T) {
 		want := raws[0]
 		if m.Subject == "With a file" {
 			want = raws[1]
+
 			if len(b.Attachments) != 1 || b.Attachments[0].Filename != "a.pdf" {
 				t.Errorf("attachments %+v", b.Attachments)
 			}
 		}
+
 		if !bytes.Equal(raw, want) {
 			t.Errorf("%s:\n%q\nwant\n%q", m.Subject, raw, want)
 		}

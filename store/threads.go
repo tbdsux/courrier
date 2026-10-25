@@ -40,6 +40,7 @@ func threadStmts(account int64, row string, rargs []any, h mail.Header) []sqlite
 	if h.MessageID != "" {
 		keys = append(keys, h.MessageID)
 	}
+
 	keys = append(keys, h.Refs...)
 	args := append([]any{account, jsonList(keys), mail.Topic(h.Subject), h.Date.Unix(), len(h.Refs) > 0}, rargs...)
 	named := "(SELECT thread_id FROM thread_refs WHERE account_id = ?1 AND ref IN (SELECT '<' || value || '>' FROM json_each(?2)))"
@@ -64,8 +65,10 @@ ON CONFLICT (account_id, ref) DO UPDATE SET thread_id = CASE WHEN excluded.date 
 			k, _ := strconv.Atoi(m[1])
 			n = max(n, k)
 		}
+
 		stmts[i].Args = args[:n]
 	}
+
 	return stmts
 }
 
@@ -80,6 +83,7 @@ WHERE m.thread_id IS NULL ORDER BY m.date, m.id`)
 	if err != nil || len(rows.Values) == 0 {
 		return err
 	}
+
 	var stmts []sqlite.Statement
 	for _, r := range rows.Values {
 		h := mail.Header{MessageID: r[2].(string), Subject: r[3].(string), Date: time.Unix(r[4].(int64), 0)}
@@ -87,8 +91,10 @@ WHERE m.thread_id IS NULL ORDER BY m.date, m.id`)
 			p, _, _ := mail.Parse(raw)
 			h.Refs = p.Refs
 		}
+
 		stmts = append(stmts, threadStmts(r[1].(int64), "?6", []any{r[0]}, h)...)
 	}
+
 	_, err = s.db.Transaction(ctx, stmts)
 	return err
 }
@@ -109,10 +115,12 @@ func (s *Store) Conversations(folder int64, limit int) ([]Message, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		for _, r := range keys.Values {
 			t, id := r[0].(int64), r[1].(int64)
 			if k := cmp.Or(t, -id); !picked[k] && len(picked) < limit {
 				picked[k] = true
+
 				if t != 0 {
 					picks = append(picks, t)
 				} else {
@@ -120,10 +128,12 @@ func (s *Store) Conversations(folder int64, limit int) ([]Message, error) {
 				}
 			}
 		}
+
 		if len(keys.Values) < n {
 			break
 		}
 	}
+
 	// MAX(m.date) alone among MIN and MAX: the other columns are of its row.
 	rows, err := s.db.Query(ctx, "SELECT "+messageCols+`, json_group_array(m.id), TOTAL(1 - m.seen), TOTAL(m.flagged), TOTAL(m.has_attach), MAX(m.date)
 FROM messages m JOIN folders f ON f.id = m.folder_id WHERE `+where+` AND (m.thread_id IN (SELECT value FROM json_each(?)) OR m.id IN (SELECT value FROM json_each(?)))
@@ -132,6 +142,7 @@ GROUP BY COALESCE(m.thread_id, -m.id) ORDER BY MAX(m.date) DESC, m.id DESC LIMIT
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Message, len(rows.Values))
 	var threads []int64
 	var ids []int64
@@ -141,24 +152,29 @@ GROUP BY COALESCE(m.thread_id, -m.id) ORDER BY MAX(m.date) DESC, m.id DESC LIMIT
 		if err := json.Unmarshal([]byte(r[21].(string)), &m.IDs); err != nil {
 			return nil, err
 		}
+
 		m.Seen, m.Flagged, m.HasAttach = r[22].(float64) == 0, r[23].(float64) > 0, r[24].(float64) > 0
 		out[i] = m
+
 		if m.Thread != 0 {
 			threads = append(threads, m.Thread)
 			ids = append(ids, m.IDs...)
 			at[m.Thread] = i
 		}
 	}
+
 	all, err := s.db.Query(ctx, `SELECT m.thread_id, m.id, m.message_id, m.from_name, m.from_addr, f.special FROM messages m JOIN folders f ON f.id = m.folder_id
 WHERE m.thread_id IN (SELECT value FROM json_each(?1)) AND (f.special IN ('inbox', 'sent', 'archive') OR m.id IN (SELECT value FROM json_each(?2)))
 ORDER BY m.date, m.id`, jsonList(threads), jsonList(ids))
 	if err != nil {
 		return nil, err
 	}
+
 	type seen struct {
 		row int
 		key string
 	}
+
 	counted, named := map[seen]bool{}, map[seen]bool{}
 	people := make([][]string, len(out))
 	for _, r := range all.Values {
@@ -167,26 +183,32 @@ ORDER BY m.date, m.id`, jsonList(threads), jsonList(ids))
 		if key == "" {
 			key = "#" + strconv.FormatInt(r[1].(int64), 10)
 		}
+
 		if counted[seen{i, key}] {
 			continue // the same message in two folders
 		}
+
 		counted[seen{i, key}] = true
 		out[i].Count++
 		who := r[3].(string)
 		if who == "" {
 			who = r[4].(string)
 		}
+
 		if r[5] == "sent" {
 			who = "me"
 		}
+
 		if who != "" && !named[seen{i, who}] {
 			named[seen{i, who}] = true
 			people[i] = append(people[i], who)
 		}
 	}
+
 	for i := range out {
 		out[i].People = strings.Join(people[i], ", ")
 	}
+
 	return out, nil
 }
 
@@ -197,11 +219,13 @@ func (s *Store) Conversation(m Message) ([]Message, error) {
 	if m.Thread == 0 {
 		return []Message{m}, nil
 	}
+
 	rows, err := s.db.Query(ctx, "SELECT "+messageCols+` FROM messages m JOIN folders f ON f.id = m.folder_id
 WHERE m.thread_id = ? AND (f.special IN ('inbox', 'sent', 'archive') OR m.folder_id = ?) ORDER BY m.date, m.id`, m.Thread, m.FolderID)
 	if err != nil {
 		return nil, err
 	}
+
 	var out []Message
 	at := map[string]int{}
 	for _, r := range rows.Values {
@@ -212,8 +236,10 @@ WHERE m.thread_id = ? AND (f.special IN ('inbox', 'sent', 'archive') OR m.folder
 			}
 			continue
 		}
+
 		at[x.MessageID] = len(out)
 		out = append(out, x)
 	}
+
 	return out, nil
 }

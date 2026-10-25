@@ -13,10 +13,12 @@ func (a *app) openMailto(raw string) {
 		a.toast = "Couldn't open the link: " + err.Error()
 		return
 	}
+
 	if len(a.accounts) == 0 {
 		a.toast = "Add an account to write mail."
 		return
 	}
+
 	a.compose(m)
 }
 
@@ -28,6 +30,7 @@ func (a *app) secondInstance(args []string) {
 			return
 		}
 	}
+
 	if a.showWindow != nil {
 		a.showWindow()
 	}

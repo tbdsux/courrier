@@ -17,6 +17,7 @@ func (f fakeSecrets) Get(k string) ([]byte, error) {
 	if !ok {
 		return nil, errNotFound
 	}
+
 	return []byte(v), nil
 }
 func (f fakeSecrets) Delete(k string) error { delete(f, k); return nil }
@@ -27,12 +28,15 @@ func open(t *testing.T) (*Store, fakeSecrets) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(func() { s.Close() })
+
 	return s, sec
 }
 
 func must(t *testing.T, err error) {
 	t.Helper()
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,18 +50,22 @@ func TestProfileSharedByAccounts(t *testing.T) {
 	srv := vps
 	a := Account{DisplayName: "A", Email: "a@example.com", InUsername: "a", SMTPUsername: "a", POP3Keep: true}
 	must(t, s.SaveAccount(&a, &srv, "pw-in", "pw-out"))
+
 	if srv.ID == 0 || a.ServerID != srv.ID || a.ID == 0 {
 		t.Fatalf("ids not set: %+v %+v", srv, a)
 	}
+
 	// Second account on the same profile: only email and password.
 	b := Account{ServerID: srv.ID, DisplayName: "B", Email: "b@example.com", InUsername: "b", SMTPUsername: "b"}
 	must(t, s.SaveAccount(&b, nil, "pw", "pw"))
 
 	srv.InHost = "imap.example.com"
 	must(t, s.SaveServer(&srv))
+
 	for _, acc := range []Account{a, b} {
 		got, err := s.Server(acc.ServerID)
 		must(t, err)
+
 		if got.InHost != "imap.example.com" {
 			t.Errorf("account %s server host %q", acc.Email, got.InHost)
 		}
@@ -72,18 +80,23 @@ func TestProfileSharedByAccounts(t *testing.T) {
 	if err != nil || in != "pw-in" || out != "pw-out" {
 		t.Fatalf("passwords %q %q %v", in, out, err)
 	}
+
 	must(t, s.DeleteAccount(a.ID))
+
 	if rows, _ := s.db.Query(ctx, "SELECT COUNT(*) FROM secrets WHERE account_id = ?", a.ID); rows.Values[0][0].(int64) != 0 {
 		t.Error("passwords survived delete")
 	}
+
 	if len(sec) != 1 {
 		t.Errorf("keychain items %v, want the key alone", sec)
 	}
+
 	// Detaching moves b onto a hidden copy, after which the profile is free.
 	own := srv
 	own.ID, own.Hidden = 0, true
 	must(t, s.SaveAccount(&b, &own, "pw", "pw"))
 	must(t, s.DeleteServer(srv.ID))
+
 	if servers, _ := s.Servers(); len(servers) != 0 {
 		t.Errorf("servers %+v", servers)
 	}
@@ -95,10 +108,13 @@ func TestHiddenServerPruned(t *testing.T) {
 	srv.Hidden = true
 	a := Account{DisplayName: "A", Email: "a@example.com", InUsername: "a", SMTPUsername: "a"}
 	must(t, s.SaveAccount(&a, &srv, "x", "x"))
+
 	if servers, _ := s.Servers(); len(servers) != 0 {
 		t.Fatalf("hidden server listed: %+v", servers)
 	}
+
 	must(t, s.DeleteAccount(a.ID))
+
 	if _, err := s.Server(srv.ID); err == nil {
 		t.Error("hidden server kept after its account was deleted")
 	}
@@ -108,6 +124,7 @@ func TestNameTaken(t *testing.T) {
 	s, _ := open(t)
 	a, b := vps, vps
 	must(t, s.SaveServer(&a))
+
 	if err := s.SaveServer(&b); !errors.Is(err, ErrNameTaken) {
 		t.Fatalf("got %v", err)
 	}
@@ -119,11 +136,14 @@ func TestSealedPasswords(t *testing.T) {
 	srv.Hidden = true
 	a := Account{DisplayName: "A", Email: "a@example.com", InUsername: "a", SMTPUsername: "a"}
 	must(t, s.SaveAccount(&a, &srv, "in-secret", "out-secret"))
+
 	if len(sec) != 1 || len(sec[sealKeyName]) != 32 {
 		t.Fatalf("keychain %v", sec)
 	}
+
 	rows, err := s.db.Query(ctx, "SELECT incoming FROM secrets")
 	must(t, err)
+
 	if strings.Contains(string(rows.Values[0][0].([]byte)), "in-secret") {
 		t.Error("password stored in clear")
 	}
@@ -136,6 +156,7 @@ func TestSealedPasswords(t *testing.T) {
 	if err != nil || in != "old-in" || out != "old-out" {
 		t.Fatalf("migrated %q %q %v", in, out, err)
 	}
+
 	if _, ok := sec[legacyKey(41, "incoming")]; ok {
 		t.Error("old keychain item kept")
 	}
@@ -148,6 +169,7 @@ func TestSealedPasswords(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+
 	if reads.gets != 1 {
 		t.Errorf("keychain read %d times", reads.gets)
 	}
@@ -182,9 +204,11 @@ func TestAccountGroup(t *testing.T) {
 	must(t, s.SaveAccount(&a, &srv, "x", "x"))
 	g := Group{Name: "Work"}
 	must(t, s.SaveGroup(&g))
+
 	if err := s.SaveGroup(&Group{Name: "Work"}); !errors.Is(err, ErrGroupTaken) {
 		t.Errorf("duplicate name: %v", err)
 	}
+
 	must(t, s.SetAccountGroup(a.ID, g.ID))
 	a.Signature = "**A**\nAcme"
 	must(t, s.SaveAccount(&a, &srv, "x", "x")) // editing the account keeps its group
@@ -195,10 +219,13 @@ func TestAccountGroup(t *testing.T) {
 	defer s.Close()
 	accs, err := s.Accounts()
 	must(t, err)
+
 	if len(accs) != 1 || accs[0].GroupID != g.ID || accs[0].Signature != "**A**\nAcme" {
 		t.Fatalf("group or signature not kept: %+v", accs)
 	}
+
 	must(t, s.DeleteGroup(g.ID))
+
 	if accs, _ = s.Accounts(); len(accs) != 1 || accs[0].GroupID != 0 {
 		t.Fatalf("delete should ungroup, not remove: %+v", accs)
 	}
@@ -210,9 +237,11 @@ func TestAuthAndIdentities(t *testing.T) {
 	a := Account{DisplayName: "Jane", Email: "jane@gmail.com", InUsername: "jane@gmail.com", SMTPUsername: "jane@gmail.com", Auth: "google"}
 	must(t, s.SaveAccount(&a, &srv, "r1", "r1"))
 	must(t, s.SetPasswords(a.ID, "r2", "r2"))
+
 	if in, out, err := s.Passwords(a.ID); err != nil || in != "r2" || out != "r2" {
 		t.Errorf("refresh token %q %q %v", in, out, err)
 	}
+
 	b := Account{ServerID: srv.ID, DisplayName: "B", Email: "b@example.com", InUsername: "b", SMTPUsername: "b"}
 	must(t, s.SaveAccount(&b, nil, "pw", "pw"))
 	accs, err := s.Accounts()
@@ -225,10 +254,13 @@ func TestAuthAndIdentities(t *testing.T) {
 	must(t, s.SetIdentities(a.ID, []Identity{{Name: "Help", Email: "help@work.com"}, {Name: "Jane", Email: "jane@work.com", Signature: "J"}}))
 	ids, err := s.Identities()
 	must(t, err)
+
 	if len(ids) != 3 || ids[0].Email != "help@work.com" || ids[1].Signature != "J" || ids[2].AccountID != b.ID {
 		t.Errorf("identities %+v", ids)
 	}
+
 	must(t, s.DeleteAccount(a.ID))
+
 	if ids, _ := s.Identities(); len(ids) != 1 {
 		t.Errorf("identities survived their account: %+v", ids)
 	}
@@ -244,13 +276,16 @@ func TestOrder(t *testing.T) {
 	must(t, s.SaveAccount(&b, &srv, "x", "x"))
 	must(t, s.SetOrder([]Place{{ID: b.ID}, {ID: a.ID}}))
 	must(t, s.SaveAccount(&b, &srv, "x", "x")) // editing keeps its place
+
 	if accs, _ := s.Accounts(); len(accs) != 2 || accs[0].ID != b.ID {
 		t.Fatalf("accounts not reordered: %+v", accs)
 	}
+
 	x, y := Group{Name: "X"}, Group{Name: "Y"}
 	must(t, s.SaveGroup(&x))
 	must(t, s.SaveGroup(&y))
 	must(t, s.SetOrder([]Place{{Group: true, ID: y.ID}, {Group: true, ID: x.ID}}))
+
 	if gs, _ := s.Groups(); len(gs) != 2 || gs[0].ID != y.ID {
 		t.Fatalf("groups not reordered: %+v", gs)
 	}

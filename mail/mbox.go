@@ -3,6 +3,7 @@ package mail
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -17,23 +18,30 @@ func WriteMbox(w io.Writer, raw []byte) error {
 	if from == "" {
 		from = "MAILER-DAEMON"
 	}
+
 	if date.IsZero() {
 		date = time.Now()
 	}
+
 	bw := bufio.NewWriter(w)
 	fmt.Fprintf(bw, "From %s %s\n", from, date.UTC().Format(time.ANSIC))
+
 	for _, l := range bytes.SplitAfter(raw, []byte("\n")) {
 		if len(l) == 0 {
 			continue
 		}
+
 		l = bytes.TrimSuffix(bytes.TrimSuffix(l, []byte("\n")), []byte("\r"))
 		if bytes.HasPrefix(bytes.TrimLeft(l, ">"), []byte("From ")) {
 			bw.WriteByte('>')
 		}
+
 		bw.Write(l)
 		bw.WriteByte('\n')
 	}
+
 	bw.WriteByte('\n')
+
 	return bw.Flush()
 }
 
@@ -47,12 +55,15 @@ func ReadMbox(r io.Reader, fn func(raw []byte) error) error {
 		if !started {
 			return nil
 		}
+
 		// The blank line before the next "From " belongs to the mbox.
 		raw := append([]byte{}, bytes.TrimSuffix(msg.Bytes(), []byte("\r\n"))...)
 		if !bytes.HasSuffix(raw, []byte("\r\n")) {
 			raw = append(raw, '\r', '\n')
 		}
+
 		msg.Reset()
+
 		return fn(raw)
 	}
 	for {
@@ -64,18 +75,23 @@ func ReadMbox(r io.Reader, fn func(raw []byte) error) error {
 				if err := flush(); err != nil {
 					return err
 				}
+
 				started = true
+
 			case started:
 				if q := bytes.TrimLeft(l, ">"); len(q) < len(l) && bytes.HasPrefix(q, []byte("From ")) {
 					l = l[1:]
 				}
+
 				msg.Write(l)
 				msg.WriteString("\r\n")
 			}
 		}
-		if err == io.EOF {
+
+		if errors.Is(err, io.EOF) {
 			return flush()
 		}
+
 		if err != nil {
 			return err
 		}

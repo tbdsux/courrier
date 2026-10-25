@@ -42,16 +42,20 @@ func newAuthServer(t *testing.T) *authServer {
 		as.mu.Lock()
 		as.challenge = q.Get("code_challenge")
 		as.mu.Unlock()
+
 		if q.Get("code_challenge_method") != "S256" || q.Get("login_hint") != "jane@example.com" {
 			t.Errorf("auth URL: %v", q)
 		}
+
 		http.Redirect(w, r, q.Get("redirect_uri")+"?code=c1&state="+url.QueryEscape(q.Get("state")), http.StatusFound)
 	})
+
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		as.mu.Lock()
 		defer as.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
+
 		fail := func(code string) {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"error": code, "error_description": code + " here"})
@@ -63,18 +67,23 @@ func newAuthServer(t *testing.T) *authServer {
 				fail("invalid_grant")
 				return
 			}
+
 			json.NewEncoder(w).Encode(map[string]any{"access_token": "a0", "refresh_token": "r1", "expires_in": 3600})
+
 		case "refresh_token":
 			if r.Form.Get("refresh_token") == "revoked" {
 				fail("invalid_grant")
 				return
 			}
+
 			as.refreshes++
 			json.NewEncoder(w).Encode(map[string]any{"access_token": fmt.Sprintf("a%d", as.refreshes), "refresh_token": "r2", "expires_in": 3600})
 		}
 	})
+
 	as.Server = httptest.NewServer(mux)
 	t.Cleanup(as.Close)
+
 	return as
 }
 
@@ -101,6 +110,7 @@ func TestSignIn(t *testing.T) {
 	if err != nil || rt != "r1" {
 		t.Fatalf("SignIn = %q, %v", rt, err)
 	}
+
 	if _, err := SignIn(context.Background(), &Provider{Name: "None"}, "", browse(t)); err == nil {
 		t.Error("signed in without a client ID")
 	}
@@ -110,6 +120,7 @@ func TestSignInState(t *testing.T) {
 	as := newAuthServer(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
+
 	forged := func(u string) {
 		p, _ := url.Parse(u)
 		go func() {
@@ -118,14 +129,17 @@ func TestSignInState(t *testing.T) {
 				if r.StatusCode != http.StatusBadRequest {
 					t.Errorf("forged state: %d", r.StatusCode)
 				}
+
 				r.Body.Close()
 			}
+
 			cancel()
 		}()
 	}
 	if _, err := SignIn(ctx, as.provider(), "jane@example.com", forged); !errors.Is(err, context.Canceled) {
 		t.Errorf("forged state: %v", err)
 	}
+
 	denied := func(u string) {
 		p, _ := url.Parse(u)
 		go http.Get(p.Query().Get("redirect_uri") + "?error=access_denied&state=" + url.QueryEscape(p.Query().Get("state")))
@@ -139,6 +153,7 @@ func TestSignInTimeout(t *testing.T) {
 	as := newAuthServer(t)
 	defer func(d time.Duration) { signInTimeout = d }(signInTimeout)
 	signInTimeout = 50 * time.Millisecond
+
 	if _, err := SignIn(context.Background(), as.provider(), "", func(string) {}); err == nil || !strings.Contains(err.Error(), "timed out") {
 		t.Errorf("timeout: %v", err)
 	}
@@ -152,15 +167,19 @@ func TestTokens(t *testing.T) {
 	if a, err := tk.Token(ctx, false); err != nil || a != "a1" {
 		t.Fatalf("first token %q, %v", a, err)
 	}
+
 	if a, _ := tk.Token(ctx, false); a != "a1" || as.refreshes != 1 {
 		t.Errorf("a valid token refreshed: %q", a)
 	}
+
 	if a, _ := tk.Token(ctx, true); a != "a2" {
 		t.Errorf("fresh token %q", a)
 	}
+
 	if stored != "r2" {
 		t.Errorf("new refresh token not stored: %q", stored)
 	}
+
 	if _, err := NewTokens(as.provider(), "revoked", nil).Token(ctx, false); !errors.Is(err, ErrAuth) {
 		t.Errorf("revoked: %v", err)
 	}
@@ -171,9 +190,11 @@ func TestTokens(t *testing.T) {
 func fakeToken(calls *int) func(context.Context, bool) (string, error) {
 	return func(_ context.Context, fresh bool) (string, error) {
 		*calls++
+
 		if fresh {
 			return "good", nil
 		}
+
 		return "stale", nil
 	}
 }
@@ -202,6 +223,7 @@ func (f saslFunc) Next(r []byte) ([]byte, bool, error) { return f(r) }
 func TestXOAuth2IMAP(t *testing.T) {
 	mem := imapmemserver.New()
 	mem.AddUser(imapmemserver.NewUser("jane", "secret"))
+
 	srv := imapserver.New(&imapserver.Options{
 		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
 			return xoauthSession{mem.NewSession()}, nil, nil
@@ -209,10 +231,12 @@ func TestXOAuth2IMAP(t *testing.T) {
 		Caps:         imap.CapSet{imap.CapIMAP4rev1: {}},
 		InsecureAuth: true,
 	})
+
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	go srv.Serve(ln)
 	t.Cleanup(func() { srv.Close() })
 	calls := 0
@@ -220,7 +244,9 @@ func TestXOAuth2IMAP(t *testing.T) {
 	if err := Check(context.Background(), e); err != nil || calls != 2 {
 		t.Fatalf("stale then fresh token: %v, %d calls", err, calls)
 	}
+
 	e.Token = func(context.Context, bool) (string, error) { return "bad", nil }
+
 	if err := Check(context.Background(), e); !errors.Is(err, ErrAuth) {
 		t.Errorf("refused token: %v", err)
 	}
@@ -231,11 +257,13 @@ func TestXOAuth2SMTP(t *testing.T) {
 		switch {
 		case strings.HasPrefix(l, "EHLO"):
 			return "250-fake\r\n250 AUTH XOAUTH2"
+
 		case strings.HasPrefix(l, "AUTH XOAUTH2 "):
 			if b, _ := base64.StdEncoding.DecodeString(strings.TrimPrefix(l, "AUTH XOAUTH2 ")); string(b) == "user=jane\x01auth=Bearer good\x01\x01" {
 				return "235 ok"
 			}
 			return "334 eyJzdGF0dXMiOiI0MDEifQ=="
+
 		case l == "":
 			return "535 5.7.3 authentication unsuccessful"
 		case l == "QUIT":
@@ -243,12 +271,15 @@ func TestXOAuth2SMTP(t *testing.T) {
 		}
 		return "500 what"
 	})
+
 	calls := 0
 	e := Endpoint{Protocol: "smtp", Host: "127.0.0.1", Port: port, Security: "none", Username: "jane", Token: fakeToken(&calls)}
 	if err := Check(context.Background(), e); err != nil || calls != 2 {
 		t.Fatalf("stale then fresh token: %v, %d calls", err, calls)
 	}
+
 	e.Token = func(context.Context, bool) (string, error) { return "bad", nil }
+
 	if err := Check(context.Background(), e); !errors.Is(err, ErrAuth) {
 		t.Errorf("refused token: %v", err)
 	}

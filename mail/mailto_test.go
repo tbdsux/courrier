@@ -22,6 +22,7 @@ func TestParseMailto(t *testing.T) {
 			t.Errorf("%s: %+v %v, want %+v", tc.url, got, err, tc.want)
 		}
 	}
+
 	for _, bad := range []string{"", "bob@example.com", "http://example.com", "mailto:bob%zz@example.com", "mailto:bob@example.com?subject=%"} {
 		if _, err := ParseMailto(bad); err == nil {
 			t.Errorf("%q: no error", bad)

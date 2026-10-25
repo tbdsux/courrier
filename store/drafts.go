@@ -85,6 +85,7 @@ func (d Draft) Mail() mail.Draft {
 	for _, f := range d.Attached {
 		m.Files = append(m.Files, f.File)
 	}
+
 	return m
 }
 
@@ -103,19 +104,24 @@ func (s *Store) SaveDraft(d *Draft) error {
 server_uid = ?, reply_path = ?, reply_uid = ?, open = ?, updated = ?, from_addr = ?, template = ? WHERE id = ?`, append(args, d.ID)...)
 		return err
 	}
+
 	stmts := []sqlite.Statement{{SQL: `INSERT INTO drafts (account_id, to_addrs, cc_addrs, bcc_addrs, subject, body, in_reply_to, refs, server_uid, reply_path, reply_uid, open, updated, from_addr, template)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, Args: args}}
 	for _, f := range d.Attached {
 		stmts = append(stmts, fileStmt("(SELECT MAX(id) FROM drafts)", nil, f.File)) // the row just inserted
 	}
+
 	res, err := s.db.Transaction(ctx, stmts)
 	if err != nil {
 		return err
 	}
+
 	d.ID = res[0].LastInsertID
+
 	for i := range d.Attached {
 		d.Attached[i].ID = res[i+1].LastInsertID
 	}
+
 	return nil
 }
 
@@ -152,6 +158,7 @@ FROM drafts WHERE `+where+" ORDER BY id", args...)
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Draft, len(rows.Values))
 	for i, r := range rows.Values {
 		d := Draft{ID: r[0].(int64), AccountID: r[1].(int64), ServerUID: uint32(r[9].(int64)), ReplyPath: r[10].(string), ReplyUID: uint32(r[11].(int64)),
@@ -162,12 +169,15 @@ FROM drafts WHERE `+where+" ORDER BY id", args...)
 		if err != nil {
 			return nil, err
 		}
+
 		for _, f := range fs.Values {
 			data, _ := f[3].([]byte) // an empty file reads back as nil
 			d.Attached = append(d.Attached, DraftFile{ID: f[0].(int64), File: mail.File{Name: f[1].(string), MIMEType: f[2].(string), Data: data}})
 		}
+
 		out[i] = d
 	}
+
 	return out, nil
 }
 
@@ -184,6 +194,7 @@ func (s *Store) DraftByUID(account int64, uid uint32) (Draft, bool, error) {
 	if err != nil || len(ds) == 0 {
 		return Draft{}, false, err
 	}
+
 	return ds[0], true, nil
 }
 
@@ -202,16 +213,19 @@ func (s *Store) Enqueue(account, draft int64, o mail.Outgoing, recipients string
 			Args: []any{account, o.Raw, string(rcpts), o.SendAfter.Unix(), o.ReplyPath, int64(o.ReplyUID), int64(o.DraftUID)}},
 		{SQL: "DELETE FROM drafts WHERE id = ?", Args: []any{draft}},
 	}
+
 	now := time.Now().Unix()
 	for _, a := range mail.Addrs(recipients) {
 		stmts = append(stmts, sqlite.Statement{SQL: `INSERT INTO contacts (address, name, sent_count, last_used) VALUES (?, ?, 1, ?)
 ON CONFLICT (address) DO UPDATE SET sent_count = sent_count + 1, name = CASE WHEN excluded.name != '' THEN excluded.name ELSE name END, last_used = excluded.last_used`,
 			Args: []any{a.Address, a.Name, now}})
 	}
+
 	res, err := s.db.Transaction(ctx, stmts)
 	if err != nil {
 		return 0, err
 	}
+
 	return res[0].LastInsertID, nil
 }
 
@@ -220,6 +234,7 @@ func (s *Store) outbox(where string, args ...any) ([]Outgoing, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Outgoing, len(rows.Values))
 	for i, r := range rows.Values {
 		o := mail.Outgoing{ID: r[0].(int64), Raw: r[2].([]byte), SendAfter: time.Unix(r[4].(int64), 0), Attempts: int(r[5].(int64)), LastError: r[6].(string),
@@ -227,8 +242,10 @@ func (s *Store) outbox(where string, args ...any) ([]Outgoing, error) {
 		if err := json.Unmarshal([]byte(r[3].(string)), &o.Rcpts); err != nil {
 			return nil, fmt.Errorf("outbox message %d: %w", o.ID, err)
 		}
+
 		out[i] = Outgoing{AccountID: r[1].(int64), Outgoing: o}
 	}
+
 	return out, nil
 }
 
@@ -238,6 +255,7 @@ func (s *Store) Outbox(account int64) ([]mail.Outgoing, error) {
 	for i, o := range got {
 		out[i] = o.Outgoing
 	}
+
 	return out, err
 }
 
@@ -272,6 +290,7 @@ func (s *Store) TakeOutgoing(id int64) (o Outgoing, ok bool, err error) {
 	if err != nil || len(got) == 0 {
 		return Outgoing{}, false, err
 	}
+
 	r, err := s.db.Execute(ctx, "DELETE FROM outbox WHERE id = ? AND sent = 0 AND leased_until < ?", id, time.Now().Unix())
 	return got[0], err == nil && r.Changes == 1, err
 }
@@ -292,10 +311,12 @@ func (s *Store) Contacts(limit int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]string, len(rows.Values))
 	for i, r := range rows.Values {
 		out[i] = mail.FormatAddr(&netmail.Address{Name: r[0].(string), Address: r[1].(string)})
 	}
+
 	return out, nil
 }
 
@@ -305,6 +326,7 @@ func (s *Store) backfillContacts() error {
 	if s.Pref("contacts.backfilled") != "" {
 		return nil
 	}
+
 	_, err := s.db.Execute(ctx, `INSERT INTO contacts (address, name, seen_count, last_used)
 SELECT m.from_addr, MAX(m.from_name), COUNT(*), MAX(m.date) FROM messages m JOIN folders f ON f.id = m.folder_id
 WHERE m.from_addr != '' AND f.special NOT IN ('sent', 'drafts') GROUP BY m.from_addr COLLATE NOCASE
@@ -312,5 +334,6 @@ ON CONFLICT (address) DO NOTHING`)
 	if err != nil {
 		return err
 	}
+
 	return s.SetPref("contacts.backfilled", "1")
 }

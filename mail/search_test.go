@@ -30,10 +30,12 @@ func TestParseQuery(t *testing.T) {
 		if got := q.Match(); got != c.match {
 			t.Errorf("%q: match %q, want %q", c.in, got, c.match)
 		}
+
 		if got := *q.Criteria(); !reflect.DeepEqual(got, c.crit) {
 			t.Errorf("%q: criteria %+v, want %+v", c.in, got, c.crit)
 		}
 	}
+
 	if !ParseQuery(" ").Empty() || ParseQuery("is:unread").Empty() {
 		t.Error("Empty")
 	}

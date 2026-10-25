@@ -104,6 +104,7 @@ func (s *Syncer) send(r request) {
 	if r.done == nil {
 		r.done = func(error) {}
 	}
+
 	select {
 	case s.reqs <- r:
 	default:
@@ -168,12 +169,15 @@ func (s *Syncer) folderOp(op func(*imapConn) error, done func(error)) {
 
 func (s *Syncer) report(st Status) {
 	s.mu.Lock()
+
 	if st.Updated.IsZero() {
 		st.Updated = s.updated
 	}
+
 	st.SendErr = s.sendErr
 	st.New, s.news = s.news, nil
 	s.mu.Unlock()
+
 	if s.OnChange != nil {
 		s.OnChange(st)
 	}
@@ -190,6 +194,7 @@ func (s *Syncer) run(ctx context.Context) {
 			}
 		}
 	}()
+
 	backoff := minBackoff
 	var pending []request
 	for ctx.Err() == nil {
@@ -200,14 +205,19 @@ func (s *Syncer) run(ctx context.Context) {
 		} else {
 			connected, err = s.runIMAP(ctx, &pending)
 		}
+
 		if ctx.Err() != nil {
 			return
 		}
+
 		s.report(Status{Err: err})
+
 		for _, r := range pending {
 			r.done(err)
 		}
+
 		pending = nil
+
 		if errors.Is(err, ErrAuth) { // retrying won't help: wait for a restart
 			for {
 				select {
@@ -218,9 +228,11 @@ func (s *Syncer) run(ctx context.Context) {
 				}
 			}
 		}
+
 		if connected {
 			backoff = minBackoff
 		}
+
 		select {
 		case <-ctx.Done():
 			return
@@ -228,6 +240,7 @@ func (s *Syncer) run(ctx context.Context) {
 		case r := <-s.reqs: // the user is waiting for something: try now
 			pending = append(pending, r)
 		}
+
 		backoff = min(backoff*2, maxBackoff)
 	}
 }
@@ -237,13 +250,16 @@ func (s *Syncer) listFolders(ic *imapConn) error {
 	if err != nil {
 		return err
 	}
+
 	if err := s.Cache.SetFolders(s.Account, fs); err != nil {
 		return err
 	}
+
 	s.known = map[string]Folder{}
 	for _, f := range fs {
 		s.known[f.Path] = f
 	}
+
 	return nil
 }
 
@@ -253,15 +269,19 @@ func (s *Syncer) syncPath(ic *imapConn, path string) error {
 	if err := s.runActions(ic); err != nil {
 		return err
 	}
+
 	f, ok := s.known[path]
 	if !ok || f.NoSelect {
 		return nil
 	}
+
 	fresh, err := ic.syncFolder(s.Cache, s.Account, &f)
 	s.known[path] = f
+
 	if f.Special == "inbox" {
 		s.addNew(path, fresh)
 	}
+
 	return err
 }
 
@@ -269,6 +289,7 @@ func (s *Syncer) addNew(path string, uids []uint32) {
 	if len(uids) == 0 {
 		return
 	}
+
 	s.mu.Lock()
 	s.news = append(s.news, NewMail{path, uids})
 	s.mu.Unlock()
@@ -287,23 +308,28 @@ func (s *Syncer) inbox() string {
 // every folder with cached mail, which are the ones opened.
 func (s *Syncer) fullSync(ic *imapConn) error {
 	s.report(Status{Syncing: true})
+
 	if err := s.listFolders(ic); err != nil {
 		return err
 	}
+
 	for path, f := range s.known {
 		if f.NoSelect {
 			continue
 		}
+
 		_, newest, err := s.Cache.UIDRange(s.Account, path)
 		if err != nil {
 			return err
 		}
+
 		if f.Special == "inbox" || newest > 0 {
 			if err := s.syncPath(ic, path); err != nil {
 				return err
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -317,14 +343,17 @@ func (s *Syncer) toFill() string {
 			paths = append(paths, p)
 		}
 	}
+
 	for _, p := range paths {
 		if f, ok := s.known[p]; !ok || f.NoSelect || s.filled[p] {
 			continue
 		}
+
 		if oldest, _, err := s.Cache.UIDRange(s.Account, p); err == nil && oldest > 1 {
 			return p
 		}
 	}
+
 	return ""
 }
 
@@ -343,13 +372,16 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 	if err != nil {
 		return false, err
 	}
+
 	defer context.AfterFunc(ctx, func() { ic.c.Close() })()
 	defer ic.close()
 	caps := ic.c.Caps()
 	s.noUIDPlus.Store(!caps.Has(imap.CapUIDPlus) && !caps.Has(imap.CapIMAP4rev2))
+
 	if err := s.fullSync(ic); err != nil {
 		return true, err
 	}
+
 	s.synced()
 	lastFull, lastInbox := time.Now(), time.Now()
 	canIdle := caps.Has(imap.CapIdle) || caps.Has(imap.CapIMAP4rev2)
@@ -362,15 +394,19 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 				s.report(Status{Syncing: true})
 				err = s.syncPath(ic, r.refresh)
 			}
+
 			r.done(err)
 			s.report(Status{Err: err})
+
 			select {
 			case <-ic.c.Closed():
 				*pending = nil
 				return true, err
+
 			default:
 			}
 		}
+
 		*pending = nil
 
 		inbox := s.inbox()
@@ -378,30 +414,36 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 		if err != nil {
 			return true, err
 		}
+
 		next := lastFull.Add(FolderPoll)
 		if inboxDue := lastInbox.Add(InboxPoll); !canIdle && inboxDue.Before(next) {
 			next = inboxDue
 		}
+
 		select {
 		case <-ic.changed: // stale news from our own commands
 		default:
 		}
+
 		// Mail that came since the last sync, which IDLE wouldn't announce.
 		news := uint32(sel.UIDNext) != s.known[inbox].UIDNext
 		var fill string // a page of it between whatever else comes
 		if FillBehind {
 			fill = s.toFill()
 		}
+
 		var idle *imapclient.IdleCommand
 		if canIdle && !news && fill == "" {
 			if idle, err = ic.c.Idle(); err != nil {
 				return true, err
 			}
 		}
+
 		timer := time.NewTimer(time.Until(next))
 		if news || fill != "" {
 			timer.Reset(0)
 		}
+
 		select {
 		case <-ctx.Done():
 		case <-ic.changed:
@@ -411,34 +453,44 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 		case <-timer.C:
 		case <-ic.c.Closed():
 		}
+
 		timer.Stop()
+
 		if idle != nil {
 			if err := idle.Close(); err != nil {
 				return true, err
 			}
 		}
+
 		if ctx.Err() != nil {
 			return true, ctx.Err()
 		}
+
 		switch {
 		case time.Now().After(lastFull.Add(FolderPoll)):
 			if err := s.fullSync(ic); err != nil {
 				return true, err
 			}
+
 			lastFull, lastInbox = time.Now(), time.Now()
 			s.synced()
+
 		case news || time.Now().After(lastInbox.Add(InboxPoll)):
 			if err := s.syncPath(ic, inbox); err != nil {
 				return true, err
 			}
+
 			lastInbox = time.Now()
 			s.synced()
+
 		case fill != "" && len(*pending) == 0:
 			more, err := ic.fillOlder(s.Cache, s.Account, fill)
 			if err != nil {
 				return true, err
 			}
+
 			s.filled[fill] = !more
+
 			if more {
 				s.report(Status{})
 			}
@@ -460,13 +512,17 @@ func (s *Syncer) runPOP3(ctx context.Context, pending *[]request) (connected boo
 	if err := s.Cache.SetFolders(s.Account, pop3Folders); err != nil {
 		return false, err
 	}
+
 	for {
 		s.report(Status{Syncing: true})
+
 		if err := s.pollPOP3(ctx); err != nil {
 			return connected, err
 		}
+
 		connected = true
 		s.synced()
+
 		for _, r := range *pending {
 			if r.do != nil {
 				r.done(errors.New("POP3 keeps nothing else on the server"))
@@ -474,7 +530,9 @@ func (s *Syncer) runPOP3(ctx context.Context, pending *[]request) (connected boo
 				r.done(nil)
 			}
 		}
+
 		*pending = nil
+
 		select {
 		case <-ctx.Done():
 			return true, ctx.Err()
@@ -493,10 +551,12 @@ func (s *Syncer) pollPOP3(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	_, before, err := s.Cache.UIDRange(s.Account, "INBOX")
 	if err != nil {
 		return err
 	}
+
 	got, err := pollPOP3(ctx, s.Endpoint, s.Account, s.Keep, s.Cache)
 	if got && len(seen) > 0 { // what it stored before failing is new too
 		if _, after, err := s.Cache.UIDRange(s.Account, "INBOX"); err == nil {
@@ -504,9 +564,11 @@ func (s *Syncer) pollPOP3(ctx context.Context) error {
 			for u := before + 1; u <= after; u++ {
 				uids = append(uids, u)
 			}
+
 			s.addNew("INBOX", uids)
 		}
 	}
+
 	return err
 }
 
@@ -519,13 +581,17 @@ func (s *Syncer) ReplaceDraft(raw []byte, old uint32, done func(uid uint32, err 
 		if err != nil {
 			return err
 		}
+
 		if uid, err = ic.append(path, raw, time.Time{}, imap.FlagDraft, imap.FlagSeen); err != nil {
 			return err
 		}
+
 		if old != 0 {
 			ic.expunge(path, old) // a copy left behind is better than no draft
 		}
+
 		s.syncPath(ic, path)
+
 		return nil
 	}, done: func(err error) { done(uid, err) }})
 }
@@ -537,9 +603,11 @@ func (s *Syncer) DeleteDraft(uid uint32, done func(error)) {
 		if err != nil {
 			return err
 		}
+
 		if err := ic.expunge(path, uid); err != nil {
 			return err
 		}
+
 		return s.syncPath(ic, path)
 	}, done: done})
 }
@@ -552,9 +620,11 @@ func (s *Syncer) specialFolder(ic *imapConn, special, name string) (string, erro
 			return p, nil
 		}
 	}
+
 	if err := ic.c.Create(name, nil).Wait(); err != nil {
 		return "", err
 	}
+
 	return name, s.listFolders(ic)
 }
 
@@ -565,30 +635,38 @@ func (s *Syncer) runOutbox(ctx context.Context) {
 	backoff := minBackoff
 	for ctx.Err() == nil {
 		next, err := s.flushOutbox(ctx)
+
 		if ctx.Err() != nil {
 			return
 		}
+
 		s.mu.Lock()
 		changed := (s.sendErr == nil) != (err == nil)
 		s.sendErr = err
 		s.mu.Unlock()
+
 		if changed {
 			s.report(Status{})
 		}
+
 		wake := s.wake
 		var timer <-chan time.Time
 		switch {
 		case errors.Is(err, ErrAuth):
 			wake = nil
+
 		case err != nil:
 			timer = time.After(backoff)
 			backoff = min(backoff*2, maxBackoff)
+
 		default:
 			backoff = minBackoff
+
 			if next > 0 {
 				timer = time.After(next)
 			}
 		}
+
 		select {
 		case <-ctx.Done():
 			return
@@ -612,6 +690,7 @@ func (s *Syncer) flushOutbox(ctx context.Context) (next time.Duration, err error
 	if err != nil {
 		return 0, err
 	}
+
 	var failed error
 	for _, o := range rows {
 		if !o.Sent {
@@ -621,35 +700,46 @@ func (s *Syncer) flushOutbox(ctx context.Context) (next time.Duration, err error
 				}
 				continue
 			}
+
 			ok, err := s.Cache.Claim(o.ID, time.Now().Add(sendTimeout(o.Raw)+time.Minute))
 			if err != nil {
 				return 0, err
 			}
+
 			if !ok { // taken back to edit
 				continue
 			}
+
 			if err := Send(ctx, s.SMTP, s.From, o.Rcpts, o.Raw); err != nil {
 				s.Cache.SendFailed(o.ID, err.Error())
 				s.report(Status{})
+
 				if connErr(err) {
 					return 0, err
 				}
+
 				failed = err
 				continue
 			}
+
 			if err := s.Cache.SentOK(o.ID); err != nil {
 				return 0, err
 			}
+
 			s.report(Status{})
 		}
+
 		if err := s.storeCopy(ctx, o); err != nil {
 			return 0, err
 		}
+
 		if err := s.Cache.CopyStored(o.ID); err != nil {
 			return 0, err
 		}
+
 		s.report(Status{})
 	}
+
 	return next, failed
 }
 
@@ -659,6 +749,7 @@ func (s *Syncer) storeCopy(ctx context.Context, o Outgoing) error {
 	if s.Endpoint.Protocol == "pop3" {
 		return s.Cache.AddLocal(s.Account, "sent", o.Raw)
 	}
+
 	errc := make(chan error, 1)
 	s.send(request{do: func(ic *imapConn) error {
 		if !s.NoSentCopy {
@@ -666,22 +757,28 @@ func (s *Syncer) storeCopy(ctx context.Context, o Outgoing) error {
 			if err != nil {
 				return err
 			}
+
 			if _, err := ic.append(path, o.Raw, time.Time{}, imap.FlagSeen); err != nil {
 				return err
 			}
+
 			s.syncPath(ic, path)
 		}
+
 		// The copy is stored: what fails now must not store it again.
 		if o.ReplyUID != 0 && ic.setFlag(o.ReplyPath, []uint32{o.ReplyUID}, imap.FlagAnswered, true) == nil {
 			s.syncPath(ic, o.ReplyPath)
 		}
+
 		if o.DraftUID != 0 {
 			if path, err := s.specialFolder(ic, "drafts", "Drafts"); err == nil && ic.expunge(path, o.DraftUID) == nil {
 				s.syncPath(ic, path)
 			}
 		}
+
 		return nil
 	}, done: func(err error) { errc <- err }})
+
 	select {
 	case err := <-errc:
 		return err
