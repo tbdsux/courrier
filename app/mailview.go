@@ -710,6 +710,7 @@ func (a *app) folderTree(c *ui.Context) {
 				})
 			}
 		})
+		sideDivider(c)
 	}
 
 	// Ungrouped accounts and the groups that have accounts, in their order.
@@ -765,6 +766,12 @@ func (a *app) folderTree(c *ui.Context) {
 		zone.Children(func() { ui.Text(c, "Move here, out of any group").FontSize(12).TextColor(t.TextMuted) })
 		a.sideDrop(c, zone, 0, 0)
 	}
+}
+
+// sideDivider separates the sidebar's parts: Unified, the accounts, Settings.
+func sideDivider(c *ui.Context) {
+	t := c.Theme()
+	ui.Divider(c).Margin(t.Space(3), t.Space(2), 0, t.Space(2))
 }
 
 // sideDrag is an account or a group dragged in the sidebar to reorder it.

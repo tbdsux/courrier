@@ -339,6 +339,9 @@ func (a *app) sidebar(c *ui.Context) {
 func (a *app) sidebarTree(c *ui.Context) {
 	ui.Sidebar(c, &a.sel, func() {
 		a.folderTree(c)
+		if len(a.accounts) > 0 {
+			sideDivider(c)
+		}
 
 		ui.SidebarSection(c, "Settings", &a.settingsOpen, func() {
 			ui.SidebarItem(c, "general", settingsIcon, "General")
