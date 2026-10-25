@@ -36,6 +36,15 @@ var (
 	logos        = map[string]*ui.SVG{"google": ui.MustParseSVG(googleSVG), "microsoft": ui.MustParseSVG(microsoftSVG)}
 )
 
+// appLogo is courrier's own logo, the same image as the tray icon.
+var appLogo = func() *ui.Bitmap {
+	b, err := ui.DecodeBitmap(trayIcon)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}()
+
 // signInButton is "Sign in with Google" or "Microsoft", with the logo.
 func signInButton(c *ui.Context, auth, name string) ui.Element {
 	label := "Sign in with " + name

@@ -279,9 +279,7 @@ func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Fill().Background(a.pal.sidebar).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(16, 12, 12, 16).Children(func() {
-			ui.Column(c).Size(26, 26).Radius(7).Background(t.Accent).Center().Children(func() {
-				ui.Text(c, "@").Bold().TextColor(t.AccentText)
-			})
+			ui.Image(c, appLogo).Size(26, 26)
 			ui.Text(c, "courrier").FontSize(15).Bold().LetterSpacing(-0.3).Grow(1)
 			add := ui.Button(c, "").Label("Add account").Tooltip("Add account").
 				Size(28, 28).Padding(0).Radius(7).Justify(ui.Center).AlignItems(ui.Center).
