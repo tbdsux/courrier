@@ -1,0 +1,18 @@
+From: =?UTF-8?B?SsOpcsO0bWU=?= <jerome@example.com>
+To: Jane Doe <jane@example.com>, bob@example.com
+Subject: =?UTF-8?B?UmU6IGxhdW5jaCBwbGFuIOKcqA==?=
+Date: Tue, 20 Oct 2026 10:42:00 +0200
+Message-ID: <alt-1@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Let's ship on Monday. Caf=C3=A9 after?
+--b1
+Content-Type: text/html; charset=utf-8
+
+<html><head><style>p{color:red}</style></head><body><p>Let's ship on <b>Monday</b>.</p></body></html>
+--b1--

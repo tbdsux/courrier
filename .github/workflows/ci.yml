@@ -1,0 +1,28 @@
+# Tests every push and pull request, and checks the app still compiles for
+# each platform it ships on.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Test
+        run: go test ./...
+      - name: Vet
+        run: go tool mygo vet .
+      - name: Compile for macOS, Windows and Linux
+        run: |
+          for os in darwin windows linux; do
+            GOOS=$os go build -o /dev/null . && echo "$os ok"
+          done

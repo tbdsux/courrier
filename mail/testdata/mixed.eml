@@ -1,0 +1,36 @@
+From: GitHub <noreply@github.com>
+To: jane@example.com
+Subject: =?ISO-8859-1?Q?R=E9sum=E9_attached?=
+Date: Mon, 19 Oct 2026 09:13:00 +0000
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="outer"
+
+--outer
+Content-Type: multipart/alternative; boundary="alt"
+
+--alt
+Content-Type: text/plain; charset=us-ascii
+
+See the report.
+--alt
+Content-Type: multipart/related; boundary="rel"
+
+--rel
+Content-Type: text/html; charset=us-ascii
+
+<p>See the report. <img src="cid:logo@x"></p>
+--rel
+Content-Type: image/png
+Content-ID: <logo@x>
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgpmYWtl
+--rel--
+--alt--
+--outer
+Content-Type: application/pdf; name="report.pdf"
+Content-Disposition: attachment; filename="report.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQgZmFrZSByZXBvcnQ=
+--outer--
