@@ -322,8 +322,9 @@ func headerFrom(m *imapclient.FetchMessageBuffer) Header {
 	return h
 }
 
-// fillPage is how many headers a page of filling in behind fetches.
-const fillPage = 500
+// fillPage is how many headers a page of filling in behind fetches. The
+// user's requests (opening a message) wait for the page under way.
+const fillPage = 200
 
 // fillFetch is headerFetch with less of each message: filling in a big
 // folder's old mail fetches all of it.
