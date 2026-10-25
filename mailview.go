@@ -81,6 +81,7 @@ type layout struct {
 	ClosedGroups    []int64
 	UnifiedClosed   bool
 	SettingsClosed  bool
+	TreePct         float32 // the sidebar's share above the sync status
 }
 
 func (a *app) loadLayout() {
@@ -101,6 +102,9 @@ func (a *app) loadLayout() {
 			*a.groupOpen(g) = false
 		}
 		a.unifiedOpen, a.settingsOpen = !l.UnifiedClosed, !l.SettingsClosed
+		if l.TreePct > 0 {
+			a.treePct = l.TreePct
+		}
 	}
 	if _, ok := a.mailbox(); !ok && len(a.accounts) > 0 {
 		a.sel = "u:inbox"
@@ -109,7 +113,7 @@ func (a *app) loadLayout() {
 
 // saveLayout stores the layout when it changed.
 func (a *app) saveLayout() {
-	l := layout{SidebarW: a.sidebarW, ListW: a.listW, UnifiedClosed: !a.unifiedOpen, SettingsClosed: !a.settingsOpen}
+	l := layout{SidebarW: a.sidebarW, ListW: a.listW, UnifiedClosed: !a.unifiedOpen, SettingsClosed: !a.settingsOpen, TreePct: a.treePct}
 	if _, ok := a.mailbox(); ok {
 		l.Sel = a.sel
 	}
@@ -653,7 +657,7 @@ func (a *app) folderTree(c *ui.Context) {
 		}
 		sec := ui.SidebarSection(c.Key("g:"+strconv.FormatInt(id, 10)), title, open, func() {
 			for _, p := range b[1:] {
-				a.accountSection(c, accs[p.ID]).PaddingStart(c.Theme().Space(2))
+				a.accountSection(c, accs[p.ID]).PaddingStart(c.Theme().Space(2)).Margin(float32(a.set.GroupGap), 0, 0, 0)
 			}
 		})
 		a.sideDrop(c, sec.Drag(sideDrag{group: id}), id, 0)

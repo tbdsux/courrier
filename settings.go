@@ -18,6 +18,7 @@ type settings struct {
 	MenuBar      bool   // courrier sits in the menu bar (tray), and keeps running without its window
 	Threads      bool   // the list shows a row a conversation
 	KeepBodies   int    // days the bodies of IMAP mail stay cached; 0 keeps every one
+	GroupGap     float64 // DIPs above each account in a sidebar group
 }
 
 // system is what Settings shows of courrier's place in the system, read
@@ -35,7 +36,7 @@ type system struct {
 }
 
 func defaultSettings() settings {
-	return settings{FontSize: 13, Appearance: "System", Sound: true, Badge: true, MenuBar: true, Threads: true, KeepBodies: 90}
+	return settings{FontSize: 13, Appearance: "System", Sound: true, Badge: true, MenuBar: true, Threads: true, KeepBodies: 90, GroupGap: 4}
 }
 
 func (a *app) loadSettings() {
@@ -69,6 +70,8 @@ func (a *app) settingsView(c *ui.Context) {
 			a.card(c, "look", "Appearance", func() {
 				ui.Field(c, "Theme", func() { ui.Select(c, &s.Appearance, appearances).Width(200) })
 				ui.Field(c, "Font size", func() { ui.NumberInput(c, &s.FontSize, 10, 20, 1).Width(120) })
+				ui.Field(c, "Group spacing", func() { ui.NumberInput(c, &s.GroupGap, 0, 16, 1).Width(120) }).
+					Description("Room above each account in a sidebar group.")
 			})
 			a.card(c, "read", "Reading", func() {
 				ui.Field(c, "Open messages as", func() { ui.Segmented(c, &view, "Text", "HTML") }).

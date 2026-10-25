@@ -29,6 +29,7 @@ type app struct {
 	sel       string            // "" (nothing), "new", "servers", "accounts", "groups", "rules", an account ID, "f:<folder ID>", "s:<saved search>" or "u:inbox|flagged|snoozed|outbox"
 	shown     string            // what form and srvEdit were loaded for
 	sidebarW  float32
+	treePct   float32 // the sidebar's share above the sync status
 	form      *accountForm
 	srvEdit   serverEdit
 	grpEdit   groupEdit
@@ -108,7 +109,7 @@ type app struct {
 }
 
 func newApp(st *store.Store, update func(func())) *app {
-	a := &app{st: st, update: update, check: courrier.Check, signIn: courrier.SignIn, sidebarW: 230, listW: 340, limit: pageSize, msgRow: -1, unifiedOpen: true, settingsOpen: true,
+	a := &app{st: st, update: update, check: courrier.Check, signIn: courrier.SignIn, sidebarW: 230, treePct: 88, listW: 340, limit: pageSize, msgRow: -1, unifiedOpen: true, settingsOpen: true,
 		opens: map[int64]*bool{}, groupOpens: map[int64]*bool{}, groupPick: map[int64]*string{}, noOlder: map[int64]bool{}, syncers: map[int64]*accountSync{}, composes: map[int64]*compose{}, notifyOns: map[int64]*bool{}}
 	a.reload()
 	a.loadSettings()
@@ -293,24 +294,31 @@ func (a *app) sidebar(c *ui.Context) {
 				a.sel, a.shown = "new", "" // reload even when already on "new"
 			}
 		})
-		ui.Sidebar(c, &a.sel, func() {
-			a.folderTree(c)
-			ui.SidebarSection(c, "Settings", &a.settingsOpen, func() {
-				ui.SidebarItem(c, "general", settingsIcon, "General")
-				ui.SidebarItem(c, "accounts", userIcon, "Accounts")
-				ui.SidebarItem(c, "groups", folderIcon, "Groups")
-				ui.SidebarItem(c, "rules", filterIcon, "Rules")
-				ui.SidebarItem(c, "servers", serverIcon, "Servers")
-				ui.SidebarItem(c, "storage", driveIcon, "Storage")
+		ui.SplitVerticalPercent(c, &a.treePct, func() { a.sidebarTree(c) }, func() {
+			ui.Scroll(c).Fill().Children(func() {
+				ui.Column(c).Gap(2).Padding(10, 16, 12, 16).Children(func() {
+					if len(a.accounts) == 0 {
+						ui.Text(c, "No accounts").FontSize(11).TextColor(t.TextMuted)
+					}
+					a.syncStatus(c)
+				})
 			})
-		}).Grow(1).Background(a.pal.sidebar)
-		ui.Column(c).Gap(2).Padding(10, 16, 12, 16).Children(func() {
-			if len(a.accounts) == 0 {
-				ui.Text(c, "No accounts").FontSize(11).TextColor(t.TextMuted)
-			}
-			a.syncStatus(c)
-		})
+		}).Grow(1)
 	})
+}
+
+func (a *app) sidebarTree(c *ui.Context) {
+	ui.Sidebar(c, &a.sel, func() {
+		a.folderTree(c)
+		ui.SidebarSection(c, "Settings", &a.settingsOpen, func() {
+			ui.SidebarItem(c, "general", settingsIcon, "General")
+			ui.SidebarItem(c, "accounts", userIcon, "Accounts")
+			ui.SidebarItem(c, "groups", folderIcon, "Groups")
+			ui.SidebarItem(c, "rules", filterIcon, "Rules")
+			ui.SidebarItem(c, "servers", serverIcon, "Servers")
+			ui.SidebarItem(c, "storage", driveIcon, "Storage")
+		})
+	}).Fill().Background(a.pal.sidebar)
 }
 
 func (a *app) emptyView(c *ui.Context) {
