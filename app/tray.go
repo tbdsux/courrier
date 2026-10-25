@@ -11,7 +11,7 @@ import (
 	"github.com/egoist/mygo"
 )
 
-//go:embed resources/tray.png
+//go:embed assets/tray.png
 var trayIcon []byte
 
 // menuBar is the menu bar (tray) item: the Inbox's unread count, and a

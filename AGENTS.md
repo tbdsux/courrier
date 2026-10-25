@@ -19,13 +19,16 @@ built on [MyGo](https://mygo.egoist.dev)'s native UI (no web frontend).
 
 ## Layout
 
-- `main` (repo root): the UI. `app.go` sidebar and window, `mailview.go`
-  the three panes, `compose.go`, `settings.go`, `tray.go`, `theme.go`
-  (icons, palette, shared widgets).
+- `app/` (package `main`, set as `main` in `mygo.json`): the UI. `app.go`
+  sidebar and window, `mailview.go` the three panes, `compose.go`,
+  `settings.go`, `tray.go`, `theme.go` (icons, palette, shared widgets).
+  `app/assets/` and `app/fonts/` are embedded: `tray.png` is the tray icon
+  and sidebar logo.
 - `mail/`: IMAP, POP3, SMTP, OAuth2, MIME, and the per-account `Syncer`.
 - `store/`: all persistent state, in one SQLite database.
-- `resources/`: bundled files. `icon.png` is the app icon (used by
-  `go tool mygo build` by default), `tray.png` the tray icon and sidebar logo.
+- `resources/`: files `go tool mygo build` ships next to the executable.
+  `icon.png` is the app icon.
+- The repo root holds only config (`go.mod`, `mygo.json`) and docs.
 - `build/`, `.mygo/`, `notes/` are git-ignored.
 
 The UI never talks to a server: it reads and writes the cache in `store/`,
@@ -40,7 +43,7 @@ go tool mygo vet .             # MyGo-aware vet (CI runs it too)
 go tool mygo build             # production build in build/<os>-<arch>/
 ```
 
-CI also checks `GOOS=darwin|windows|linux go build .` still compiles. Keep
+CI also checks `GOOS=darwin|windows|linux go build ./app` still compiles. Keep
 the code cgo-free.
 
 The MyGo source is not in this repo; find the pinned version with

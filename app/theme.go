@@ -29,9 +29,9 @@ func registerFonts() {
 // The sign-in providers' logos, from their branding guidelines, shown in
 // their own colors.
 var (
-	//go:embed resources/google.svg
+	//go:embed assets/google.svg
 	googleSVG []byte
-	//go:embed resources/microsoft.svg
+	//go:embed assets/microsoft.svg
 	microsoftSVG []byte
 	logos        = map[string]*ui.SVG{"google": ui.MustParseSVG(googleSVG), "microsoft": ui.MustParseSVG(microsoftSVG)}
 )

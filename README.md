@@ -112,7 +112,7 @@ hides the "Sign in with…" buttons and keeps the app-password path, so a
 plain source build works fine with password accounts.
 
 ```sh
-go build -ldflags "-X courrier/mail.GoogleClientID=… -X courrier/mail.GoogleClientSecret=… -X courrier/mail.MicrosoftClientID=…" .
+go build -ldflags "-X courrier/mail.GoogleClientID=… -X courrier/mail.GoogleClientSecret=… -X courrier/mail.MicrosoftClientID=…" ./app
 ```
 
 To register the clients:
@@ -137,4 +137,4 @@ To register the clients:
 ## License
 
 [MIT](LICENSE). The bundled JetBrains Mono fonts are under the
-[SIL Open Font License 1.1](fonts/OFL.txt).
+[SIL Open Font License 1.1](app/fonts/OFL.txt).

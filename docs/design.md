@@ -1,7 +1,7 @@
 # Design
 
 How courrier looks and behaves, and the values behind it. The source of
-truth is `theme.go` (tokens, themes, shared components); change values there
+truth is `app/theme.go` (tokens, themes, shared components); change values there
 and keep this page in step.
 
 ## Principles
@@ -67,7 +67,7 @@ appearance with Light / Dark.
 | Gruvbox | `#282828` | `#3c3836` | `#ebdbb2` | `#a89984` | `#fe8019` | `#b8bb26` | `#fb4934` |
 
 Every theme also sets hover, pressed, border, accent hover / pressed / text,
-sidebar and card colors (see `looks` in `theme.go`). Derived from the accent
+sidebar and card colors (see `looks` in `app/theme.go`). Derived from the accent
 in all themes:
 
 | Token | Value |
@@ -92,7 +92,7 @@ To add a theme: add its name to `appearances` and its colors to `looks`.
 
 ## Icons
 
-[Lucide](https://lucide.dev) shapes (ISC license), inlined in `theme.go` as
+[Lucide](https://lucide.dev) shapes (ISC license), inlined in `app/theme.go` as
 24-unit SVGs with a 2-unit stroke, drawn in the text color at 16 px. Special
 folders map to icons in `specialIcons` (Inbox, Sent, Drafts, Archive, Junk,
 Trash, Snoozed). The Google and Microsoft sign-in logos keep their own
