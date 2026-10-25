@@ -106,6 +106,7 @@ func TestBadgeAndMenuBar(t *testing.T) {
 		t.Errorf("after reading: badge %d, tray %q", badge, tray)
 	}
 	a.sel = "general"
+	tt.SetSize(1100, 1400) // the whole General page, without scrolling
 	tt.Frame()
 	for _, s := range []string{"Notifications", "jane@example.com", "Play a sound", "Badge", "Show in menu bar"} {
 		if !tt.HasText(s) {
