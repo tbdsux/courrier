@@ -294,7 +294,7 @@ func (a *app) sidebar(c *ui.Context) {
 		})
 		ui.SplitVerticalPercent(c, &a.treePct, func() { a.sidebarTree(c) }, func() {
 			ui.Scroll(c).Fill().Children(func() {
-				ui.Column(c).Gap(2).Padding(10, 16, 12, 16).Children(func() {
+				ui.Column(c).Gap(2).Padding(10, 16, 20, 16).Children(func() {
 					if len(a.accounts) == 0 {
 						ui.Text(c, "No accounts").FontSize(11).TextColor(t.TextMuted)
 					}
