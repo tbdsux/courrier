@@ -46,6 +46,7 @@ type app struct {
 	// Mail
 	listW        float32
 	opens        map[int64]*bool // accounts' sections in the sidebar
+	sideDragging bool            // an account or group being dragged in the sidebar
 	groupOpens   map[int64]*bool
 	unifiedOpen  bool
 	settingsOpen bool

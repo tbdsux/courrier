@@ -50,8 +50,9 @@ type Account struct {
 
 // Group is a named folder of accounts in the sidebar.
 type Group struct {
-	ID   int64
-	Name string
+	ID        int64
+	Name      string
+	SortOrder int // shared with the ungrouped accounts' (SetOrder)
 }
 
 type Store struct {
@@ -126,6 +127,7 @@ func Open(path string, secrets Secrets) (*Store, error) {
 		"ALTER TABLE folders ADD COLUMN synced_exists INTEGER NOT NULL DEFAULT 0",
 		"ALTER TABLE messages ADD COLUMN opened INTEGER NOT NULL DEFAULT 0",
 		"ALTER TABLE actions ADD COLUMN raw BLOB",
+		"ALTER TABLE groups ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
 	} {
 		if _, err := db.Execute(ctx, stmt); err != nil && !strings.Contains(err.Error(), "duplicate column") {
 			db.Close()
@@ -273,7 +275,7 @@ func (s *Store) AccountsUsing(serverID int64) ([]Account, error) {
 	return s.accounts("WHERE server_id = ?", serverID)
 }
 
-// SaveAccount saves a, its passwords (for OAuth2, the refresh token), and, when srv is not nil, srv as a's
+// SaveAccount saves a (new ones go last; SetAccountOrder orders them), its passwords (for OAuth2, the refresh token), and, when srv is not nil, srv as a's
 // server in the same transaction (a new hidden or saved profile when its ID
 // is 0). Hidden servers no account uses any more are removed.
 func (s *Store) SaveAccount(a *Account, srv *Server, inPass, smtpPass string) error {
@@ -290,7 +292,7 @@ func (s *Store) SaveAccount(a *Account, srv *Server, inPass, smtpPass string) er
 	if a.Auth == "" {
 		a.Auth = "password"
 	}
-	args := []any{a.DisplayName, a.Email, a.InUsername, a.SMTPUsername, a.POP3Keep, a.SortOrder, a.Signature, a.Auth}
+	args := []any{a.DisplayName, a.Email, a.InUsername, a.SMTPUsername, a.POP3Keep, a.Signature, a.Auth}
 	sid := "last_insert_rowid()"
 	if !newServer {
 		sid = "?"
@@ -305,9 +307,9 @@ func (s *Store) SaveAccount(a *Account, srv *Server, inPass, smtpPass string) er
 		return err
 	}
 	if a.ID == 0 {
-		stmts = append(stmts, sqlite.Statement{SQL: "INSERT INTO accounts (server_id, display_name, email, in_username, smtp_username, pop3_keep, sort_order, signature, auth) VALUES (" + sid + ", ?, ?, ?, ?, ?, ?, ?, ?)", Args: args})
+		stmts = append(stmts, sqlite.Statement{SQL: "INSERT INTO accounts (server_id, display_name, email, in_username, smtp_username, pop3_keep, signature, auth, sort_order) VALUES (" + sid + ", ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM accounts))", Args: args})
 	} else {
-		stmts = append(stmts, sqlite.Statement{SQL: "UPDATE accounts SET server_id = " + sid + ", display_name = ?, email = ?, in_username = ?, smtp_username = ?, pop3_keep = ?, sort_order = ?, signature = ?, auth = ? WHERE id = ?", Args: append(args, a.ID)})
+		stmts = append(stmts, sqlite.Statement{SQL: "UPDATE accounts SET server_id = " + sid + ", display_name = ?, email = ?, in_username = ?, smtp_username = ?, pop3_keep = ?, signature = ?, auth = ? WHERE id = ?", Args: append(args, a.ID)})
 	}
 	res, err := s.db.Transaction(ctx, append(stmts, pw))
 	if err != nil {
@@ -344,15 +346,36 @@ func (s *Store) SetAccountGroup(accountID, groupID int64) error {
 	return err
 }
 
-// Groups returns the groups by name.
+// Place is an account, or a group when Group, in the sidebar's order.
+type Place struct {
+	Group bool
+	ID    int64
+}
+
+// SetOrder puts the accounts and groups in the order of places, in one
+// sequence, so ungrouped accounts and groups interleave.
+func (s *Store) SetOrder(places []Place) error {
+	var stmts []sqlite.Statement
+	for i, p := range places {
+		table := "accounts"
+		if p.Group {
+			table = "groups"
+		}
+		stmts = append(stmts, sqlite.Statement{SQL: "UPDATE " + table + " SET sort_order = ? WHERE id = ?", Args: []any{i, p.ID}})
+	}
+	_, err := s.db.Transaction(ctx, stmts)
+	return err
+}
+
+// Groups returns the groups in their order, then by name.
 func (s *Store) Groups() ([]Group, error) {
-	rows, err := s.db.Query(ctx, "SELECT id, name FROM groups ORDER BY name COLLATE NOCASE")
+	rows, err := s.db.Query(ctx, "SELECT id, name, sort_order FROM groups ORDER BY sort_order, name COLLATE NOCASE")
 	if err != nil {
 		return nil, err
 	}
 	out := make([]Group, len(rows.Values))
 	for i, r := range rows.Values {
-		out[i] = Group{ID: r[0].(int64), Name: r[1].(string)}
+		out[i] = Group{ID: r[0].(int64), Name: r[1].(string), SortOrder: int(r[2].(int64))}
 	}
 	return out, nil
 }
@@ -364,7 +387,7 @@ func (s *Store) SaveGroup(g *Group) error {
 	var err error
 	if g.ID == 0 {
 		var r sqlite.Result
-		if r, err = s.db.Execute(ctx, "INSERT INTO groups (name) VALUES (?)", g.Name); err == nil {
+		if r, err = s.db.Execute(ctx, "INSERT INTO groups (name, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM groups))", g.Name); err == nil {
 			g.ID = r.LastInsertID
 		}
 	} else {

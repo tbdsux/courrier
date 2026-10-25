@@ -627,35 +627,175 @@ func (a *app) folderTree(c *ui.Context) {
 			}
 		})
 	}
-	// Ungrouped accounts first, then the groups that have accounts, by name.
+	// Ungrouped accounts and the groups that have accounts, in their order.
+	accs := map[int64]store.Account{}
 	for _, acc := range a.accounts {
-		if acc.GroupID == 0 {
-			a.accountSection(c, acc)
-		}
+		accs[acc.ID] = acc
 	}
-	for _, g := range a.groups {
-		open := a.groupOpen(g.ID)
-		title, n, has := g.Name, 0, false
-		for _, acc := range a.accounts {
-			if acc.GroupID == g.ID {
-				n += a.unread(acc.ID)
-				has = true
-			}
-		}
-		if !has {
+	wasDragging := a.sideDragging // the zone takes the drop the frame after the drag ends
+	a.sideDragging = false        // the sections say, as they come
+	for _, b := range a.sideBlocks() {
+		if !b[0].Group {
+			a.accountSection(c, accs[b[0].ID])
 			continue
+		}
+		if len(b) == 1 {
+			continue
+		}
+		id := b[0].ID
+		open := a.groupOpen(id)
+		title, n := a.groupName(id), 0
+		for _, p := range b[1:] {
+			n += a.unread(p.ID)
 		}
 		if !*open && n > 0 {
 			title += fmt.Sprintf("  ·  %d", n)
 		}
-		ui.SidebarSection(c.Key("g:"+strconv.FormatInt(g.ID, 10)), title, open, func() {
-			for _, acc := range a.accounts {
-				if acc.GroupID == g.ID {
-					a.accountSection(c, acc).PaddingStart(c.Theme().Space(2))
-				}
+		sec := ui.SidebarSection(c.Key("g:"+strconv.FormatInt(id, 10)), title, open, func() {
+			for _, p := range b[1:] {
+				a.accountSection(c, accs[p.ID]).PaddingStart(c.Theme().Space(2))
 			}
 		})
+		a.sideDrop(c, sec.Drag(sideDrag{group: id}), id, 0)
+		a.sideDragging = a.sideDragging || sec.Dragging()
 	}
+	if a.sideDragging || wasDragging { // somewhere to take accounts out of their groups
+		t := c.Theme()
+		zone := ui.Row(c).Margin(t.Space(3), 0, 0, 0).Padding(t.Space(2)).Radius(t.Radius).Border(1, t.Border).BorderStyle(ui.BorderDashed).Center()
+		zone.Children(func() { ui.Text(c, "Move here, out of any group").FontSize(12).TextColor(t.TextMuted) })
+		a.sideDrop(c, zone, 0, 0)
+	}
+}
+
+// sideDrag is an account or a group dragged in the sidebar to reorder it.
+type sideDrag struct{ account, group int64 }
+
+// sideBlocks returns the sidebar's top level in its order: each block an
+// ungrouped account, or a group followed by its accounts (only the group,
+// hidden, when it has none).
+func (a *app) sideBlocks() [][]store.Place {
+	type block struct {
+		order  int
+		places []store.Place
+	}
+	var bs []block
+	for _, acc := range a.accounts { // first, so they lead on ties as before
+		if acc.GroupID == 0 {
+			bs = append(bs, block{acc.SortOrder, []store.Place{{ID: acc.ID}}})
+		}
+	}
+	for _, g := range a.groups {
+		b := block{g.SortOrder, []store.Place{{Group: true, ID: g.ID}}}
+		for _, acc := range a.accounts {
+			if acc.GroupID == g.ID {
+				b.places = append(b.places, store.Place{ID: acc.ID})
+			}
+		}
+		bs = append(bs, b)
+	}
+	slices.SortStableFunc(bs, func(x, y block) int { return x.order - y.order })
+	out := make([][]store.Place, len(bs))
+	for i, b := range bs {
+		out[i] = b.places
+	}
+	return out
+}
+
+// sideDrop makes sec take accounts and groups dropped on it. sec is the
+// account before in group (0: ungrouped), group's own section when before
+// is 0, or the end of the sidebar, out of any group, when both are 0. An
+// account moves next to before, or last in group; a group moves next to
+// before's block, or group's: above it from below, below it from above.
+// A line shows where it would go.
+func (a *app) sideDrop(c *ui.Context, sec ui.Element, group, before int64) {
+	moves := func(d sideDrag) bool {
+		return d.account != 0 && d.account != before || d.group != 0 && d.group != group
+	}
+	if d, over := ui.DragOver[sideDrag](sec); over && moves(d) {
+		accent := c.Theme().Accent
+		if group == 0 && before == 0 {
+			sec.Background(accent.Alpha(0.22))
+		} else {
+			below := before == 0 || dropsBelow(a.sideBlocks(), d, group, before) // joining a group puts it last
+			sec.DrawOver(func(p *ui.Painter, r ui.Rect) {
+				y := r.Y
+				if below {
+					y += r.H - 2
+				}
+				p.Fill(ui.Rect{X: r.X, Y: y, W: r.W, H: 2}, accent, 1)
+			})
+		}
+	}
+	d, ok := ui.Drop[sideDrag](sec)
+	if !ok || !moves(d) {
+		return
+	}
+	var err error
+	if d.account != 0 {
+		err = a.st.SetAccountGroup(d.account, group)
+	}
+	if err == nil {
+		err = a.st.SetOrder(slices.Concat(moveBlock(a.sideBlocks(), d, group, before)...))
+	}
+	if err != nil {
+		a.toast = "Couldn't move it: " + err.Error()
+	}
+	a.reload()
+}
+
+// moveBlock moves d in the blocks bs as sideDrop says.
+func moveBlock(bs [][]store.Place, d sideDrag, group, before int64) [][]store.Place {
+	at := func(p store.Place) int { // the block holding p
+		return slices.IndexFunc(bs, func(b []store.Place) bool { return slices.Contains(b, p) })
+	}
+	target := store.Place{ID: before}
+	if group != 0 {
+		target = store.Place{Group: true, ID: group}
+	}
+	me := placeOf(d)
+	down := 0
+	if dropsBelow(bs, d, group, before) {
+		down = 1
+	}
+	pos := func() int { // where a block goes at the top level
+		if group == 0 && before == 0 {
+			return len(bs)
+		}
+		return at(target) + down
+	}
+	if d.group != 0 {
+		moved := bs[at(me)]
+		bs = slices.DeleteFunc(bs, func(b []store.Place) bool { return b[0] == me })
+		bs = slices.Insert(bs, pos(), moved)
+	} else {
+		i := at(me)
+		bs[i] = slices.DeleteFunc(slices.Clone(bs[i]), func(p store.Place) bool { return p == me })
+		if len(bs[i]) == 0 { // it was ungrouped
+			bs = slices.Delete(bs, i, i+1)
+		}
+		if group == 0 {
+			bs = slices.Insert(bs, pos(), []store.Place{me})
+		} else if j := at(target); before == 0 {
+			bs[j] = append(bs[j], me)
+		} else {
+			bs[j] = slices.Insert(bs[j], slices.Index(bs[j], store.Place{ID: before})+down, me)
+		}
+	}
+	return bs
+}
+
+func placeOf(d sideDrag) store.Place {
+	if d.group != 0 {
+		return store.Place{Group: true, ID: d.group}
+	}
+	return store.Place{ID: d.account}
+}
+
+// dropsBelow reports whether d, dragged down onto the target, goes below it.
+func dropsBelow(bs [][]store.Place, d sideDrag, group, before int64) bool {
+	flat := slices.Concat(bs...)
+	me := slices.Index(flat, placeOf(d))
+	return me < slices.Index(flat, store.Place{ID: before}) || d.group != 0 && me < slices.Index(flat, store.Place{Group: true, ID: group})
 }
 
 func (a *app) accountSection(c *ui.Context, acc store.Account) ui.Element {
@@ -664,7 +804,10 @@ func (a *app) accountSection(c *ui.Context, acc store.Account) ui.Element {
 	if n := a.unread(acc.ID); !*open && n > 0 {
 		title += fmt.Sprintf("  ·  %d", n)
 	}
-	return ui.SidebarSection(c.Key(acc.ID), title, open, func() { a.folderItems(c, acc) })
+	sec := ui.SidebarSection(c.Key(acc.ID), title, open, func() { a.folderItems(c, acc) }).Drag(sideDrag{account: acc.ID})
+	a.sideDrop(c, sec, acc.GroupID, acc.ID)
+	a.sideDragging = a.sideDragging || sec.Dragging()
+	return sec
 }
 
 func badge(c *ui.Context, item ui.Element, n int) {

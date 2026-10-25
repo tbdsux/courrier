@@ -233,3 +233,25 @@ func TestAuthAndIdentities(t *testing.T) {
 		t.Errorf("identities survived their account: %+v", ids)
 	}
 }
+
+func TestOrder(t *testing.T) {
+	s, _ := open(t)
+	srv := vps
+	srv.Hidden = true
+	a := Account{DisplayName: "A", Email: "a@example.com", InUsername: "a", SMTPUsername: "a"}
+	b := Account{DisplayName: "B", Email: "b@example.com", InUsername: "b", SMTPUsername: "b"}
+	must(t, s.SaveAccount(&a, &srv, "x", "x"))
+	must(t, s.SaveAccount(&b, &srv, "x", "x"))
+	must(t, s.SetOrder([]Place{{ID: b.ID}, {ID: a.ID}}))
+	must(t, s.SaveAccount(&b, &srv, "x", "x")) // editing keeps its place
+	if accs, _ := s.Accounts(); len(accs) != 2 || accs[0].ID != b.ID {
+		t.Fatalf("accounts not reordered: %+v", accs)
+	}
+	x, y := Group{Name: "X"}, Group{Name: "Y"}
+	must(t, s.SaveGroup(&x))
+	must(t, s.SaveGroup(&y))
+	must(t, s.SetOrder([]Place{{Group: true, ID: y.ID}, {Group: true, ID: x.ID}}))
+	if gs, _ := s.Groups(); len(gs) != 2 || gs[0].ID != y.ID {
+		t.Fatalf("groups not reordered: %+v", gs)
+	}
+}
