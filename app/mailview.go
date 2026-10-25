@@ -741,11 +741,20 @@ func (a *app) folderTree(c *ui.Context) {
 			title += fmt.Sprintf("  ·  %d", n)
 		}
 
+		// SidebarSection draws its title in TextMuted: a group's takes Text,
+		// to stand apart from its accounts'.
+		t := c.Theme()
+		head := *t
+		head.TextMuted = t.Text
+		c.SetTheme(&head)
 		sec := ui.SidebarSection(c.Key("g:"+strconv.FormatInt(id, 10)), title, open, func() {
+			c.SetTheme(t)
 			for _, p := range b[1:] {
 				a.accountSection(c, accs[p.ID]).PaddingStart(c.Theme().Space(2)).Margin(float32(a.set.GroupGap), 0, 0, 0)
 			}
 		})
+		c.SetTheme(t) // a closed group never ran the restore above
+
 		a.sideDrop(c, sec.Drag(sideDrag{group: id}), id, 0)
 		a.sideDragging = a.sideDragging || sec.Dragging()
 	}
