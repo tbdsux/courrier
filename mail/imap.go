@@ -205,13 +205,27 @@ func (ic *imapConn) selectFolder(path string) (*imap.SelectData, error) {
 	return ic.c.Select(path, &imap.SelectOptions{CondStore: ic.c.Caps().Has(imap.CapCondStore)}).Wait()
 }
 
-// headerFetch fetches what the list shows, and the start of the message for
-// its snippet.
-var headerFetch = &imap.FetchOptions{
-	UID: true, Flags: true, Envelope: true, RFC822Size: true, InternalDate: true,
-	BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
-	BodySection:   []*imap.FetchItemBodySection{{Peek: true, Partial: &imap.SectionPartial{Offset: 0, Size: 16 << 10}}},
+// previewFields are the header fields the list and conversations use, and
+// those that say how to read the body.
+var previewFields = []string{"Message-ID", "References", "In-Reply-To", "Subject", "From", "To", "Cc", "Date",
+	"MIME-Version", "Content-Type", "Content-Transfer-Encoding"}
+
+// previewFetch fetches what the list shows: the header fields it uses and
+// the first text bytes of the body, for the snippet. Not the whole header
+// block: Gmail's (DKIM, ARC, Received) alone often take several KiB.
+func previewFetch(text int64) *imap.FetchOptions {
+	return &imap.FetchOptions{
+		UID: true, Flags: true, Envelope: true, RFC822Size: true, InternalDate: true,
+		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
+		BodySection: []*imap.FetchItemBodySection{
+			{Specifier: imap.PartSpecifierHeader, HeaderFields: previewFields, Peek: true},
+			{Specifier: imap.PartSpecifierText, Peek: true, Partial: &imap.SectionPartial{Size: text}},
+		},
+	}
 }
+
+// headerFetch is for new mail and the first pages.
+var headerFetch = previewFetch(8 << 10)
 
 func flagsOf(fs []imap.Flag) Flags {
 	var f Flags
@@ -243,9 +257,18 @@ func addrs(as []imap.Address) string {
 }
 
 func headerFrom(m *imapclient.FetchMessageBuffer) Header {
+	var head, text []byte
+	for _, s := range m.BodySection {
+		if s.Section.Specifier == imap.PartSpecifierText {
+			text = s.Bytes
+		} else {
+			head = s.Bytes
+		}
+	}
+
 	var h Header
-	if len(m.BodySection) > 0 {
-		h, _, _ = Parse(m.BodySection[0].Bytes) // the start of the message only
+	if len(head) > 0 {
+		h, _, _ = Parse(append(head, text...)) // the start of the body only
 	}
 
 	if env := m.Envelope; env != nil {
@@ -303,12 +326,8 @@ func headerFrom(m *imapclient.FetchMessageBuffer) Header {
 const fillPage = 500
 
 // fillFetch is headerFetch with less of each message: filling in a big
-// folder's old mail would download the 16 KiB of each, a few gigabytes.
-var fillFetch = &imap.FetchOptions{
-	UID: true, Flags: true, Envelope: true, RFC822Size: true, InternalDate: true,
-	BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
-	BodySection:   []*imap.FetchItemBodySection{{Peek: true, Partial: &imap.SectionPartial{Offset: 0, Size: 4 << 10}}},
-}
+// folder's old mail fetches all of it.
+var fillFetch = previewFetch(2 << 10)
 
 func (ic *imapConn) fetchHeaders(set imap.NumSet, after uint32) ([]Header, error) {
 	return ic.fetchWith(set, after, headerFetch)

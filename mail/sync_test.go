@@ -291,6 +291,34 @@ func noFill(t *testing.T) {
 	t.Cleanup(func() { mail.FillBehind = true })
 }
 
+// A header block bigger than the preview fetch, as Gmail's are, still
+// gives the list its snippet.
+func TestPreviewPastBigHeaders(t *testing.T) {
+	u, port, _ := memIMAP(t)
+	junk := strings.Repeat("Received: from relay.example.com by mx.example.com; Mon, 02 Jan 2026 15:04:05 +0000\r\n", 200)
+	raw := "From: Bob <bob@example.com>\r\nTo: jane@example.com\r\nSubject: Big\r\n" + junk +
+		"References: <parent@example.com>\r\nDate: Mon, 02 Jan 2026 15:04:05 +0000\r\nContent-Type: text/plain\r\n\r\nThe body after it all\r\n"
+	if err := put(u, "INBOX", literal{bytes.NewReader([]byte(raw))}); err != nil {
+		t.Fatal(err)
+	}
+
+	st, acc := openStore(t, "imap")
+	_, ch := syncer(t, st, acc, mail.Endpoint{Protocol: "imap", Host: "127.0.0.1", Port: port, Security: "none", Username: "jane", Password: "secret"})
+	var ms []store.Message
+	waitFor(t, ch, "inbox headers", func() bool {
+		ms, _ = st.Messages(folder(t, st, "INBOX").ID, 1)
+		return len(ms) == 1
+	})
+
+	if m := ms[0]; m.Subject != "Big" || !strings.Contains(m.Snippet, "The body after it all") {
+		t.Errorf("preview %q %q", m.Subject, m.Snippet)
+	}
+
+	if len(junk) < 16<<10 {
+		t.Fatalf("headers of %d bytes don't outgrow the old fetch", len(junk))
+	}
+}
+
 func TestOlderPages(t *testing.T) {
 	noFill(t)
 	u, port, _ := memIMAP(t)
