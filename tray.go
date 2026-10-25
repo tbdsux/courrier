@@ -30,7 +30,7 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 		return
 	}
 	if mb.tray == nil {
-		t, err := mygo.NewTray(mygo.TrayOptions{ID: "inbox", Icon: trayIcon, IconIsTemplate: true, ToolTip: "courrier"})
+		t, err := mygo.NewTray(mygo.TrayOptions{ID: "inbox", Icon: trayIcon, ToolTip: "courrier"})
 		if err != nil {
 			log.Println("tray:", err)
 			return
