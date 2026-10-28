@@ -334,7 +334,8 @@ func (s *Syncer) fullSync(ic *imapConn) error {
 }
 
 // toFill returns a folder synced, the Inbox first, whose older mail may
-// not all be cached yet; "" when none is.
+// not all be cached yet; "" when none is. A folder of all mail is left
+// out: it copies every other folder, and is the biggest.
 func (s *Syncer) toFill() string {
 	inbox := s.inbox()
 	paths := []string{inbox}
@@ -345,7 +346,7 @@ func (s *Syncer) toFill() string {
 	}
 
 	for _, p := range paths {
-		if f, ok := s.known[p]; !ok || f.NoSelect || s.filled[p] {
+		if f, ok := s.known[p]; !ok || f.NoSelect || f.All || s.filled[p] {
 			continue
 		}
 

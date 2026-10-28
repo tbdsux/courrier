@@ -170,6 +170,10 @@ func (ic *imapConn) folders() ([]Folder, error) {
 			if strings.EqualFold(string(a), string(imap.MailboxAttrNoSelect)) || strings.EqualFold(string(a), string(imap.MailboxAttrNonExistent)) {
 				f.NoSelect = true
 			}
+
+			if strings.EqualFold(string(a), string(imap.MailboxAttrAll)) {
+				f.All = true
+			}
 		}
 
 		st := l.Status

@@ -9,6 +9,7 @@ type Folder struct {
 	Special     string // inbox|drafts|sent|archive|junk|trash|""
 	NoSelect    bool
 	Local       bool
+	All         bool // holds every message, as Gmail's All Mail; not stored
 	UIDValidity uint32
 	UIDNext     uint32
 	Unread      int
