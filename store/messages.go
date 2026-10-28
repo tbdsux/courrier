@@ -279,6 +279,21 @@ snippet = CASE WHEN snippet = '' THEN ? ELSE snippet END WHERE id = ` + msg,
 	return err
 }
 
+func (s *Store) Unopened(account int64, path string, limit int) ([]uint32, error) {
+	rows, err := s.db.Query(ctx, "SELECT uid FROM messages WHERE folder_id = "+folderID+
+		" AND seen = 0 AND body_text IS NULL AND body_html IS NULL ORDER BY date DESC LIMIT ?", account, path, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]uint32, len(rows.Values))
+	for i, r := range rows.Values {
+		out[i] = uint32(r[0].(int64))
+	}
+
+	return out, nil
+}
+
 func (s *Store) SeenUIDLs(account int64) (map[string]bool, error) {
 	rows, err := s.db.Query(ctx, "SELECT uidl FROM pop3_seen WHERE account_id = ?", account)
 	if err != nil {

@@ -72,6 +72,9 @@ type Cache interface {
 	SyncState(account int64, path string) (modseq uint64, exists uint32, err error)
 	SetSyncState(account int64, path string, modseq uint64, exists uint32) error
 	SetBody(account int64, path string, uid uint32, b Body) error
+	// Unopened returns the UIDs of a folder's newest unread messages whose
+	// body isn't cached, at most limit.
+	Unopened(account int64, path string, limit int) ([]uint32, error)
 	SeenUIDLs(account int64) (map[string]bool, error)
 	// AddPOP3 stores a downloaded message in the Inbox and remembers its UIDL.
 	AddPOP3(account int64, uidl string, h Header, b Body, raw []byte) error

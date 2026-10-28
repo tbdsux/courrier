@@ -88,6 +88,10 @@ func TestMailCache(t *testing.T) {
 		t.Errorf("unified inbox %+v", ui)
 	}
 
+	if u, _ := s.Unopened(acc, "INBOX", 10); fmt.Sprint(u) != "[5 2]" {
+		t.Errorf("unopened %v", u)
+	}
+
 	// Opening caches the body and counts the message out of the unread.
 	must(t, s.SetBody(acc, "INBOX", 5, mail.Body{Text: "hello there", Attachments: []mail.Attachment{{Part: "2", Filename: "a.pdf", MIMEType: "application/pdf", Size: 3}}}))
 	must(t, s.SetFlag([]int64{ms[0].ID}, "seen", true))
@@ -97,6 +101,10 @@ func TestMailCache(t *testing.T) {
 
 	if !m.HasBody || !m.Seen || b.Text != "hello there" || len(b.Attachments) != 1 || m.Snippet != "hello there" {
 		t.Errorf("opened %+v %+v", m, b)
+	}
+
+	if u, _ := s.Unopened(acc, "INBOX", 10); fmt.Sprint(u) != "[2]" {
+		t.Errorf("unopened after open %v", u)
 	}
 
 	if f := folderNamed(t, s, "INBOX"); f.Unread != 3 {

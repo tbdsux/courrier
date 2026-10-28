@@ -395,6 +395,25 @@ func TestOpenSkipsAttachments(t *testing.T) {
 	}
 }
 
+// The new mail of the Inbox is fetched ahead, without opening it.
+func TestFetchAhead(t *testing.T) {
+	u, port, _ := memIMAP(t)
+	for i := 1; i <= 3; i++ {
+		put(u, "INBOX", msg(fmt.Sprint("Hello ", i), "Body"))
+	}
+
+	st, acc := openStore(t, "imap")
+	_, ch := syncer(t, st, acc, mail.Endpoint{Protocol: "imap", Host: "127.0.0.1", Port: port, Security: "none", Username: "jane", Password: "secret"})
+	waitFor(t, ch, "bodies", func() bool {
+		ms, _ := st.Messages(folder(t, st, "INBOX").ID, 10)
+		return len(ms) == 3 && ms[0].HasBody && ms[1].HasBody && ms[2].HasBody
+	})
+
+	if st, _ := u.Status("INBOX", &imap.StatusOptions{NumUnseen: true}); *st.NumUnseen != 3 {
+		t.Errorf("fetching ahead marked mail read: server unseen %d", *st.NumUnseen)
+	}
+}
+
 // noFill turns filling in behind off for a test.
 func noFill(t *testing.T) {
 	mail.FillBehind = false
@@ -469,7 +488,7 @@ func TestFillBehind(t *testing.T) {
 	waitFor(t, ch, "every header", func() bool { return inbox() != 0 && len(subjects(t, st, inbox())) == 620 })
 
 	// Each page goes on in the folder selected, without selecting it again.
-	if n := selects.Load(); n > 3 { // the Inbox again once filled
+	if n := selects.Load(); n > 4 { // and the Inbox again once filled, and to fetch it ahead
 		t.Errorf("%d SELECTs for 3 pages", n)
 	}
 

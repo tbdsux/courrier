@@ -18,6 +18,7 @@ var (
 	FillBehind = true             // fetch the older headers of the folders synced, between syncs
 	newsLook   = 30 * time.Second // while filling in, how often to look at the Inbox
 	askIdle    = 3 * time.Minute  // how long the connection for the user's requests stays unused
+	aheadCount = 30               // the newest unread Inbox messages whose bodies are fetched ahead
 	minBackoff = 5 * time.Second
 	maxBackoff = 5 * time.Minute
 )
@@ -56,6 +57,7 @@ type Syncer struct {
 
 	reqs  chan request
 	asks  chan request // what the user waits for, over a connection of its own
+	ahead chan string  // a folder synced, whose new mail to fetch ahead on that connection
 	stop  context.CancelFunc
 	known map[string]Folder // the folders last listed, by path
 	// filled holds the folders whose older mail is all cached, as far as
@@ -83,7 +85,7 @@ var errStopped = errors.New("sync stopped")
 
 func (s *Syncer) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
-	s.stop, s.reqs, s.asks = cancel, make(chan request, 32), make(chan request, 32)
+	s.stop, s.reqs, s.asks, s.ahead = cancel, make(chan request, 32), make(chan request, 32), make(chan string, 1)
 	s.filled = map[string]bool{}
 	s.wake, s.nudge = make(chan struct{}, 1), make(chan struct{}, 1)
 	go s.run(ctx)
@@ -300,6 +302,13 @@ func (s *Syncer) syncPath(ic *imapConn, path string, listed bool) error {
 
 	if f.Special == "inbox" {
 		s.addNew(path, fresh)
+
+		if err == nil {
+			select {
+			case s.ahead <- path:
+			default:
+			}
+		}
 	}
 
 	return err
@@ -532,7 +541,9 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 }
 
 // runAsks answers the requests sent by ask, over a connection of their
-// own, opened when one comes and closed when unused for askIdle.
+// own, opened when one comes and closed when unused for askIdle. Between
+// them, it fetches the bodies of the new mail of the Inbox synced, so
+// that it opens at once.
 func (s *Syncer) runAsks(ctx context.Context) {
 	var ic *imapConn
 	var unhook func() bool
@@ -557,10 +568,43 @@ func (s *Syncer) runAsks(ctx context.Context) {
 		}
 	}()
 
+	// do runs f on the connection, dialing it when there is none. It
+	// reports whether the connection failed.
+	do := func(f func(*imapConn) error) (failed bool, err error) {
+		for try := 0; try < 2; try++ { // the server may have dropped the connection unused: once more on a new one
+			if ic == nil {
+				if ic, err = dialIMAP(ctx, s.Endpoint); err != nil {
+					return true, err
+				}
+
+				c := ic.c
+				unhook = context.AfterFunc(ctx, func() { c.Close() })
+			}
+
+			var refused *imap.Error
+			if err = f(ic); err == nil || errors.As(err, &refused) || errors.Is(err, errGone) {
+				return false, err
+			}
+
+			drop()
+		}
+
+		return true, err
+	}
+
+	ready := make(chan struct{})
+	close(ready)
+	var aheadPath string
+	var ahead []uint32
 	for {
 		var idle <-chan time.Time
 		if ic != nil {
 			idle = time.After(askIdle)
+		}
+
+		var next <-chan struct{} // ready while there is mail to fetch ahead
+		if len(ahead) > 0 {
+			next = ready
 		}
 
 		select {
@@ -571,26 +615,22 @@ func (s *Syncer) runAsks(ctx context.Context) {
 			drop()
 
 		case r := <-s.asks:
-			var err error
-			for try := 0; try < 2; try++ { // the server may have dropped the connection unused: once more on a new one
-				if ic == nil {
-					if ic, err = dialIMAP(ctx, s.Endpoint); err != nil {
-						break
-					}
+			_, err := do(r.do)
+			r.done(err)
 
-					c := ic.c
-					unhook = context.AfterFunc(ctx, func() { c.Close() })
-				}
+		case aheadPath = <-s.ahead:
+			ahead, _ = s.Cache.Unopened(s.Account, aheadPath, aheadCount)
 
-				var refused *imap.Error
-				if err = r.do(ic); err == nil || errors.As(err, &refused) || errors.Is(err, errGone) {
-					break
-				}
-
-				drop()
+		case <-next:
+			uid := ahead[0]
+			ahead = ahead[1:]
+			if failed, _ := do(func(ic *imapConn) error { return ic.open(s.Cache, s.Account, aheadPath, uid) }); failed {
+				ahead = nil
 			}
 
-			r.done(err)
+			if len(ahead) == 0 {
+				s.report(Status{})
+			}
 		}
 	}
 }
