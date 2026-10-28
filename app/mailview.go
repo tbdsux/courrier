@@ -1514,14 +1514,16 @@ const (
 )
 
 // sandbox puts the CSP at the very top of a message's HTML, where the
-// parser takes it into the head before anything in the message.
+// parser takes it into the head before anything in the message. The
+// doctype goes first: without it the page renders in quirks mode, where
+// tables don't inherit the text color.
 func sandbox(html string, remote bool) string {
 	p := csp
 	if remote {
 		p = cspRemote
 	}
 
-	return `<meta http-equiv="Content-Security-Policy" content="` + p + `"><meta charset="utf-8">` + html
+	return `<!doctype html><meta http-equiv="Content-Security-Policy" content="` + p + `"><meta charset="utf-8">` + html
 }
 
 // hasRemote guesses whether HTML loads anything from the network.

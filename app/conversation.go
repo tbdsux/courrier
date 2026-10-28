@@ -474,7 +474,7 @@ func scopedHTML(src, scope string) string {
 // theme (pageTheme's).
 func (r *reader) conversationPage(theme string) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "<!doctype html><html><head><style>%s%s</style></head><body>", theme, pageCSS)
+	fmt.Fprintf(&sb, "<html><head><style>%s%s</style></head><body>", theme, pageCSS)
 
 	for _, cd := range stack(len(r.thread), r.isOpen, r.unfold) {
 		if cd.more > 0 {

@@ -324,8 +324,8 @@ func TestSandbox(t *testing.T) {
 	evil := `<script>alert(1)</script><meta http-equiv="refresh" content="0;url=https://evil.example"><img src="https://t.example/p.gif"><div style="background:url(https://t.example/b.png)">x</div>`
 	h := sandbox(evil, false)
 	head, _, ok := strings.Cut(h, evil)
-	if !ok || !strings.HasPrefix(head, `<meta http-equiv="Content-Security-Policy" content="`) {
-		t.Fatalf("CSP not first: %q", h)
+	if !ok || !strings.HasPrefix(head, `<!doctype html><meta http-equiv="Content-Security-Policy" content="`) {
+		t.Fatalf("doctype and CSP not first: %q", h)
 	}
 
 	// No script-src: default-src 'none' blocks scripts; images only from
