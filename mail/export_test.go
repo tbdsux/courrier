@@ -17,6 +17,6 @@ func SyncOnce(e Endpoint, cache Cache, account int64, path string) error {
 
 	defer ic.close()
 	f := Folder{Path: path}
-	_, err = ic.syncFolder(cache, account, &f)
+	_, err = ic.syncFolder(cache, account, &f, false)
 	return err
 }

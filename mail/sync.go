@@ -16,6 +16,7 @@ var (
 	InboxPoll  = 5 * time.Minute  // without IDLE, and for POP3
 	FolderPoll = 15 * time.Minute // every folder's counts, and the folders opened
 	FillBehind = true             // fetch the older headers of the folders synced, between syncs
+	newsLook   = 30 * time.Second // while filling in, how often to look at the Inbox
 	minBackoff = 5 * time.Second
 	maxBackoff = 5 * time.Minute
 )
@@ -151,7 +152,7 @@ func (s *Syncer) RenameFolder(path, to string, done func(error)) {
 
 func (s *Syncer) DeleteFolder(path string, done func(error)) {
 	s.folderOp(func(ic *imapConn) error {
-		if ic.c.Mailbox() != nil && ic.c.Mailbox().Name == path {
+		if ic.selected(path) {
 			ic.c.Unselect().Wait()
 		}
 		return ic.c.Delete(path).Wait()
@@ -264,8 +265,9 @@ func (s *Syncer) listFolders(ic *imapConn) error {
 }
 
 // syncPath syncs a folder, after the actions waiting for the server, so
-// that the flags it fetches have the user's changes.
-func (s *Syncer) syncPath(ic *imapConn, path string) error {
+// that the flags it fetches have the user's changes. listed says its
+// counts are the server's, just listed.
+func (s *Syncer) syncPath(ic *imapConn, path string, listed bool) error {
 	if err := s.runActions(ic); err != nil {
 		return err
 	}
@@ -275,7 +277,7 @@ func (s *Syncer) syncPath(ic *imapConn, path string) error {
 		return nil
 	}
 
-	fresh, err := ic.syncFolder(s.Cache, s.Account, &f)
+	fresh, err := ic.syncFolder(s.Cache, s.Account, &f, listed)
 	s.known[path] = f
 
 	if f.Special == "inbox" {
@@ -309,6 +311,11 @@ func (s *Syncer) inbox() string {
 func (s *Syncer) fullSync(ic *imapConn) error {
 	s.report(Status{Syncing: true})
 
+	// First, so that the counts listed have the user's changes.
+	if err := s.runActions(ic); err != nil {
+		return err
+	}
+
 	if err := s.listFolders(ic); err != nil {
 		return err
 	}
@@ -324,7 +331,7 @@ func (s *Syncer) fullSync(ic *imapConn) error {
 		}
 
 		if f.Special == "inbox" || newest > 0 {
-			if err := s.syncPath(ic, path); err != nil {
+			if err := s.syncPath(ic, path, true); err != nil {
 				return err
 			}
 		}
@@ -385,6 +392,7 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 
 	s.synced()
 	lastFull, lastInbox := time.Now(), time.Now()
+	var lastLook time.Time // the Inbox last selected to look for news
 	canIdle := caps.Has(imap.CapIdle) || caps.Has(imap.CapIMAP4rev2)
 	for {
 		for _, r := range *pending {
@@ -393,7 +401,7 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 				err = r.do(ic)
 			} else {
 				s.report(Status{Syncing: true})
-				err = s.syncPath(ic, r.refresh)
+				err = s.syncPath(ic, r.refresh, false)
 			}
 
 			r.done(err)
@@ -411,9 +419,22 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 		*pending = nil
 
 		inbox := s.inbox()
-		sel, err := ic.selectFolder(inbox)
-		if err != nil {
-			return true, err
+		var fill string // a page of it between whatever else comes
+		if FillBehind {
+			fill = s.toFill()
+		}
+
+		// Mail that came since the last sync, which IDLE wouldn't announce.
+		// While filling in, only now and then: selecting a folder is slow.
+		var news bool
+		if fill == "" || time.Since(lastLook) > newsLook {
+			sel, err := ic.selectFolder(inbox)
+			if err != nil {
+				return true, err
+			}
+
+			news = uint32(sel.UIDNext) != s.known[inbox].UIDNext
+			lastLook = time.Now()
 		}
 
 		next := lastFull.Add(FolderPoll)
@@ -424,13 +445,6 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 		select {
 		case <-ic.changed: // stale news from our own commands
 		default:
-		}
-
-		// Mail that came since the last sync, which IDLE wouldn't announce.
-		news := uint32(sel.UIDNext) != s.known[inbox].UIDNext
-		var fill string // a page of it between whatever else comes
-		if FillBehind {
-			fill = s.toFill()
 		}
 
 		var idle *imapclient.IdleCommand
@@ -477,7 +491,7 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 			s.synced()
 
 		case news || time.Now().After(lastInbox.Add(InboxPoll)):
-			if err := s.syncPath(ic, inbox); err != nil {
+			if err := s.syncPath(ic, inbox, false); err != nil {
 				return true, err
 			}
 
@@ -591,7 +605,7 @@ func (s *Syncer) ReplaceDraft(raw []byte, old uint32, done func(uid uint32, err 
 			ic.expunge(path, old) // a copy left behind is better than no draft
 		}
 
-		s.syncPath(ic, path)
+		s.syncPath(ic, path, false)
 
 		return nil
 	}, done: func(err error) { done(uid, err) }})
@@ -609,7 +623,7 @@ func (s *Syncer) DeleteDraft(uid uint32, done func(error)) {
 			return err
 		}
 
-		return s.syncPath(ic, path)
+		return s.syncPath(ic, path, false)
 	}, done: done})
 }
 
@@ -763,17 +777,17 @@ func (s *Syncer) storeCopy(ctx context.Context, o Outgoing) error {
 				return err
 			}
 
-			s.syncPath(ic, path)
+			s.syncPath(ic, path, false)
 		}
 
 		// The copy is stored: what fails now must not store it again.
 		if o.ReplyUID != 0 && ic.setFlag(o.ReplyPath, []uint32{o.ReplyUID}, imap.FlagAnswered, true) == nil {
-			s.syncPath(ic, o.ReplyPath)
+			s.syncPath(ic, o.ReplyPath, false)
 		}
 
 		if o.DraftUID != 0 {
 			if path, err := s.specialFolder(ic, "drafts", "Drafts"); err == nil && ic.expunge(path, o.DraftUID) == nil {
-				s.syncPath(ic, path)
+				s.syncPath(ic, path, false)
 			}
 		}
 

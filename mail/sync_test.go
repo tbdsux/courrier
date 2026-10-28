@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -62,10 +63,18 @@ func put(u *imapmemserver.User, folder string, m literal) error {
 	return err
 }
 
-// idleSignal tells when the server starts an IDLE.
+// idleSignal tells when the server starts an IDLE, and counts SELECTs.
 type idleSignal struct {
 	imapserver.SessionMove
 	idling chan struct{}
+}
+
+// selects counts the SELECTs of the in-memory servers.
+var selects atomic.Int64
+
+func (s idleSignal) Select(name string, opts *imap.SelectOptions) (*imap.SelectData, error) {
+	selects.Add(1)
+	return s.SessionMove.Select(name, opts)
 }
 
 func (s idleSignal) Idle(w *imapserver.UpdateWriter, stop <-chan struct{}) error {
@@ -353,9 +362,16 @@ func TestFillBehind(t *testing.T) {
 	}
 
 	st, acc := openStore(t, "imap")
+	selects.Store(0)
 	_, ch := syncer(t, st, acc, mail.Endpoint{Protocol: "imap", Host: "127.0.0.1", Port: port, Security: "none", Username: "jane", Password: "secret"})
 	inbox := func() int64 { return folder(t, st, "INBOX").ID }
 	waitFor(t, ch, "every header", func() bool { return inbox() != 0 && len(subjects(t, st, inbox())) == 620 })
+
+	// Each page goes on in the folder selected, without selecting it again.
+	if n := selects.Load(); n > 3 { // the Inbox again once filled
+		t.Errorf("%d SELECTs for 3 pages", n)
+	}
+
 	got := map[string]bool{}
 	for _, s := range subjects(t, st, inbox()) {
 		got[s] = true

@@ -205,6 +205,12 @@ func setStatus(f *Folder, st *imap.StatusData) {
 	}
 }
 
+// selected tells whether path is the folder selected.
+func (ic *imapConn) selected(path string) bool {
+	mb := ic.c.Mailbox()
+	return mb != nil && mb.Name == path
+}
+
 func (ic *imapConn) selectFolder(path string) (*imap.SelectData, error) {
 	return ic.c.Select(path, &imap.SelectOptions{CondStore: ic.c.Caps().Has(imap.CapCondStore)}).Wait()
 }
@@ -359,18 +365,21 @@ func (ic *imapConn) fetchWith(set imap.NumSet, after uint32, opts *imap.FetchOpt
 // the cached messages, deleting those gone from the server. With CONDSTORE
 // it fetches only the flags changed since the last sync, and looks for
 // deleted mail only when the count of messages says some went.
-// It updates f's counts to the server's, and returns the UIDs of the
-// unread mail newer than the newest cached, none on a first sync.
-func (ic *imapConn) syncFolder(cache Cache, account int64, f *Folder) (fresh []uint32, err error) {
-	st, err := ic.c.Status(f.Path, statusItems).Wait()
-	if err != nil {
-		return nil, err
-	}
+// It updates f's counts to the server's, unless counted says f has them
+// already, and returns the UIDs of the unread mail newer than the newest
+// cached, none on a first sync.
+func (ic *imapConn) syncFolder(cache Cache, account int64, f *Folder, counted bool) (fresh []uint32, err error) {
+	if !counted {
+		st, err := ic.c.Status(f.Path, statusItems).Wait()
+		if err != nil {
+			return nil, err
+		}
 
-	setStatus(f, st)
+		setStatus(f, st)
 
-	if err := cache.UpdateFolder(account, *f); err != nil {
-		return nil, err
+		if err := cache.UpdateFolder(account, *f); err != nil {
+			return nil, err
+		}
 	}
 
 	sel, err := ic.selectFolder(f.Path)
@@ -527,8 +536,10 @@ func (ic *imapConn) fillOlder(cache Cache, account int64, path string) (bool, er
 		return false, err
 	}
 
-	if _, err := ic.selectFolder(path); err != nil {
-		return false, err
+	if !ic.selected(path) {
+		if _, err := ic.selectFolder(path); err != nil {
+			return false, err
+		}
 	}
 
 	// The older mail is the messages numbered before the oldest cached.
