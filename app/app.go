@@ -64,6 +64,7 @@ type app struct {
 	loadingMore  bool
 	noOlder      map[int64]bool // folders whose oldest mail is cached
 	mailErr      string
+	reloadQueued bool // reloadSoon queued a reload
 	fe           *folderEdit
 	syncers      map[int64]*accountSync
 	syncOn       bool

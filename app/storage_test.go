@@ -7,6 +7,32 @@ import (
 	courrier "courrier/mail"
 )
 
+// A burst of syncers' reports reloads the mail once.
+func TestReloadSoon(t *testing.T) {
+	a, _, _, _ := actionsApp(t)
+	var queued []func()
+	a.update = func(fn func()) { queued = append(queued, fn) }
+	a.reloadSoon()
+	a.reloadSoon()
+
+	if len(queued) != 1 {
+		t.Fatalf("%d reloads queued", len(queued))
+	}
+
+	a.msgs = nil
+	queued[0]()
+
+	if len(a.msgs) == 0 {
+		t.Error("didn't reload")
+	}
+
+	a.reloadSoon()
+
+	if len(queued) != 2 {
+		t.Errorf("no reload queued after the last one ran: %d", len(queued))
+	}
+}
+
 func TestStorageClearCache(t *testing.T) {
 	a, tt, st, acc := actionsApp(t)
 	if err := st.SetBody(acc, "INBOX", 2, courrier.Body{Text: strings.Repeat("x", 4000)}); err != nil {

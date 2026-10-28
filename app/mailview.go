@@ -245,7 +245,7 @@ func (a *app) startAccount(acc store.Account) {
 					a.toast = st.Dropped
 				}
 
-				a.reloadMail()
+				a.reloadSoon()
 				a.notifyNew(acc.ID, a.sortNew(a.newMail(acc.ID, st.New)))
 			}
 		})
@@ -404,6 +404,20 @@ func (a *app) refresh() {
 	}
 
 	a.checkAll()
+}
+
+// reloadSoon reloads the mail after the updates queued already, so that
+// a burst of syncers' reports reloads once.
+func (a *app) reloadSoon() {
+	if a.reloadQueued {
+		return
+	}
+
+	a.reloadQueued = true
+	a.update(func() {
+		a.reloadQueued = false
+		a.reloadMail()
+	})
 }
 
 // reloadMail reads the folders, the list (or the search's results) and
