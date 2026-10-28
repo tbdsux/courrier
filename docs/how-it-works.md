@@ -31,7 +31,12 @@ Each account has one `mail.Syncer`, running in its own goroutine:
   without IDLE, other folders every 15. With CONDSTORE/QRESYNC only changed
   flags and vanished UIDs are fetched; without them it compares UIDs.
   A first sync fetches headers newest first, in pages, then fills in older
-  mail between syncs.
+  mail between syncs (not a folder of all mail, like Gmail's All Mail).
+- What the user waits for (opening a message, its header or source, a
+  page of older mail) goes over a second IMAP connection, opened on demand,
+  so it doesn't wait behind a sync. Opening fetches only the text and
+  inline images; attachments are fetched when saved. Between requests,
+  that connection fetches the bodies of the newest unread Inbox mail ahead.
 - **POP3**: polled every 5 minutes; mail is kept locally, optionally left on
   the server. POP3 mail lives only in the cache, so the cache sweep never drops it.
 - Errors back off from 5 seconds to 5 minutes. When the network comes back,
