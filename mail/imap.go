@@ -1,15 +1,19 @@
 package mail
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/emersion/go-message"
 )
 
 // pageSize is how many headers a folder's first sync, and each page of
@@ -611,19 +615,125 @@ func (ic *imapConn) section(path string, uid uint32, spec imap.PartSpecifier) ([
 	return m.BodySection[0].Bytes, nil
 }
 
-// open caches a message's body, without marking it read.
+// open caches a message's body, without marking it read. Of a multipart
+// message it fetches only the text and the inline images: saving an
+// attachment fetches the whole message.
 func (ic *imapConn) open(cache Cache, account int64, path string, uid uint32) error {
-	raw, err := ic.raw(path, uid)
+	m, err := ic.fetchUID(path, uid, &imap.FetchOptions{UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true}})
 	if err != nil {
 		return err
 	}
 
-	_, b, _ := Parse(raw)
-	if b.Text == "" && b.HTML == "" && len(b.Attachments) == 0 {
-		b.Text = string(raw)
+	b, ok, err := ic.shownParts(uid, m.BodyStructure)
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		raw, err := ic.raw(path, uid)
+		if err != nil {
+			return err
+		}
+
+		_, b, _ = Parse(raw)
+		if b.Text == "" && b.HTML == "" && len(b.Attachments) == 0 {
+			b.Text = string(raw)
+		}
 	}
 
 	return cache.SetBody(account, path, uid, b)
+}
+
+// shown tells the parts of a message that its body shows: text not
+// attached, and images small enough to put into the HTML.
+func shown(sp *imap.BodyStructureSinglePart) bool {
+	mt := sp.MediaType()
+	if d := sp.Disposition(); (mt == "text/plain" || mt == "text/html") && (d == nil || !strings.EqualFold(d.Value, "attachment")) && sp.Filename() == "" {
+		return true
+	}
+
+	return strings.HasPrefix(mt, "image/") && sp.ID != "" && int64(sp.Size) <= maxInline*4/3+4 // base64
+}
+
+// shownParts fetches the parts of a multipart message that its body
+// shows, from the folder selected, and describes its other parts as
+// attachments. ok is false for a message of one part, or a server that
+// didn't give the parts asked: the caller fetches the whole message.
+func (ic *imapConn) shownParts(uid uint32, bs imap.BodyStructure) (b Body, ok bool, err error) {
+	if _, multi := bs.(*imap.BodyStructureMultiPart); !multi {
+		return Body{}, false, nil
+	}
+
+	type leaf struct {
+		path []int
+		sp   *imap.BodyStructureSinglePart
+	}
+	var leaves []leaf
+	var want []*imap.FetchItemBodySection
+	bs.Walk(func(path []int, p imap.BodyStructure) bool {
+		if sp, single := p.(*imap.BodyStructureSinglePart); single {
+			leaves = append(leaves, leaf{slices.Clone(path), sp})
+
+			if shown(sp) {
+				want = append(want, &imap.FetchItemBodySection{Specifier: imap.PartSpecifierMIME, Part: slices.Clone(path), Peek: true},
+					&imap.FetchItemBodySection{Part: slices.Clone(path), Peek: true})
+			}
+		}
+		return true
+	})
+
+	var m *imapclient.FetchMessageBuffer
+	if len(want) > 0 {
+		msgs, err := ic.c.Fetch(imap.UIDSetNum(imap.UID(uid)), &imap.FetchOptions{UID: true, BodySection: want}).Collect()
+		if err != nil {
+			return Body{}, false, err
+		}
+
+		if len(msgs) == 0 {
+			return Body{}, false, errGone
+		}
+
+		m = msgs[0]
+	}
+
+	ps := newParts()
+	for _, l := range leaves {
+		part := partName(l.path)
+		if !shown(l.sp) {
+			size := int64(l.sp.Size)
+			if strings.EqualFold(l.sp.Encoding, "base64") {
+				size = size * 3 / 4
+			}
+
+			ps.attach(Attachment{Part: part, Filename: l.sp.Filename(), MIMEType: l.sp.MediaType(), Size: size, ContentID: strings.Trim(l.sp.ID, "<> ")})
+			continue
+		}
+
+		head := m.FindBodySection(&imap.FetchItemBodySection{Specifier: imap.PartSpecifierMIME, Part: l.path})
+		data := m.FindBodySection(&imap.FetchItemBodySection{Part: l.path})
+		if head == nil || data == nil {
+			return Body{}, false, nil
+		}
+
+		e, err := message.Read(bytes.NewReader(append(head, data...)))
+		if e == nil {
+			return Body{}, false, err
+		}
+
+		ps.add(part, e)
+	}
+
+	return ps.body(), true, nil
+}
+
+// partName names a part as IMAP does, "2.1" for [2 1].
+func partName(path []int) string {
+	s := make([]string, len(path))
+	for i, n := range path {
+		s[i] = strconv.Itoa(n)
+	}
+
+	return strings.Join(s, ".")
 }
 
 // move moves messages to another folder: UID MOVE, or COPY, \Deleted and

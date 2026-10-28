@@ -77,6 +77,19 @@ func (s idleSignal) Select(name string, opts *imap.SelectOptions) (*imap.SelectD
 	return s.SessionMove.Select(name, opts)
 }
 
+// wholeFetches counts the fetches of whole messages by the in-memory servers.
+var wholeFetches atomic.Int64
+
+func (s idleSignal) Fetch(w *imapserver.FetchWriter, set imap.NumSet, opts *imap.FetchOptions) error {
+	for _, b := range opts.BodySection {
+		if b.Specifier == imap.PartSpecifierNone && len(b.Part) == 0 {
+			wholeFetches.Add(1)
+		}
+	}
+
+	return s.SessionMove.Fetch(w, set, opts)
+}
+
 // idleHold, while set, keeps an IDLE from ending until it is closed.
 var idleHold atomic.Pointer[chan struct{}]
 
@@ -328,6 +341,57 @@ func TestOpenWhileSyncBusy(t *testing.T) {
 
 	if _, body, _ := st.Message(ms[0].ID); strings.TrimSpace(body.Text) != "Body" {
 		t.Errorf("body %q", body.Text)
+	}
+}
+
+// Opening a multipart message fetches its text and inline images, not
+// its attachments, and gives the body that parsing all of it gives.
+func TestOpenSkipsAttachments(t *testing.T) {
+	u, port, _ := memIMAP(t)
+	big := strings.Repeat("QUJD", 200_000) // 800 KB of base64
+	raw := "From: Bob <bob@example.com>\r\nTo: jane@example.com\r\nSubject: Files\r\nDate: Mon, 02 Jan 2026 15:04:05 +0000\r\n" +
+		"MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=out\r\n\r\n" +
+		"--out\r\nContent-Type: multipart/related; boundary=rel\r\n\r\n" +
+		"--rel\r\nContent-Type: multipart/alternative; boundary=alt\r\n\r\n" +
+		"--alt\r\nContent-Type: text/plain; charset=iso-8859-1\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nCaf=E9 plain\r\n" +
+		"--alt\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Hi</p><img src=\"cid:logo@x\">\r\n--alt--\r\n" +
+		"--rel\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0K\r\n--rel--\r\n" +
+		"--out\r\nContent-Type: application/pdf; name=\"big.pdf\"\r\nContent-Disposition: attachment; filename=\"big.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\n" +
+		big + "\r\n--out--\r\n"
+	put(u, "INBOX", literal{bytes.NewReader([]byte(raw))})
+	st, acc := openStore(t, "imap")
+	s, ch := syncer(t, st, acc, mail.Endpoint{Protocol: "imap", Host: "127.0.0.1", Port: port, Security: "none", Username: "jane", Password: "secret"})
+	inbox := func() int64 { return folder(t, st, "INBOX").ID }
+	waitFor(t, ch, "inbox headers", func() bool { return inbox() != 0 && len(subjects(t, st, inbox())) == 1 })
+
+	wholeFetches.Store(0)
+	ms, _ := st.Messages(inbox(), 1)
+	done := make(chan error, 1)
+	s.Open("INBOX", ms[0].UID, func(err error) { done <- err })
+
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	if n := wholeFetches.Load(); n != 0 {
+		t.Errorf("%d fetches of the whole message", n)
+	}
+
+	_, got, _ := st.Message(ms[0].ID)
+	_, want, _ := mail.Parse([]byte(raw))
+	if got.Text != want.Text || got.HTML != want.HTML || !strings.Contains(got.HTML, "data:image/png;base64,") {
+		t.Errorf("body %q %q, want %q %q", got.Text, got.HTML, want.Text, want.HTML)
+	}
+
+	if len(got.Attachments) != len(want.Attachments) {
+		t.Fatalf("attachments %+v, want %+v", got.Attachments, want.Attachments)
+	}
+
+	for i, a := range got.Attachments {
+		w := want.Attachments[i]
+		if a.Part != w.Part || a.Filename != w.Filename || a.MIMEType != w.MIMEType || a.ContentID != w.ContentID || a.Size < w.Size*9/10 || a.Size > w.Size*11/10 {
+			t.Errorf("attachment %+v, want %+v", a, w)
+		}
 	}
 }
 

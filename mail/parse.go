@@ -31,52 +31,12 @@ func Parse(raw []byte) (Header, Body, error) {
 
 	h := headerOf(gomail.Header{Header: e.Header})
 	h.Size = int64(len(raw))
-	var b Body
-	inline := map[string]string{} // cid → data: URL
-	walk(e, "", func(part string, p *message.Entity) {
-		mt, params, _ := p.Header.ContentType()
-		disp, dparams, _ := p.Header.ContentDisposition()
-		name := dparams["filename"]
-		if name == "" {
-			name = params["name"]
-		}
-
-		data, _ := io.ReadAll(p.Body) // a broken part shows what could be read
-		isText := mt == "text/plain" || mt == "text/html"
-		if isText && disp != "attachment" && name == "" {
-			if mt == "text/plain" && b.Text == "" {
-				b.Text = toUTF8(data)
-			} else if mt == "text/html" && b.HTML == "" {
-				b.HTML = toUTF8(data)
-			}
-			return
-		}
-
-		if mt == "" {
-			mt = "application/octet-stream"
-		}
-
-		cid := strings.Trim(p.Header.Get("Content-Id"), "<> ")
-		if cid != "" && strings.HasPrefix(mt, "image/") && len(data) <= maxInline {
-			inline[cid] = "data:" + mt + ";base64," + base64.StdEncoding.EncodeToString(data)
-		}
-
-		if name == "" {
-			name = "attachment"
-			if cid != "" {
-				name = cid
-			}
-		}
-
-		b.Attachments = append(b.Attachments, Attachment{Part: part, Filename: name, MIMEType: mt, Size: int64(len(data)), ContentID: cid})
-	})
-
-	for cid, url := range inline {
-		b.HTML = strings.ReplaceAll(b.HTML, "cid:"+cid, url)
-	}
+	ps := newParts()
+	walk(e, "", ps.add)
+	b := ps.body()
 
 	for _, a := range b.Attachments {
-		if inline[a.ContentID] == "" {
+		if ps.inline[a.ContentID] == "" {
 			h.HasAttach = true
 		}
 	}
@@ -84,6 +44,67 @@ func Parse(raw []byte) (Header, Body, error) {
 	h.Snippet = Snippet(b)
 
 	return h, b, nil
+}
+
+// parts gathers a message's body from its parts, in order.
+type parts struct {
+	b      Body
+	inline map[string]string // cid → data: URL
+}
+
+func newParts() *parts { return &parts{inline: map[string]string{}} }
+
+// add adds a part that is not multipart, numbered as walk numbers it.
+func (ps *parts) add(part string, p *message.Entity) {
+	mt, params, _ := p.Header.ContentType()
+	disp, dparams, _ := p.Header.ContentDisposition()
+	name := dparams["filename"]
+	if name == "" {
+		name = params["name"]
+	}
+
+	data, _ := io.ReadAll(p.Body) // a broken part shows what could be read
+	isText := mt == "text/plain" || mt == "text/html"
+	if isText && disp != "attachment" && name == "" {
+		if mt == "text/plain" && ps.b.Text == "" {
+			ps.b.Text = toUTF8(data)
+		} else if mt == "text/html" && ps.b.HTML == "" {
+			ps.b.HTML = toUTF8(data)
+		}
+		return
+	}
+
+	if mt == "" {
+		mt = "application/octet-stream"
+	}
+
+	cid := strings.Trim(p.Header.Get("Content-Id"), "<> ")
+	if cid != "" && strings.HasPrefix(mt, "image/") && len(data) <= maxInline {
+		ps.inline[cid] = "data:" + mt + ";base64," + base64.StdEncoding.EncodeToString(data)
+	}
+
+	ps.attach(Attachment{Part: part, Filename: name, MIMEType: mt, Size: int64(len(data)), ContentID: cid})
+}
+
+// attach adds an attachment, named after its Content-ID when unnamed.
+func (ps *parts) attach(a Attachment) {
+	if a.Filename == "" {
+		a.Filename = "attachment"
+		if a.ContentID != "" {
+			a.Filename = a.ContentID
+		}
+	}
+
+	ps.b.Attachments = append(ps.b.Attachments, a)
+}
+
+// body returns the body gathered, its inline images put into the HTML.
+func (ps *parts) body() Body {
+	for cid, url := range ps.inline {
+		ps.b.HTML = strings.ReplaceAll(ps.b.HTML, "cid:"+cid, url)
+	}
+
+	return ps.b
 }
 
 // walk calls leaf for each part that is not multipart, numbered as IMAP
