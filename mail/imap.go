@@ -562,6 +562,34 @@ func (ic *imapConn) fillOlder(cache Cache, account int64, path string) (bool, er
 	return len(hs) > 0, cache.AddHeaders(account, path, hs)
 }
 
+var errGone = errors.New("the message is no longer on the server")
+
+// fetchUID fetches a message of a folder. It uses the folder selected as
+// it is, unless the message isn't there: it may have come since the
+// SELECT, so it selects the folder again.
+func (ic *imapConn) fetchUID(path string, uid uint32, opts *imap.FetchOptions) (*imapclient.FetchMessageBuffer, error) {
+	reuse := ic.selected(path)
+	for {
+		if !reuse {
+			if _, err := ic.selectFolder(path); err != nil {
+				return nil, err
+			}
+		}
+
+		msgs, err := ic.c.Fetch(imap.UIDSetNum(imap.UID(uid)), opts).Collect()
+		switch {
+		case err != nil:
+			return nil, err
+		case len(msgs) > 0:
+			return msgs[0], nil
+		case !reuse:
+			return nil, errGone
+		}
+
+		reuse = false
+	}
+}
+
 // raw fetches a whole message without marking it read.
 func (ic *imapConn) raw(path string, uid uint32) ([]byte, error) {
 	return ic.section(path, uid, "")
@@ -570,21 +598,17 @@ func (ic *imapConn) raw(path string, uid uint32) ([]byte, error) {
 // section fetches a section of a message, "" for all of it, without
 // marking it read.
 func (ic *imapConn) section(path string, uid uint32, spec imap.PartSpecifier) ([]byte, error) {
-	if _, err := ic.selectFolder(path); err != nil {
-		return nil, err
-	}
-
-	msgs, err := ic.c.Fetch(imap.UIDSetNum(imap.UID(uid)), &imap.FetchOptions{UID: true,
-		BodySection: []*imap.FetchItemBodySection{{Specifier: spec, Peek: true}}}).Collect()
+	m, err := ic.fetchUID(path, uid, &imap.FetchOptions{UID: true,
+		BodySection: []*imap.FetchItemBodySection{{Specifier: spec, Peek: true}}})
 	if err != nil {
 		return nil, err
 	}
 
-	if len(msgs) == 0 || len(msgs[0].BodySection) == 0 {
-		return nil, errors.New("the message is no longer on the server")
+	if len(m.BodySection) == 0 {
+		return nil, errGone
 	}
 
-	return msgs[0].BodySection[0].Bytes, nil
+	return m.BodySection[0].Bytes, nil
 }
 
 // open caches a message's body, without marking it read.

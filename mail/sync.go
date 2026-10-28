@@ -17,6 +17,7 @@ var (
 	FolderPoll = 15 * time.Minute // every folder's counts, and the folders opened
 	FillBehind = true             // fetch the older headers of the folders synced, between syncs
 	newsLook   = 30 * time.Second // while filling in, how often to look at the Inbox
+	askIdle    = 3 * time.Minute  // how long the connection for the user's requests stays unused
 	minBackoff = 5 * time.Second
 	maxBackoff = 5 * time.Minute
 )
@@ -54,6 +55,7 @@ type Syncer struct {
 	OnChange func(Status)
 
 	reqs  chan request
+	asks  chan request // what the user waits for, over a connection of its own
 	stop  context.CancelFunc
 	known map[string]Folder // the folders last listed, by path
 	// filled holds the folders whose older mail is all cached, as far as
@@ -81,11 +83,15 @@ var errStopped = errors.New("sync stopped")
 
 func (s *Syncer) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
-	s.stop, s.reqs = cancel, make(chan request, 32)
+	s.stop, s.reqs, s.asks = cancel, make(chan request, 32), make(chan request, 32)
 	s.filled = map[string]bool{}
 	s.wake, s.nudge = make(chan struct{}, 1), make(chan struct{}, 1)
 	go s.run(ctx)
 	go s.runOutbox(ctx)
+
+	if s.Endpoint.Protocol != "pop3" {
+		go s.runAsks(ctx)
+	}
 }
 
 func poke(ch chan struct{}) {
@@ -101,13 +107,25 @@ func (s *Syncer) SendNow() { poke(s.nudge) }
 // Stop ends the syncer; requests not answered yet fail.
 func (s *Syncer) Stop() { s.stop() }
 
-func (s *Syncer) send(r request) {
+func (s *Syncer) send(r request) { s.queue(s.reqs, r) }
+
+// ask sends a request the user waits for, which doesn't change the
+// server: it doesn't wait behind a sync. POP3 answers it as other requests.
+func (s *Syncer) ask(r request) {
+	if s.Endpoint.Protocol == "pop3" {
+		s.send(r)
+	} else {
+		s.queue(s.asks, r)
+	}
+}
+
+func (s *Syncer) queue(ch chan request, r request) {
 	if r.done == nil {
 		r.done = func(error) {}
 	}
 
 	select {
-	case s.reqs <- r:
+	case ch <- r:
 	default:
 		r.done(errors.New("too many requests waiting"))
 	}
@@ -118,25 +136,25 @@ func (s *Syncer) Refresh(path string) { s.send(request{refresh: path}) }
 
 // Older fetches the page of a folder's headers before the oldest cached.
 func (s *Syncer) Older(path string, done func(error)) {
-	s.send(request{do: func(ic *imapConn) error { return ic.fetchOlder(s.Cache, s.Account, path) }, done: done})
+	s.ask(request{do: func(ic *imapConn) error { return ic.fetchOlder(s.Cache, s.Account, path) }, done: done})
 }
 
 // Open caches a message's body. Marking it read is an action of the cache.
 func (s *Syncer) Open(path string, uid uint32, done func(error)) {
-	s.send(request{do: func(ic *imapConn) error { return ic.open(s.Cache, s.Account, path, uid) }, done: done})
+	s.ask(request{do: func(ic *imapConn) error { return ic.open(s.Cache, s.Account, path, uid) }, done: done})
 }
 
 // Raw fetches a whole message, as for saving an attachment.
 func (s *Syncer) Raw(path string, uid uint32, done func([]byte, error)) {
 	var raw []byte
-	s.send(request{do: func(ic *imapConn) (err error) { raw, err = ic.raw(path, uid); return err },
+	s.ask(request{do: func(ic *imapConn) (err error) { raw, err = ic.raw(path, uid); return err },
 		done: func(err error) { done(raw, err) }})
 }
 
 // Header fetches a message's header block, as for showing all its fields.
 func (s *Syncer) Header(path string, uid uint32, done func([]byte, error)) {
 	var raw []byte
-	s.send(request{do: func(ic *imapConn) (err error) { raw, err = ic.section(path, uid, imap.PartSpecifierHeader); return err },
+	s.ask(request{do: func(ic *imapConn) (err error) { raw, err = ic.section(path, uid, imap.PartSpecifierHeader); return err },
 		done: func(err error) { done(raw, err) }})
 }
 
@@ -509,6 +527,70 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 			if more {
 				s.report(Status{})
 			}
+		}
+	}
+}
+
+// runAsks answers the requests sent by ask, over a connection of their
+// own, opened when one comes and closed when unused for askIdle.
+func (s *Syncer) runAsks(ctx context.Context) {
+	var ic *imapConn
+	var unhook func() bool
+	drop := func() {
+		if ic != nil {
+			unhook()
+			ic.close()
+			ic = nil
+		}
+	}
+
+	defer func() { // fail what still waits
+		drop()
+
+		for {
+			select {
+			case r := <-s.asks:
+				r.done(errStopped)
+			default:
+				return
+			}
+		}
+	}()
+
+	for {
+		var idle <-chan time.Time
+		if ic != nil {
+			idle = time.After(askIdle)
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-idle:
+			drop()
+
+		case r := <-s.asks:
+			var err error
+			for try := 0; try < 2; try++ { // the server may have dropped the connection unused: once more on a new one
+				if ic == nil {
+					if ic, err = dialIMAP(ctx, s.Endpoint); err != nil {
+						break
+					}
+
+					c := ic.c
+					unhook = context.AfterFunc(ctx, func() { c.Close() })
+				}
+
+				var refused *imap.Error
+				if err = r.do(ic); err == nil || errors.As(err, &refused) || errors.Is(err, errGone) {
+					break
+				}
+
+				drop()
+			}
+
+			r.done(err)
 		}
 	}
 }

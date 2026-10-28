@@ -77,12 +77,21 @@ func (s idleSignal) Select(name string, opts *imap.SelectOptions) (*imap.SelectD
 	return s.SessionMove.Select(name, opts)
 }
 
+// idleHold, while set, keeps an IDLE from ending until it is closed.
+var idleHold atomic.Pointer[chan struct{}]
+
 func (s idleSignal) Idle(w *imapserver.UpdateWriter, stop <-chan struct{}) error {
 	select {
 	case s.idling <- struct{}{}:
 	default:
 	}
-	return s.SessionMove.Idle(w, stop)
+
+	err := s.SessionMove.Idle(w, stop)
+	if h := idleHold.Load(); h != nil {
+		<-*h
+	}
+
+	return err
 }
 
 // memIMAP runs an in-memory IMAP server with IDLE for user jane; idling
@@ -239,12 +248,7 @@ func TestIMAPSync(t *testing.T) {
 	}
 
 	// IDLE delivers new mail without asking. The in-memory server only
-	// announces mail that comes once it idles.
-	select {
-	case <-idling:
-	default:
-	}
-
+	// announces mail that comes once it idles; opening didn't end the IDLE.
 	<-idling
 	time.Sleep(50 * time.Millisecond)
 	put(u, "INBOX", msg("Fresh", "new"))
@@ -292,6 +296,39 @@ func serverCount(u *imapmemserver.User, folder string) int {
 	}
 
 	return int(*st.NumMessages)
+}
+
+// Opening a message doesn't wait for the sync connection, here stuck in
+// an IDLE that doesn't end.
+func TestOpenWhileSyncBusy(t *testing.T) {
+	u, port, idling := memIMAP(t)
+	put(u, "INBOX", msg("Hello", "Body"))
+	st, acc := openStore(t, "imap")
+	s, ch := syncer(t, st, acc, mail.Endpoint{Protocol: "imap", Host: "127.0.0.1", Port: port, Security: "none", Username: "jane", Password: "secret"})
+	inbox := func() int64 { return folder(t, st, "INBOX").ID }
+	waitFor(t, ch, "inbox headers", func() bool { return inbox() != 0 && len(subjects(t, st, inbox())) == 1 })
+	<-idling
+
+	hold := make(chan struct{})
+	idleHold.Store(&hold)
+	t.Cleanup(func() { idleHold.Store(nil); close(hold) })
+	ms, _ := st.Messages(inbox(), 1)
+	done := make(chan error, 1)
+	s.Open("INBOX", ms[0].UID, func(err error) { done <- err })
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+
+	case <-time.After(5 * time.Second):
+		t.Fatal("opening waited for the sync")
+	}
+
+	if _, body, _ := st.Message(ms[0].ID); strings.TrimSpace(body.Text) != "Body" {
+		t.Errorf("body %q", body.Text)
+	}
 }
 
 // noFill turns filling in behind off for a test.
