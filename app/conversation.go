@@ -132,8 +132,9 @@ func recipients(m store.Message) string {
 	return "to " + to
 }
 
-// avatarColors are the circles behind senders' initials, one a sender.
-var avatarColors = []string{"#1a73e8", "#d93025", "#188038", "#e37400", "#9334e6", "#007b83", "#c5221f", "#5f6368"}
+// avatarColors are senders' initials, one a sender, on a tint of the same
+// color: mid tones, to read on light and dark themes.
+var avatarColors = []string{"#4f7fe0", "#e0584f", "#2f9e66", "#d4862a", "#9b6be0", "#2a9aa3", "#d6456b", "#7d8590"}
 
 func avatar(m store.Message) (initial, color string) {
 	who := author(m)
@@ -196,8 +197,8 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 		head := ui.Row(c).Gap(12).AlignItems(ui.Start).Padding(12, 8).Label(map[bool]string{true: "Close", false: "Open"}[open] + " message from " + author(m))
 		head.Children(func() {
 			initial, color := avatar(m)
-			ui.Column(c).Size(32, 32).Radius(16).Background(ui.Hex(color)).Center().Shrink(0).Children(func() {
-				ui.Text(c, initial).TextColor(ui.Hex("#ffffff")).Bold()
+			ui.Column(c).Size(32, 32).Radius(16).Background(ui.Hex(color).Alpha(0.16)).Center().Shrink(0).Children(func() {
+				ui.Text(c, initial).TextColor(ui.Hex(color)).Bold()
 			})
 
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
@@ -391,7 +392,7 @@ details.msg { border-bottom: 1px solid var(--border); }
 details > summary { list-style: none; cursor: pointer; }
 details > summary::-webkit-details-marker { display: none; }
 .head { display: flex; gap: 12px; padding: 12px 0; align-items: flex-start; }
-.av { flex: none; width: 32px; height: 32px; border-radius: 50%; color: #fff; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+.av { flex: none; width: 32px; height: 32px; border-radius: 50%; font-weight: 600; display: flex; align-items: center; justify-content: center; }
 .who { flex: 1; min-width: 0; }
 .line { display: flex; gap: 6px; align-items: baseline; }
 .name { font-weight: 600; white-space: nowrap; }
@@ -414,7 +415,7 @@ details.more > summary::before, details.more > summary::after { content: ""; fle
 details.more[open] > summary { display: none; }
 .att { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .att a { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; color: var(--text); text-decoration: none; font-size: 12px; }
-.acts { display: flex; gap: 8px; padding: 16px 0 0 44px; }
+.acts { display: flex; gap: 8px; padding: 16px 0 16px 44px; }
 .acts a { border: 1px solid var(--border); border-radius: 18px; padding: 6px 16px; color: var(--text); text-decoration: none; font-weight: 500; }
 .acts a:hover, .att a:hover { background: var(--hover); }
 `
@@ -537,7 +538,7 @@ func (r *reader) pageCard(sb *strings.Builder, i int) {
 	}
 
 	initial, color := avatar(m)
-	fmt.Fprintf(sb, `<details class="msg%s"%s><summary class="head"><div class="av" style="background:%s">%s</div><div class="who">`, unread, open, color, esc(initial))
+	fmt.Fprintf(sb, `<details class="msg%s"%s><summary class="head"><div class="av" style="background:%s29;color:%s">%s</div><div class="who">`, unread, open, color, color, esc(initial))
 	addr := ""
 	if m.FromAddr != "" && author(m) != m.FromAddr {
 		addr = "&lt;" + esc(m.FromAddr) + "&gt;"

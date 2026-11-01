@@ -1284,10 +1284,11 @@ func (a *app) messageList(c *ui.Context) {
 	a.msgList.Selected, a.msgList.Selection = &a.msgRow, &a.chosen
 
 	ui.Column(c).Fill().Background(a.pal.card).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(14, 16, 10, 16).Children(func() {
-			ui.Text(c, a.mailboxTitle()).FontSize(15).Bold().LetterSpacing(-0.3).SingleLine().Shrink(1)
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(16, 16, 12, 16).Children(func() {
+			ui.Text(c, a.mailboxTitle()).FontSize(17).Bold().LetterSpacing(-0.4).SingleLine().Shrink(1)
 			// A text input: SearchField takes the focus only from a click, not from ⌘F.
-			search := ui.TextInput(c, &a.query).Placeholder("Search").Label("Search mail").FocusBind(&a.focus, "search").Grow(1)
+			search := ui.TextInput(c, &a.query).Placeholder("Search mail").Label("Search mail").FocusBind(&a.focus, "search").
+				Radius(16).Padding(6, 14).Background(t.Surface).Grow(1)
 			if search.Changed() {
 				a.searchChanged()
 			}
@@ -1320,7 +1321,7 @@ func (a *app) messageList(c *ui.Context) {
 
 		if _, saved := a.savedSearch(); searching && !saved {
 			ui.Row(c).Padding(0, 16, 10, 16).Children(func() {
-				if ui.Segmented(c, &a.searchAll, a.mailboxTitle(), "All mail").Changed() {
+				if segmented(c, &a.searchAll, a.mailboxTitle(), "All mail").Changed() {
 					a.searchChanged()
 				}
 			})
@@ -1344,12 +1345,22 @@ func (a *app) messageList(c *ui.Context) {
 
 		// Folder names show where the rows come from several folders.
 		mixed := !isFolder || searching && a.searchAll == 1
+		// Chosen rows take a square tint of the accent, not a rounded solid
+		// fill: the list draws them in its theme, the rows build in the app's.
+		soft := *t
+		soft.Accent, soft.AccentText, soft.Radius = t.Accent.Alpha(0.2), t.Text, 0
+		c.SetTheme(&soft)
 		list := ui.List(c, &a.msgList, len(a.msgs), func(i int) {
+			c.SetTheme(t)
+			defer c.SetTheme(&soft)
+
 			m := a.msgs[i]
 			row := a.messageRow(c, m, mixed)
 			row.OnClick(func() { a.clickRow(i, row.ClickModifiers()) }) // once the rows are built: opening reloads them
 			row.ContextMenu(func(menu *ui.Menu) { a.messageMenu(menu, m) })
 		}).Grow(1)
+		c.SetTheme(t)
+
 		for _, k := range shortcuts {
 			if !k.window {
 				list.OnShortcut(k.mods, k.key, func() { k.run(a) })
@@ -1441,9 +1452,6 @@ func (a *app) messageRow(c *ui.Context, m store.Message, folder bool) ui.Element
 	t := c.Theme()
 	chosen := a.chosen.Has(m.ID)
 	muted, accent, warn := t.TextMuted, t.Accent, t.Warning
-	if chosen { // on the accent color
-		muted, accent, warn = t.AccentText.Alpha(0.75), t.AccentText, t.AccentText
-	}
 
 	drag := msgDrag{ids: []int64{m.ID}, account: m.AccountID, folder: m.FolderID}
 	if chosen {
@@ -1635,7 +1643,7 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				if html {
-					ui.Segmented(c, &r.view, "Text", "HTML")
+					segmented(c, &r.view, "Text", "HTML")
 				}
 
 				label := "Show all headers"

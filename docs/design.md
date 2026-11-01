@@ -48,6 +48,7 @@ conversation's web view too). If it fails to load, the system font stands in.
 | Eyebrow (kicker above a title) | 11, upper case | Medium, +1.2 |
 | Secondary: dates, counts, hints, title bar | 11–12 | Regular, muted color |
 | App name in sidebar | 15 | Bold, −0.3 |
+| Mailbox title above the list | 17 | Bold, −0.4 |
 | Empty-state title | 20 | Bold, −0.4 |
 | Page title | 24 | Bold, −0.5 |
 
@@ -58,7 +59,7 @@ appearance with Light / Dark.
 
 | Theme | bg | surface | text | muted | accent | success | danger |
 |---|---|---|---|---|---|---|---|
-| Light | `#fbfbfc` | `#f0f0f3` | `#17171c` | `#73737f` | `#6e56cf` | `#12a26b` | `#d93d42` |
+| Light | `#ffffff` | `#f0f0f3` | `#17171c` | `#73737f` | `#6e56cf` | `#12a26b` | `#d93d42` |
 | Dark | `#111113` | `#1f1f23` | `#ececf1` | `#8b8b96` | `#8e7cf6` | `#3ddc97` | `#ff6b6b` |
 | Solarized Light | `#fdf6e3` | `#eee8d5` | `#073642` | `#657b83` | `#268bd2` | `#859900` | `#dc322f` |
 | Nord | `#2e3440` | `#3b4252` | `#eceff4` | `#9aa5b8` | `#88c0d0` | `#a3be8c` | `#bf616a` |
@@ -73,6 +74,9 @@ in all themes:
 |---|---|
 | Selection | accent at 28 % |
 | Focus ring | accent at 55 % |
+| Chosen message rows | accent at 20 %, square corners, text in its usual colors |
+| Chosen sidebar item | accent at 20 %, icon and label in the accent, while the sidebar has the focus; surface-pressed without it |
+| Sender avatars | initial in one of `avatarColors`, on that color at 16 % |
 | Soft accent (icon tiles of empty states, account and server cards) | accent at 14 % |
 | Notice background | its color at 12 %, with a 6 px dot of the full color |
 
@@ -83,9 +87,11 @@ To add a theme: add its name to `appearances` and its colors to `looks`.
 | Spec | Value |
 |---|---|
 | Spacing unit | 4 |
-| Default radius | 8 |
+| Default radius | 10 |
 | Card | radius 12, padding 18 × 20, 1 px border, gap 14, muted title |
-| Icon button | 28 × 28, radius 7, 16 px icon, hover fills with surface-hover |
+| Icon button | 30 × 30, radius 8, 16 px icon, hover fills with surface-hover |
+| Pill (Compose, search, reply buttons) | radius 16–18; Compose on soft accent, hover accent at 22 %, icon and label in the accent |
+| Segmented (`segmented`) | pill: surface track, radius 18, padding 3; segments 6 × 16, radius 15; chosen one raised on the background with a soft shadow, others muted |
 | Page header | eyebrow, title and subtitle, gap 6 |
 | Notice | padding 10 × 14, radius 8 |
 

@@ -310,13 +310,13 @@ func (a *app) sidebar(c *ui.Context) {
 			ui.Text(c, "courrier").FontSize(15).Bold().LetterSpacing(-0.3).Grow(1)
 
 			add := ui.Button(c, "").Label("Add account").Tooltip("Add account").
-				Size(28, 28).Padding(0).Radius(7).Justify(ui.Center).AlignItems(ui.Center).
+				Size(30, 30).Padding(0).Radius(8).Justify(ui.Center).AlignItems(ui.Center).
 				Border(1, t.Border).Background(a.pal.card)
 			if add.Hovered() {
 				add.Background(t.SurfaceHover)
 			}
 
-			add.Children(func() { ui.Icon(c, plusIcon).FontSize(16).TextColor(t.Text) })
+			add.Children(func() { ui.Icon(c, addUserIcon).FontSize(15).TextColor(t.Text) })
 
 			if add.Clicked() {
 				a.sel, a.shown = "new", "" // reload even when already on "new"
@@ -389,7 +389,7 @@ func securityNote(sec string) string {
 
 // incomingFields and smtpFields edit a server form's settings.
 func incomingFields(c *ui.Context, f *serverForm, errs map[string]string) {
-	ui.Field(c, "Protocol", func() { ui.Segmented(c, &f.protocol, protocolLabels...) })
+	ui.Field(c, "Protocol", func() { segmented(c, &f.protocol, protocolLabels...) })
 	field(c, errs, "inHost", "Host", func() { ui.TextInput(c, &f.inHost).Placeholder("imap.example.com") })
 	field(c, errs, "inPort", "Port", func() { ui.NumberInput(c, &f.inPort, 1, 65535, 1).Width(120) })
 	ui.Field(c.Key("inSec"), "Security", func() { ui.Select(c, &f.inSec, securityLabels).Width(160) }).Description(securityNote(f.inSec))

@@ -105,7 +105,7 @@ func (a *app) storageView(c *ui.Context) {
 				ui.Field(c, "Keep message bodies for", func() { ui.Select(c, &keep, labels).Width(160) }).
 					Description("Older ones are fetched again as you open them. Mail opened in the last 30 days, POP3 mail and local folders stay.")
 
-				ui.Field(c, "Clear cache", func() {
+				ui.Field(c, "Cache", func() {
 					if ui.Button(c, "Clear cache").Disabled(a.disk.busy).Clicked() {
 						a.sweep(true)
 					}

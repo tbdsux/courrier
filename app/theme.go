@@ -67,7 +67,7 @@ func lucide(shapes string) *ui.SVG {
 }
 
 var (
-	plusIcon      = lucide(`<path d="M5 12h14"/><path d="M12 5v14"/>`)
+	addUserIcon   = lucide(`<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>`)
 	inboxIcon     = lucide(`<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>`)
 	sentIcon      = lucide(`<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>`)
 	draftsIcon    = lucide(`<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>`)
@@ -125,7 +125,7 @@ type look struct {
 var appearances = []string{"System", "Light", "Dark", "Solarized Light", "Nord", "Dracula", "Gruvbox"}
 
 var looks = map[string]look{
-	"Light":           {false, "#fbfbfc", "#f0f0f3", "#e7e7ec", "#dedee4", "#e3e3e8", "#17171c", "#73737f", "#6e56cf", "#5f48c2", "#5039b3", "#ffffff", "#12a26b", "#d93d42", "#f3f3f6", "#ffffff"},
+	"Light":           {false, "#ffffff", "#f0f0f3", "#e7e7ec", "#dedee4", "#e3e3e8", "#17171c", "#73737f", "#6e56cf", "#5f48c2", "#5039b3", "#ffffff", "#12a26b", "#d93d42", "#f3f3f6", "#ffffff"},
 	"Dark":            {true, "#111113", "#1f1f23", "#28282d", "#313137", "#2c2c32", "#ececf1", "#8b8b96", "#8e7cf6", "#a495f8", "#7b67f0", "#ffffff", "#3ddc97", "#ff6b6b", "#0b0b0d", "#17171a"},
 	"Solarized Light": {false, "#fdf6e3", "#eee8d5", "#e6dfc8", "#ddd6bf", "#e0d9c3", "#073642", "#657b83", "#268bd2", "#2078b8", "#1b6aa3", "#ffffff", "#859900", "#dc322f", "#f5eedb", "#fffbef"},
 	"Nord":            {true, "#2e3440", "#3b4252", "#434c5e", "#4c566a", "#434c5e", "#eceff4", "#9aa5b8", "#88c0d0", "#8fbcbb", "#81a1c1", "#2e3440", "#a3be8c", "#bf616a", "#272c36", "#343a46"},
@@ -192,12 +192,35 @@ func (a *app) card(c *ui.Context, key, title string, fn func()) {
 func iconButton(c *ui.Context, icon *ui.SVG, label, tip string) ui.Element {
 	t := c.Theme()
 	b := ui.Button(c, "").Label(label).Tooltip(tip).
-		Size(28, 28).Padding(0).Radius(7).Justify(ui.Center).AlignItems(ui.Center)
+		Size(30, 30).Padding(0).Radius(8).Justify(ui.Center).AlignItems(ui.Center)
 	if b.Hovered() {
 		b.Background(t.SurfaceHover)
 	}
 
 	return b.Children(func() { ui.Icon(c, icon).FontSize(16).TextColor(t.TextMuted) })
+}
+
+// segmented is ui.Segmented as a pill: the chosen segment raised on the
+// window's background, the others muted.
+func segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
+	t := c.Theme()
+	parts := ui.SegmentedBase(c, selected, len(labels))
+	parts.Track.AlignSelf(ui.Start).AlignItems(ui.Stretch).Padding(3).Gap(2).Radius(18).Background(t.Surface).Children(func() {
+		for i, label := range labels {
+			s := parts.Segment(i).Padding(6, 16).Radius(15).Justify(ui.Center).AlignItems(ui.Center)
+			color := t.TextMuted
+			if i == *selected {
+				s.Background(t.Background).Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.12))
+				color = t.Text
+			} else if s.Hovered() {
+				color = t.Text
+			}
+
+			s.Children(func() { ui.Text(c, label).FontWeight(500).TextColor(color).SingleLine() })
+		}
+	})
+
+	return parts.Track
 }
 
 func notice(c *ui.Context, text string, color ui.Color) {

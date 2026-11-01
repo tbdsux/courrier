@@ -78,7 +78,7 @@ func (a *app) settingsView(c *ui.Context) {
 			})
 
 			a.card(c, "read", "Reading", func() {
-				ui.Field(c, "Open messages as", func() { ui.Segmented(c, &view, "Text", "HTML") }).
+				ui.Field(c, "Open messages as", func() { segmented(c, &view, "Text", "HTML") }).
 					Description("Messages without HTML always open as text.")
 				ui.Field(c, "Remote images", func() { ui.Switch(c, &s.RemoteImages) }).
 					Description("Load them in every message. Senders can tell when you read their mail.")
@@ -100,7 +100,7 @@ func (a *app) settingsView(c *ui.Context) {
 			})
 
 			a.card(c, "dock", "Dock and menu bar", func() {
-				ui.Field(c, "Badge", func() { ui.Segmented(c, &badge, "Inbox unread", "Off") })
+				ui.Field(c, "Badge", func() { segmented(c, &badge, "Inbox unread", "Off") })
 				ui.Field(c, "Show in menu bar", func() { ui.Switch(c, &s.MenuBar) }).
 					Description("The Inbox's unread count and newest mail. Closing the window keeps courrier running there.")
 			})
