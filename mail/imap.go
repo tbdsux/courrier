@@ -100,8 +100,19 @@ func imapAuthErr(err error) error {
 	return fmt.Errorf("%w: %v", ErrProtocol, err)
 }
 
+// close logs out, not waiting longer than answerWait on a dead connection.
 func (ic *imapConn) close() {
-	ic.c.Logout().Wait()
+	done := make(chan struct{})
+	go func() {
+		ic.c.Logout().Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(answerWait):
+	}
+
 	ic.c.Close()
 }
 

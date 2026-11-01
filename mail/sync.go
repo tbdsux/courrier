@@ -3,6 +3,7 @@ package mail
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,6 +19,7 @@ var (
 	FillBehind = true             // fetch the older headers of the folders synced, between syncs
 	newsLook   = 30 * time.Second // while filling in, how often to look at the Inbox
 	askIdle    = 3 * time.Minute  // how long the connection for the user's requests stays unused
+	answerWait = 30 * time.Second // how long the server may take to end an IDLE or log out before the connection counts as dead
 	aheadCount = 30               // the newest unread Inbox messages whose bodies are fetched ahead
 	minBackoff = 5 * time.Second
 	maxBackoff = 5 * time.Minute
@@ -499,7 +501,7 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 		timer.Stop()
 
 		if idle != nil {
-			if err := idle.Close(); err != nil {
+			if err := endIdle(idle); err != nil {
 				return true, err
 			}
 		}
@@ -537,6 +539,25 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 				s.report(Status{})
 			}
 		}
+	}
+}
+
+// endIdle ends an IDLE and waits for the server to say so. go-imap gives
+// no deadline to a reply awaited, so on a connection dead without a word
+// the next command would wait forever.
+func endIdle(idle *imapclient.IdleCommand) error {
+	if err := idle.Close(); err != nil {
+		return err
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- idle.Wait() }()
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(answerWait):
+		return fmt.Errorf("%w: no answer to the end of IDLE", ErrUnreachable)
 	}
 }
 

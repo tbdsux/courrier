@@ -344,6 +344,27 @@ func TestOpenWhileSyncBusy(t *testing.T) {
 	}
 }
 
+// A connection whose server doesn't answer the end of IDLE is redialed,
+// not waited on forever, and the mail that came is fetched.
+func TestIdleDeadConnection(t *testing.T) {
+	old := *mail.AnswerWait
+	*mail.AnswerWait = time.Second
+	t.Cleanup(func() { *mail.AnswerWait = old })
+	u, port, idling := memIMAP(t)
+	put(u, "INBOX", msg("Hello", "Body"))
+	st, acc := openStore(t, "imap")
+	_, ch := syncer(t, st, acc, mail.Endpoint{Protocol: "imap", Host: "127.0.0.1", Port: port, Security: "none", Username: "jane", Password: "secret"})
+	inbox := func() int64 { return folder(t, st, "INBOX").ID }
+	waitFor(t, ch, "inbox headers", func() bool { return inbox() != 0 && len(subjects(t, st, inbox())) == 1 })
+	<-idling
+
+	hold := make(chan struct{})
+	idleHold.Store(&hold)
+	t.Cleanup(func() { idleHold.Store(nil); close(hold) })
+	put(u, "INBOX", msg("Second", "Body"))
+	waitFor(t, ch, "the mail over a new connection", func() bool { return len(subjects(t, st, inbox())) == 2 })
+}
+
 // Opening a multipart message fetches its text and inline images, not
 // its attachments, and gives the body that parsing all of it gives.
 func TestOpenSkipsAttachments(t *testing.T) {

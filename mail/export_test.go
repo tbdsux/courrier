@@ -5,6 +5,9 @@ import "context"
 // SMTPServer is smtpServer for the tests of package mail_test.
 var SMTPServer = smtpServer
 
+// AnswerWait is answerWait, for the tests to shorten.
+var AnswerWait = &answerWait
+
 // FakeServer is fakeServer for the tests of package mail_test.
 var FakeServer = fakeServer
 
