@@ -1062,6 +1062,10 @@ func (a *app) respond(kind string) {
 			d.Draft = courrier.Reply(o, a.myAddrs(), kind == "all")
 			if d.To == "" && d.Cc == "" { // no From, Reply-To or other recipient with an address
 				a.toast = "Can't reply: the message has no address to reply to."
+				if body.NoReply {
+					a.toast = "Can't reply: the sender doesn't take replies."
+				}
+
 				return
 			}
 		}

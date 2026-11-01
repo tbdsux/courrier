@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"net/url"
+	"slices"
 	"strings"
 
 	courrier "courrier/mail"
@@ -42,6 +43,10 @@ func notes(m store.Message, b courrier.Body) []note {
 		out = append(out, note{warn: inv.Method == "CANCEL", text: inviteText(*inv)})
 	}
 
+	if b.NoReply {
+		out = append(out, note{text: "This sender doesn't take replies: write to them another way."})
+	}
+
 	if len(b.Unsubscribe) > 0 {
 		out = append(out, note{text: "This message is from a mailing list.", label: "Unsubscribe", link: fmt.Sprintf("courrier://unsubscribe/%d", m.ID)})
 	}
@@ -63,6 +68,26 @@ func signatureNote(s courrier.Security) (note, bool) {
 	}
 
 	return note{}, false
+}
+
+// canReply tells whether replying to m, whose body is b (all: and to its
+// other recipients), reaches anyone but me (mine).
+func canReply(m store.Message, b courrier.Body, all bool, mine []string) bool {
+	if !b.NoReply {
+		return true
+	}
+
+	if !all {
+		return false
+	}
+
+	for _, ad := range courrier.Addrs(m.To + ", " + m.Cc) {
+		if !courrier.IsNoReply(ad.Address) && !slices.ContainsFunc(mine, func(x string) bool { return strings.EqualFold(x, ad.Address) }) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // inviteText says what an invite is, when and where, on one line.

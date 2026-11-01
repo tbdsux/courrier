@@ -26,7 +26,8 @@ show HTML mail in a sandbox (no scripts, no remote images unless you allow them)
 - **Conversations**: replies grouped into one thread, your own included.
 - **Search**: instant local search, and server search for older mail.
 - **Reading**: one-click unsubscribe, calendar invites at a glance, print,
-  and text zoom.
+  and text zoom. Mail from no-reply addresses says so, and offers no reply
+  that would reach no one.
 - **Safety**: a warning when a message fails its sender checks (DMARC, SPF,
   DKIM), a prompt before opening a link that shows one site but goes to
   another, and S/MIME signature checks. PGP and S/MIME mail is labeled as

@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/emersion/go-message"
+	gomail "github.com/emersion/go-message/mail"
 )
 
 // Meta is what courrier reads from a message beyond its content: from its
@@ -19,6 +21,7 @@ type Meta struct {
 	Auth        Auth      `json:",omitzero"`
 	Mislinks    []Mislink `json:",omitempty"` // links of its HTML that show another site than they go to
 	Security    Security  `json:",omitzero"`
+	NoReply     bool      `json:",omitempty"` // its Reply-To, else its sender, takes no replies
 }
 
 // readHeader reads what Meta keeps of a message's header.
@@ -33,6 +36,25 @@ func (m *Meta) readHeader(h message.Header) {
 
 	m.OneClick = strings.Contains(strings.ToLower(h.Get("List-Unsubscribe-Post")), "list-unsubscribe=one-click") && m.UnsubscribeURL() != ""
 	m.Auth = authOf(h.Get("Authentication-Results"))
+
+	mh := gomail.Header{Header: h}
+	to, _ := mh.AddressList("Reply-To")
+	if len(to) == 0 {
+		to, _ = mh.AddressList("From")
+	}
+
+	m.NoReply = len(to) > 0 && !slices.ContainsFunc(to, func(a *gomail.Address) bool { return !IsNoReply(a.Address) })
+}
+
+// IsNoReply tells an address that takes no replies: noreply@, no-reply@,
+// do_not_reply@, mailer-daemon@, …
+func IsNoReply(addr string) bool {
+	local, _, _ := strings.Cut(strings.ToLower(addr), "@")
+	local, _, _ = strings.Cut(local, "+")
+	local = strings.NewReplacer("-", "", "_", "", ".", "").Replace(local)
+
+	return strings.HasPrefix(local, "noreply") || strings.HasPrefix(local, "donotreply") || strings.HasPrefix(local, "dontreply") ||
+		strings.HasSuffix(local, "noreply") || local == "mailerdaemon"
 }
 
 // UnsubscribeURL is the https: URL to unsubscribe at, "" when none.

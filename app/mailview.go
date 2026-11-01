@@ -44,8 +44,9 @@ type reader struct {
 	pending int            // bodies being fetched
 	unfold  bool           // the fold of closed messages opened
 	err     string
-	view    int  // 0 plain text, 1 HTML
-	remote  bool // remote images allowed
+	view    int      // 0 plain text, 1 HTML
+	remote  bool     // remote images allowed
+	mine    []string // my addresses, which replies skip
 	// All the header fields, fetched when shown.
 	fields     []courrier.Field
 	fieldsBusy bool
@@ -548,7 +549,7 @@ func (a *app) openMessage(m store.Message) {
 	}
 
 	r := &reader{thread: thread, bodies: map[int64]courrier.Body{}, open: map[int64]bool{}, quotes: map[int64]bool{},
-		wasSeen: map[int64]bool{}, asked: map[int64]bool{}, remote: a.set.RemoteImages}
+		wasSeen: map[int64]bool{}, asked: map[int64]bool{}, remote: a.set.RemoteImages, mine: a.myAddrs()}
 	r.m = thread[len(thread)-1] // the newest, else the newest unread
 	for _, x := range thread {
 		r.wasSeen[x.ID] = x.Seen
@@ -1682,11 +1683,11 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 					return
 				}
 
-				if iconButton(c, replyIcon, "Reply", "Reply (r)").Clicked() {
+				if iconButton(c, replyIcon, "Reply", "Reply (r)").Disabled(!canReply(m, r.body, false, r.mine)).Clicked() {
 					a.respond("reply")
 				}
 
-				if iconButton(c, replyAllIcon, "Reply all", "Reply all (a)").Clicked() {
+				if iconButton(c, replyAllIcon, "Reply all", "Reply all (a)").Disabled(!canReply(m, r.body, true, r.mine)).Clicked() {
 					a.respond("all")
 				}
 
@@ -1755,13 +1756,17 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 
 // replyBar offers to answer the message shown, under it.
 func (a *app) replyBar(c *ui.Context) {
-	t := c.Theme()
+	t, r := c.Theme(), a.cur
 	ui.Divider(c)
 	ui.Row(c).Gap(8).Padding(12, 24).Children(func() {
 		for _, b := range []struct {
 			icon        *ui.SVG
 			label, kind string
 		}{{replyIcon, "Reply", "reply"}, {replyAllIcon, "Reply all", "all"}, {forwardIcon, "Forward", "forward"}} {
+			if b.kind != "forward" && !canReply(r.m, r.body, b.kind == "all", r.mine) {
+				continue
+			}
+
 			btn := ui.Button(c.Key(b.kind), "").Label(b.label).Padding(7, 16).Radius(18).Border(1, t.Border).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Icon(c, b.icon).FontSize(14).TextColor(t.TextMuted)

@@ -56,3 +56,35 @@ func TestUnsubscribePost(t *testing.T) {
 		t.Errorf("404: %v", err)
 	}
 }
+
+func TestNoReply(t *testing.T) {
+	for addr, want := range map[string]bool{
+		"noreply@github.com": true, "no-reply@accounts.google.com": true, "do_not_reply@bank.example": true,
+		"DoNotReply@x.com": true, "notifications-noreply@linkedin.com": true, "no.reply+42@x.com": true,
+		"MAILER-DAEMON@mx.example": true, "ann@example.com": false, "reply@example.com": false, "nora@example.com": false,
+	} {
+		if IsNoReply(addr) != want {
+			t.Errorf("%s: %v", addr, !want)
+		}
+	}
+
+	for raw, want := range map[string]bool{
+		"From: GitHub <noreply@github.com>\r\n\r\nhi":                                true,
+		"From: noreply@shop.example\r\nReply-To: Help <help@shop.example>\r\n\r\nhi": false, // replies go to Reply-To
+		"From: ann@example.com\r\nReply-To: no-reply@example.com\r\n\r\nhi":          true,
+		"From: ann@example.com\r\n\r\nhi":                                            false,
+	} {
+		if _, b, _ := Parse([]byte(raw)); b.NoReply != want {
+			t.Errorf("%q: no reply %v", raw, b.NoReply)
+		}
+	}
+
+	o := Original{Header: Header{FromAddr: "noreply@shop.example", To: "me@example.com, Bob <bob@example.com>, list-noreply@shop.example"}}
+	if d := Reply(o, []string{"me@example.com"}, false); d.To != "" {
+		t.Errorf("reply to %q", d.To)
+	}
+
+	if d := Reply(o, []string{"me@example.com"}, true); d.To != `"Bob" <bob@example.com>` && d.To != "Bob <bob@example.com>" {
+		t.Errorf("reply all to %q", d.To)
+	}
+}

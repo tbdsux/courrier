@@ -6,6 +6,7 @@ import (
 	"io"
 	netmail "net/mail"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -323,7 +324,8 @@ func (o Original) text() string {
 }
 
 // Reply answers o: its Reply-To, else its sender, and with all its other
-// recipients too, never mine (every account's address).
+// recipients too, never mine (every account's address) nor ones that take
+// no replies.
 func Reply(o Original, mine []string, all bool) Draft {
 	skip := map[string]bool{}
 	for _, m := range mine {
@@ -334,7 +336,7 @@ func Reply(o Original, mine []string, all bool) Draft {
 		var out []*netmail.Address
 		for _, l := range lists {
 			for _, a := range Addrs(l) {
-				if k := strings.ToLower(a.Address); !skip[k] {
+				if k := strings.ToLower(a.Address); !skip[k] && !IsNoReply(k) {
 					skip[k] = true
 					out = append(out, a)
 				}
@@ -353,8 +355,8 @@ func Reply(o Original, mine []string, all bool) Draft {
 	if all {
 		d.To = pick(target, o.To)
 		d.Cc = pick(o.Cc)
-	} else if d.To = pick(target); d.To == "" { // my own message: to its recipients
-		d.To = pick(o.To)
+	} else if d.To = pick(target); d.To == "" && !slices.ContainsFunc(Addrs(target), func(a *netmail.Address) bool { return IsNoReply(a.Address) }) {
+		d.To = pick(o.To) // my own message: to its recipients
 	}
 
 	if id := strings.Trim(o.MessageID, "<>"); id != "" {

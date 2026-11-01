@@ -530,8 +530,15 @@ func (r *reader) conversationPage(theme string) string {
 	}
 
 	if n := len(r.thread); n > 0 {
-		id := r.thread[n-1].ID
-		fmt.Fprintf(&sb, `<div class="acts"><a href="courrier://reply/%d">Reply</a><a href="courrier://all/%d">Reply all</a><a href="courrier://forward/%d">Forward</a></div>`, id, id, id)
+		m := r.thread[n-1]
+		sb.WriteString(`<div class="acts">`)
+		for _, k := range []struct{ kind, label string }{{"reply", "Reply"}, {"all", "Reply all"}, {"forward", "Forward"}} {
+			if k.kind == "forward" || canReply(m, r.bodies[m.ID], k.kind == "all", r.mine) {
+				fmt.Fprintf(&sb, `<a href="courrier://%s/%d">%s</a>`, k.kind, m.ID, k.label)
+			}
+		}
+
+		sb.WriteString("</div>")
 	}
 
 	sb.WriteString("</body></html>")

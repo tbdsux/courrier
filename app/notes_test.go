@@ -64,3 +64,24 @@ func TestSignatureNote(t *testing.T) {
 		t.Error("a note for a plain message")
 	}
 }
+
+func TestCanReply(t *testing.T) {
+	mine := []string{"me@example.com"}
+	nr := courrier.Body{Meta: courrier.Meta{NoReply: true}}
+	m := store.Message{ID: 7, Header: courrier.Header{FromAddr: "noreply@shop.example", To: "me@example.com"}}
+	if canReply(m, nr, false, mine) || canReply(m, nr, true, mine) || !canReply(m, courrier.Body{}, false, mine) {
+		t.Error("to me alone")
+	}
+
+	m.Cc = "Bob <bob@example.com>"
+	if canReply(m, nr, false, mine) || !canReply(m, nr, true, mine) {
+		t.Error("with Bob in Cc, reply all reaches him")
+	}
+
+	m.Cc = ""
+	page := (&reader{thread: []store.Message{m}, bodies: map[int64]courrier.Body{7: nr}, open: map[int64]bool{}, wasSeen: map[int64]bool{}, mine: mine}).conversationPage("")
+	if strings.Contains(page, "courrier://reply/7") || strings.Contains(page, "courrier://all/7") || !strings.Contains(page, "courrier://forward/7") ||
+		!strings.Contains(page, "doesn&#39;t take replies") {
+		t.Errorf("page offers a reply, or no note:\n%s", page)
+	}
+}
