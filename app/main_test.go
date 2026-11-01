@@ -438,11 +438,12 @@ func TestReplySendUndo(t *testing.T) {
 		tt.Frame()
 	}
 
-	if len(windows) != 1 {
-		t.Fatalf("compose windows: %d", len(windows))
+	// The reply opens under the message, not in a window.
+	cm := a.reply
+	if cm == nil || len(windows) != 0 || !tt.HasText("Re: Launch plan") {
+		t.Fatalf("reply %v, windows %d, shown %v", cm, len(windows), tt.Texts())
 	}
 
-	cm := windows[0]
 	if strings.Join(cm.to, ",") != "Bob Lee <bob@example.com>" || cm.d.Subject != "Re: Launch plan" ||
 		!strings.Contains(cm.d.Text, "Bob Lee wrote:\n> Let's ship on Monday.") || cm.d.InReplyTo != "<m1@x.com>" {
 		t.Fatalf("reply: to %v subject %q text %q", cm.to, cm.d.Subject, cm.d.Text)
@@ -474,7 +475,7 @@ func TestReplySendUndo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !cm.done || len(a.outbox) != 1 || a.outbox[0].ReplyUID != 1 {
+	if !cm.done || a.reply != nil || len(a.outbox) != 1 || a.outbox[0].ReplyUID != 1 {
 		t.Fatalf("not queued: done %v outbox %+v errs %v", cm.done, a.outbox, cm.errs)
 	}
 
@@ -494,11 +495,11 @@ func TestReplySendUndo(t *testing.T) {
 
 	tt.Frame()
 
-	if len(a.outbox) != 0 || len(windows) != 2 {
+	if len(a.outbox) != 0 || len(windows) != 1 {
 		t.Fatalf("undo: outbox %d windows %d", len(a.outbox), len(windows))
 	}
 
-	back := windows[1]
+	back := windows[0]
 	if strings.Join(back.to, ",") != "Bob Lee <bob@example.com>" || strings.Join(back.bcc, ",") != "boss@example.com" ||
 		back.d.Subject != "Re: Launch plan" || back.d.ReplyUID != 1 || !strings.Contains(back.d.Text, "> Let's ship on Monday.") {
 		t.Errorf("undone draft: to %v bcc %v %+v", back.to, back.bcc, back.d)

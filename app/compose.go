@@ -148,7 +148,11 @@ func deliveredTo(raw []byte) []string {
 
 // openCompose opens d in a window: saved first when new, so a crash
 // keeps it. It returns d's compose, nil when it isn't in a window.
-func (a *app) openCompose(d store.Draft, fresh bool) *compose {
+func (a *app) openCompose(d store.Draft, fresh bool) *compose { return a.newCompose(d, fresh, false) }
+
+// newCompose makes d's compose, in a window unless inline, where the
+// caller shows it.
+func (a *app) newCompose(d store.Draft, fresh, inline bool) *compose {
 	if cm := a.composes[d.ID]; d.ID != 0 && cm != nil {
 		return cm // open already
 	}
@@ -161,7 +165,7 @@ func (a *app) openCompose(d store.Draft, fresh bool) *compose {
 		d.From = a.fromOf(d.AccountID)
 	}
 
-	d.Open = true
+	d.Open = !inline // a reply under its message doesn't reopen as a window
 
 	if err := a.st.SaveDraft(&d); err != nil {
 		a.toast = "Couldn't save the draft: " + err.Error()
@@ -174,15 +178,59 @@ func (a *app) openCompose(d store.Draft, fresh bool) *compose {
 		cm.sig = sig
 	}
 
+	cm.d.Open = true // until sent or discarded
 	cm.suggest, _ = a.st.Contacts(500)
 	cm.snap = cm.snapshot()
 	a.composes[d.ID] = cm
 
-	if a.openWindow != nil {
+	if !inline && a.openWindow != nil {
 		a.openWindow(cm)
 	}
 
 	return cm
+}
+
+// replyUnder shows cm under the message of the conversation thread, in
+// place of the reply there before.
+func (a *app) replyUnder(cm *compose, thread int64) {
+	if cm == nil {
+		return
+	}
+
+	a.closeReply()
+	cm.update, cm.pickFiles = a.update, a.pickFiles
+	cm.close = func() {
+		if a.reply == cm {
+			a.reply = nil
+		}
+	}
+	a.reply, a.replyTo = cm, thread
+}
+
+// closeReply puts the reply under a message away: kept as a draft when
+// written in, else discarded.
+func (a *app) closeReply() {
+	if cm := a.reply; cm != nil {
+		a.reply = nil // requestClose doesn't call close
+		cm.requestClose()
+
+		if cm.askClose { // edited: keep it, rather than ask
+			cm.askClose = false
+			cm.keep()
+		}
+	}
+}
+
+// popOut moves the reply under a message to a window of its own.
+func (a *app) popOut() {
+	cm := a.reply
+	if cm == nil || a.openWindow == nil {
+		return
+	}
+
+	a.reply = nil
+	a.st.SetDraftOpen(cm.d.ID, true)
+	a.openWindow(cm)
 }
 
 // noSigAt records where the signature would be in a new message whose
@@ -319,7 +367,12 @@ func (cm *compose) track() {
 func (cm *compose) saveLocal() {
 	cm.syncFields()
 
-	if err := cm.a.st.SaveDraft(&cm.d); err != nil {
+	err := cm.a.st.SaveDraft(&cm.d)
+	if err == nil && cm.a.reply == cm {
+		err = cm.a.st.SetDraftOpen(cm.d.ID, false)
+	}
+
+	if err != nil {
 		cm.saveErr = "Couldn't save the draft: " + err.Error()
 		return
 	}
@@ -787,17 +840,32 @@ func (cm *compose) view(c *ui.Context) {
 		cm.toast = ""
 	}
 
-	tidy(&cm.to)
-	tidy(&cm.cc)
-	tidy(&cm.bcc)
-	cm.track()
-
 	if title := cm.title(); title != cm.titled && cm.setTitle != nil {
 		cm.titled = title
 		cm.setTitle(title)
 	}
 
-	c.OnShortcut(ui.Cmd, ui.KeyEnter, func() { cm.sendAt(time.Time{}) })
+	ui.Column(c).Fill().Background(pal.card).Children(func() {
+		titleBar(c, cm.title(), pal.card)
+		cm.form(c, false)
+	})
+}
+
+// form is the message's fields, text and send buttons; inline, under the
+// message it answers, without the subject.
+func (cm *compose) form(c *ui.Context, inline bool) {
+	a := cm.a
+	t := c.Theme()
+	if inline && cm.toast != "" {
+		c.Toast(cm.toast)
+		cm.toast = ""
+	}
+
+	tidy(&cm.to)
+	tidy(&cm.cc)
+	tidy(&cm.bcc)
+	cm.track()
+
 	var froms []string
 	for _, acc := range a.accounts {
 		for _, id := range a.identsOf(acc) {
@@ -815,11 +883,26 @@ func (cm *compose) view(c *ui.Context) {
 		}
 	}
 
-	root := ui.Column(c).Fill().Background(pal.card).Children(func() {
-		titleBar(c, cm.title(), pal.card)
+	root := ui.Column(c).Fill().Children(func() {
+		c.OnShortcut(ui.Cmd, ui.KeyEnter, func() { cm.sendAt(time.Time{}) })
+
+		if inline {
+			ui.Row(c).Gap(4).AlignItems(ui.Center).Padding(10, 12, 0, 18).Children(func() {
+				ui.Icon(c, replyIcon).FontSize(14).TextColor(t.TextMuted)
+				ui.Text(c, cm.title()).FontWeight(600).SingleLine().Grow(1).Shrink(1).Margin(0, 0, 0, 6)
+
+				if a.openWindow != nil && iconButton(c, popOutIcon, "Pop out", "Open in a window").Clicked() {
+					a.popOut()
+				}
+
+				if iconButton(c, closeIcon, "Discard", "Discard this reply").Clicked() {
+					cm.discard()
+				}
+			})
+		}
 
 		ui.Form(c, func() {
-			if ui.Field(c, "From", func() { ui.Select(c, &cm.from, froms).Label("From") }).Changed() {
+			if (!inline || len(froms) > 1) && ui.Field(c, "From", func() { ui.Select(c, &cm.from, froms).Label("From") }).Changed() {
 				cm.syncFields() // swaps the signature at once
 			}
 
@@ -827,19 +910,28 @@ func (cm *compose) view(c *ui.Context) {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.TokenField(c, &cm.to, cm.suggest).Label("To").Grow(1)
 
-					if !cm.showBcc && ui.Button(c, "Bcc").Label("Show Bcc").Clicked() {
+					bcc := "Bcc"
+					if inline && len(cm.cc) == 0 {
+						bcc = "Cc Bcc"
+					}
+
+					if !cm.showBcc && ui.Button(c, bcc).Label("Show "+bcc).Clicked() {
 						cm.showBcc = true
 					}
 				})
 			}).Error(live["to"])
 
-			ui.Field(c.Key("cc"), "Cc", func() { ui.TokenField(c, &cm.cc, cm.suggest).Label("Cc") }).Error(live["cc"])
+			if !inline || cm.showBcc || len(cm.cc) > 0 { // inline, Bcc shows it
+				ui.Field(c.Key("cc"), "Cc", func() { ui.TokenField(c, &cm.cc, cm.suggest).Label("Cc") }).Error(live["cc"])
+			}
 
 			if cm.showBcc {
 				ui.Field(c.Key("bcc"), "Bcc", func() { ui.TokenField(c, &cm.bcc, cm.suggest).Label("Bcc") }).Error(live["bcc"])
 			}
 
-			ui.Field(c, "Subject", func() { ui.TextInput(c, &cm.d.Subject).Label("Subject") })
+			if !inline {
+				ui.Field(c, "Subject", func() { ui.TextInput(c, &cm.d.Subject).Label("Subject") })
+			}
 		}).Gap(8).Padding(14, 18, 12, 18)
 
 		ui.Divider(c)
@@ -977,7 +1069,9 @@ func (a *app) respond(kind string) {
 		}
 
 		d.Text = a.sigBlock(d.From) + d.Text // above the quote
-		a.openCompose(withFiles(d), true).noSigAt(0)
+		cm := a.newCompose(withFiles(d), true, true)
+		cm.noSigAt(0)
+		a.replyUnder(cm, r.thread[0].ID)
 	}
 	if raw, err := a.st.Raw(m.ID); err == nil {
 		open(raw)

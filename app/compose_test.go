@@ -60,7 +60,7 @@ func TestSignature(t *testing.T) {
 	click(t, tt, 0, "Launch plan")
 	a.respond("reply")
 
-	if r := windows[len(windows)-1].d.Text; !strings.HasPrefix(r, "\n\n-- \n**Jane Doe**\nAcme\n\nOn ") {
+	if r := a.reply.d.Text; !strings.HasPrefix(r, "\n\n-- \n**Jane Doe**\nAcme\n\nOn ") {
 		t.Errorf("reply %q", r)
 	}
 }
@@ -145,5 +145,66 @@ func TestIdentities(t *testing.T) {
 
 	if !strings.Contains(strings.Join(a.myAddrs(), ","), "help@example.com") {
 		t.Error("Reply all keeps my other addresses")
+	}
+}
+
+// A reply opens under its message; opening another message discards it
+// unedited and keeps it as a draft once written in.
+func TestReplyUnder(t *testing.T) {
+	a, tt, st, _ := actionsApp(t)
+	var windows []*compose
+	a.openWindow = func(cm *compose) { windows = append(windows, cm) }
+
+	click(t, tt, 0, "Launch plan")
+	a.respond("reply")
+	tt.Frame()
+
+	if a.reply == nil || len(windows) != 0 || !tt.HasText("Re: Launch plan") {
+		t.Fatalf("reply %v windows %d", a.reply, len(windows))
+	}
+
+	click(t, tt, 0, "Newest")
+
+	if a.reply != nil {
+		t.Fatal("reply still shown")
+	}
+
+	if ds, _ := st.OpenDrafts(); len(ds) != 0 {
+		t.Fatalf("unedited reply kept: %+v", ds)
+	}
+
+	a.respond("all")
+	tt.Frame()
+	a.reply.d.Text = "Sounds good." + a.reply.d.Text
+	tt.Frame()
+	click(t, tt, 0, "Oldest")
+
+	if a.reply != nil {
+		t.Fatal("reply still shown")
+	}
+
+	if ds, _ := st.OpenDrafts(); len(ds) != 1 || !strings.HasPrefix(ds[0].Text, "Sounds good.") {
+		t.Fatalf("edited reply not kept: %+v", ds)
+	}
+
+	// Pop out moves it to a window, which reopens next launch; under its
+	// message, saved or not, it doesn't.
+	a.respond("forward")
+	tt.Frame()
+	cm := a.reply
+	cm.saveLocal()
+
+	if ds, _ := st.OpenDrafts(); len(ds) != 1 {
+		t.Fatalf("reply under its message to reopen: %+v", ds)
+	}
+
+	a.popOut()
+
+	if a.reply != nil || len(windows) != 1 || windows[0] != cm {
+		t.Fatalf("pop out: reply %v windows %d", a.reply, len(windows))
+	}
+
+	if ds, _ := st.OpenDrafts(); len(ds) != 2 {
+		t.Fatalf("popped out not to reopen: %+v", ds)
 	}
 }

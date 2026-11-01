@@ -90,7 +90,11 @@ type app struct {
 	outbox     []store.Outgoing
 	composes   map[int64]*compose // the compose windows, by draft
 	openWindow func(*compose)     // shows a compose window; nil in tests
-	undoID     int64              // a message just sent, for its Undo toast
+	reply      *compose           // a reply written under the message it answers
+	replyTo    int64              // the first message of reply's conversation
+	pickFiles  func() ([]string, error)
+	replyPct   float32 // the message's share of the pane above reply
+	undoID     int64   // a message just sent, for its Undo toast
 	dropAsk    bool
 	dropID     int64
 	quitting   bool
@@ -110,7 +114,7 @@ type app struct {
 }
 
 func newApp(st *store.Store, update func(func())) *app {
-	a := &app{st: st, update: update, check: courrier.Check, signIn: courrier.SignIn, sidebarW: 230, treePct: 88, listW: 340, limit: pageSize, msgRow: -1, unifiedOpen: true, settingsOpen: true,
+	a := &app{st: st, update: update, check: courrier.Check, signIn: courrier.SignIn, sidebarW: 230, treePct: 88, listW: 340, replyPct: 45, limit: pageSize, msgRow: -1, unifiedOpen: true,
 		opens: map[int64]*bool{}, groupOpens: map[int64]*bool{}, groupPick: map[int64]*string{}, noOlder: map[int64]bool{}, syncers: map[int64]*accountSync{}, composes: map[int64]*compose{}, notifyOns: map[int64]*bool{}}
 	a.reload()
 	a.loadSettings()

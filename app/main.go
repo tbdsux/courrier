@@ -85,6 +85,10 @@ func main() {
 			return paths[0], nil
 		}
 
+		a.pickFiles = func() ([]string, error) {
+			return mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Attach files", Multiple: true})
+		}
+
 		a.pickDir = func(title string) (string, error) {
 			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: title, Directory: true})
 			if err != nil || len(paths) == 0 {

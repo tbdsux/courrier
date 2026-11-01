@@ -563,6 +563,10 @@ func (a *app) openMessage(m store.Message) {
 		r.view = 1
 	}
 
+	if a.replyTo != thread[0].ID {
+		a.closeReply()
+	}
+
 	a.cur = r
 	a.st.Opened(idsOf(thread)) // only keeps their bodies longer
 
@@ -1670,47 +1674,89 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 
 		ui.Divider(c)
 
-		switch {
-		case r.pending > 0 && a.web != nil:
-			ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c).Label("Loading conversation") })
+		if cm := a.reply; cm != nil && a.replyTo == r.thread[0].ID {
+			ui.SplitVerticalPercent(c, &a.replyPct, func() {
+				ui.Column(c).Fill().Children(func() { a.messageBody(c, r) })
+			}, func() {
+				ui.Column(c).Fill().Padding(0, 0, 24, 0).Background(a.pal.card).Children(func() { cm.form(c, true) })
+			}).Grow(1)
 
-		case a.web != nil:
-			if !r.remote && r.view == 1 {
-				var blocked []string
-				for _, x := range r.thread {
-					if hasRemote(r.bodies[x.ID].HTML) && a.st.Pref("images:"+x.FromAddr) != "1" {
-						blocked = append(blocked, x.FromAddr)
-					}
-				}
+			return
+		}
 
-				if len(blocked) > 0 {
-					ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8, 24).Background(t.Warning.Alpha(0.12)).Children(func() {
-						ui.Text(c, "Remote images are blocked.").TextColor(t.Text).Grow(1)
+		a.messageBody(c, r)
 
-						if ui.Button(c, "Load remote images").Clicked() {
-							r.remote = true
-
-							for _, from := range blocked {
-								a.st.SetPref("images:"+from, "1")
-							}
-						}
-					})
-				}
-			}
-
-			theme := pageTheme(t, a.pal)
-			if key := r.pageKey(theme); key != a.webShown {
-				a.webShown = key
-				a.web.SetBackgroundColor(fmt.Sprintf("#%02x%02x%02x", t.Background.R, t.Background.G, t.Background.B)) // no white flash as it loads
-				a.web.Page().LoadHTML(sandbox(r.conversationPage(theme), r.remote), "")
-			}
-
-			ui.WebView(c, a.web).Grow(1)
-
-		default:
-			a.conversationCards(c, r)
+		if m.Special != "drafts" && a.web == nil { // the web view's page has its own
+			a.replyBar(c)
 		}
 	})
+}
+
+// replyBar offers to answer the message shown, under it.
+func (a *app) replyBar(c *ui.Context) {
+	t := c.Theme()
+	ui.Divider(c)
+	ui.Row(c).Gap(8).Padding(12, 24).Children(func() {
+		for _, b := range []struct {
+			icon        *ui.SVG
+			label, kind string
+		}{{replyIcon, "Reply", "reply"}, {replyAllIcon, "Reply all", "all"}, {forwardIcon, "Forward", "forward"}} {
+			btn := ui.Button(c.Key(b.kind), "").Label(b.label).Padding(7, 16).Radius(18).Border(1, t.Border).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, b.icon).FontSize(14).TextColor(t.TextMuted)
+					ui.Text(c, b.label).FontWeight(500)
+				})
+			})
+			if btn.Clicked() {
+				a.respond(b.kind)
+			}
+		}
+	})
+}
+
+// messageBody is the conversation of r: in the web view, else as cards.
+func (a *app) messageBody(c *ui.Context, r *reader) {
+	t := c.Theme()
+	switch {
+	case r.pending > 0 && a.web != nil:
+		ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c).Label("Loading conversation") })
+
+	case a.web != nil:
+		if !r.remote && r.view == 1 {
+			var blocked []string
+			for _, x := range r.thread {
+				if hasRemote(r.bodies[x.ID].HTML) && a.st.Pref("images:"+x.FromAddr) != "1" {
+					blocked = append(blocked, x.FromAddr)
+				}
+			}
+
+			if len(blocked) > 0 {
+				ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8, 24).Background(t.Warning.Alpha(0.12)).Children(func() {
+					ui.Text(c, "Remote images are blocked.").TextColor(t.Text).Grow(1)
+
+					if ui.Button(c, "Load remote images").Clicked() {
+						r.remote = true
+
+						for _, from := range blocked {
+							a.st.SetPref("images:"+from, "1")
+						}
+					}
+				})
+			}
+		}
+
+		theme := pageTheme(t, a.pal)
+		if key := r.pageKey(theme); key != a.webShown {
+			a.webShown = key
+			a.web.SetBackgroundColor(fmt.Sprintf("#%02x%02x%02x", t.Background.R, t.Background.G, t.Background.B)) // no white flash as it loads
+			a.web.Page().LoadHTML(sandbox(r.conversationPage(theme), r.remote), "")
+		}
+
+		ui.WebView(c, a.web).Grow(1)
+
+	default:
+		a.conversationCards(c, r)
+	}
 }
 
 // loadFields reads all of a message's header fields: from the stored
