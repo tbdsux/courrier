@@ -36,6 +36,17 @@ func Parse(raw []byte) (Header, Body, error) {
 	b := ps.body()
 	b.readHeader(e.Header)
 
+	if mt, _, _ := e.Header.ContentType(); isSecure(mt) {
+		var signed []byte
+		b.Security, signed = readSecurity(e.Header, raw, ps.smime, h.FromAddr)
+		if signed != nil {
+			// shortcut: attachments signed inside stay in smime.p7m, as their parts can't be saved by number; unwrap them if users ask.
+			if _, in, err := Parse(signed); err == nil {
+				b.Text, b.HTML, b.Invite, b.Mislinks = in.Text, in.HTML, in.Invite, in.Mislinks
+			}
+		}
+	}
+
 	for _, a := range b.Attachments {
 		if ps.inline[a.ContentID] == "" {
 			h.HasAttach = true
@@ -51,6 +62,7 @@ func Parse(raw []byte) (Header, Body, error) {
 type parts struct {
 	b      Body
 	inline map[string]string // cid → data: URL
+	smime  []byte            // the S/MIME signature, or signed-data
 }
 
 func newParts() *parts { return &parts{inline: map[string]string{}} }
@@ -77,6 +89,16 @@ func (ps *parts) add(part string, p *message.Entity) {
 
 	if mt == "" {
 		mt = "application/octet-stream"
+	}
+
+	switch mt {
+	case "application/pkcs7-signature", "application/x-pkcs7-signature":
+		ps.smime = data
+		return // a signature is no attachment
+	case "application/pgp-signature", "application/pgp-encrypted":
+		return
+	case "application/pkcs7-mime", "application/x-pkcs7-mime":
+		ps.smime = data
 	}
 
 	if isCalendar(mt) {
@@ -118,6 +140,7 @@ func (ps *parts) body() Body {
 	}
 
 	ps.b.Mislinks = mislinks(ps.b.HTML)
+	ps.b.Security = inlinePGP(ps.b.Text)
 
 	return ps.b
 }

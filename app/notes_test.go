@@ -43,3 +43,24 @@ func TestAuthNote(t *testing.T) {
 		t.Errorf("notes %+v", ns)
 	}
 }
+
+func TestSignatureNote(t *testing.T) {
+	for _, c := range []struct {
+		s    courrier.Security
+		warn bool
+		text string
+	}{
+		{courrier.Security{Kind: "S/MIME", Signed: true, Signer: "ann@example.com"}, false, "Signed by ann@example.com (S/MIME). The signature checks out."},
+		{courrier.Security{Kind: "S/MIME", Signed: true, Problem: "the message doesn't match its signature"}, true, "Don't trust this message's S/MIME signature: the message doesn't match its signature."},
+		{courrier.Security{Kind: "PGP", Encrypted: true}, true, "This message is encrypted with PGP. courrier can't decrypt it yet: open it in an app that has your key."},
+		{courrier.Security{Kind: "PGP", Signed: true}, false, "Signed with PGP. courrier can't check PGP signatures yet."},
+	} {
+		if n, ok := signatureNote(c.s); !ok || n.warn != c.warn || n.text != c.text {
+			t.Errorf("%+v: %+v", c.s, n)
+		}
+	}
+
+	if _, ok := signatureNote(courrier.Security{}); ok {
+		t.Error("a note for a plain message")
+	}
+}

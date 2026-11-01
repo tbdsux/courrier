@@ -18,6 +18,7 @@ type Meta struct {
 	Invite      *Invite   `json:",omitempty"` // the event of its calendar part
 	Auth        Auth      `json:",omitzero"`
 	Mislinks    []Mislink `json:",omitempty"` // links of its HTML that show another site than they go to
+	Security    Security  `json:",omitzero"`
 }
 
 // readHeader reads what Meta keeps of a message's header.

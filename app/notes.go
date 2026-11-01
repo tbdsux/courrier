@@ -34,6 +34,10 @@ func notes(m store.Message, b courrier.Body) []note {
 		out = append(out, note{warn: true, text: "This message failed its sender checks: it may not be from " + who + ". Be careful with its links and attachments."})
 	}
 
+	if n, ok := signatureNote(b.Security); ok {
+		out = append(out, n)
+	}
+
 	if inv := b.Invite; inv != nil {
 		out = append(out, note{warn: inv.Method == "CANCEL", text: inviteText(*inv)})
 	}
@@ -43,6 +47,22 @@ func notes(m store.Message, b courrier.Body) []note {
 	}
 
 	return out
+}
+
+// signatureNote says how a message was signed or encrypted.
+func signatureNote(s courrier.Security) (note, bool) {
+	switch {
+	case s.Encrypted:
+		return note{warn: true, text: "This message is encrypted with " + s.Kind + ". courrier can't decrypt it yet: open it in an app that has your key."}, true
+	case s.Signed && s.Kind == "PGP":
+		return note{text: "Signed with PGP. courrier can't check PGP signatures yet."}, true
+	case s.Signed && s.Problem != "":
+		return note{warn: true, text: "Don't trust this message's S/MIME signature: " + s.Problem + "."}, true
+	case s.Signed:
+		return note{text: "Signed by " + s.Signer + " (S/MIME). The signature checks out."}, true
+	}
+
+	return note{}, false
 }
 
 // inviteText says what an invite is, when and where, on one line.

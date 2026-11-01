@@ -636,9 +636,11 @@ func (ic *imapConn) open(cache Cache, account int64, path string, uid uint32) er
 		return err
 	}
 
-	b, ok, err := ic.shownParts(uid, m.BodyStructure)
-	if err != nil {
-		return err
+	b, ok := Body{}, false
+	if !isSecure(m.BodyStructure.MediaType()) { // a signature needs the message whole
+		if b, ok, err = ic.shownParts(uid, m.BodyStructure); err != nil {
+			return err
+		}
 	}
 
 	if e, _ := message.Read(bytes.NewReader(append(m.FindBodySection(head), "\r\n"...))); e != nil {
