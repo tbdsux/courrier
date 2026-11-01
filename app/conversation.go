@@ -364,14 +364,14 @@ func pageTheme(t *ui.Theme, p palette) string {
 		map[bool]string{true: darkCSS}[t.Dark]
 }
 
-// pageFonts gives the page Inter, which the system doesn't have: its
+// pageFonts gives the page Figtree, which the system doesn't have: its
 // regular and semibold, the weights the page uses (bold takes semibold).
 var pageFonts = sync.OnceValue(func() string {
 	var sb strings.Builder
 	for _, f := range []struct {
 		file   string
 		weight int
-	}{{"Inter-Regular.ttf", 400}, {"Inter-SemiBold.ttf", 600}} {
+	}{{"Figtree-Regular.ttf", 400}, {"Figtree-SemiBold.ttf", 600}} {
 		data, _ := fontFiles.ReadFile("fonts/" + f.file)
 		fmt.Fprintf(&sb, "@font-face { font-family: %q; font-weight: %d; src: url(data:font/ttf;base64,%s); }\n", sansFamily, f.weight, base64.StdEncoding.EncodeToString(data))
 	}

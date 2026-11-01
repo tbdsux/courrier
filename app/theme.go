@@ -15,13 +15,13 @@ var hoverFade = ui.ElementTransition{Colors: true, Duration: 120 * time.Millisec
 // openFade brings in an opened message's header, a little from below.
 var openFade = ui.ElementTransition{Enter: &ui.Motion{Y: 6}}
 
-// Inter, the app's typeface, under the SIL Open Font License in
-// fonts/Inter-OFL.txt.
+// Figtree, the app's typeface, under the SIL Open Font License in
+// fonts/Figtree-OFL.txt.
 //
 //go:embed fonts/*.ttf
 var fontFiles embed.FS
 
-const sansFamily = "Inter"
+const sansFamily = "Figtree"
 
 func registerFonts() {
 	entries, _ := fontFiles.ReadDir("fonts")

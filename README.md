@@ -137,5 +137,5 @@ To register the clients:
 
 ## License
 
-[MIT](LICENSE). The bundled Inter font is under the
-[SIL Open Font License 1.1](app/fonts/Inter-OFL.txt).
+[MIT](LICENSE). The bundled Figtree font is under the
+[SIL Open Font License 1.1](app/fonts/Figtree-OFL.txt).
