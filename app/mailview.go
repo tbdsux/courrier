@@ -1813,6 +1813,11 @@ func (a *app) messageBody(c *ui.Context, r *reader) {
 			a.web.Page().LoadHTML(sandbox(r.conversationPage(theme), r.remote), "")
 		}
 
+		if z := a.zoom(); z != a.webZoom {
+			a.webZoom = z
+			a.web.Page().SetZoomFactor(z)
+		}
+
 		ui.WebView(c, a.web).Grow(1)
 
 	default:

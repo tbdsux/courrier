@@ -257,7 +257,8 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 				}
 
 				main, quote := splitQuote(text)
-				ui.Text(c, main).Wrap().Selectable().FillWidth()
+				size := t.FontSize * float32(a.zoom())
+				ui.Text(c, main).FontSize(size).Wrap().Selectable().FillWidth()
 
 				if quote != "" {
 					if ui.Button(c, "•••").Label("Show quoted text").Tooltip("Show quoted text").Padding(0, 8).AlignSelf(ui.Start).Clicked() {
@@ -265,7 +266,7 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 					}
 
 					if r.quotes[m.ID] {
-						ui.Text(c, quote).Wrap().Selectable().TextColor(t.TextMuted).FillWidth()
+						ui.Text(c, quote).FontSize(size).Wrap().Selectable().TextColor(t.TextMuted).FillWidth()
 					}
 				}
 

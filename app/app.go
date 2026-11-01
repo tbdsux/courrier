@@ -70,6 +70,7 @@ type app struct {
 	syncOn       bool
 	web          *mygo.WebView // nil in tests: HTML shows as text
 	webShown     string
+	webZoom      float64 // the zoom set on web's page
 	openURL      func(string)
 	link         linkAsk                                  // a message's link to open once the user agrees
 	saveFile     func(title, name string) (string, error) // asks where to save; "" when canceled

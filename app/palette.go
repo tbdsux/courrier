@@ -23,6 +23,7 @@ var commandIcons = map[string]*ui.SVG{
 	"Flag or unflag": flagIcon, "Snooze": clockIcon, "Archive": archiveIcon, "Delete": trashIcon,
 	"Move to…": moveIcon, "Reply": replyIcon, "Reply all": replyAllIcon, "Forward": forwardIcon,
 	"New message": composeIcon, "Search": searchIcon, "Print": printerIcon,
+	"Zoom in": zoomInIcon, "Zoom out": zoomOutIcon, "Actual size": searchIcon,
 }
 
 // commands are what the palette offers, by section: the shortcuts, every

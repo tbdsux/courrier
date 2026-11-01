@@ -90,3 +90,27 @@ func TestPrintWithoutWebView(t *testing.T) {
 		t.Errorf("⌘P without a web view: %q", a.toast)
 	}
 }
+
+func TestZoom(t *testing.T) {
+	a, tt, _, _ := actionsApp(t)
+	key(tt, ui.Cmd, ui.KeyEqual)
+	key(tt, ui.Cmd, ui.KeyEqual)
+
+	if a.zoom() != 1.25 {
+		t.Errorf("⌘= twice: %v", a.zoom())
+	}
+
+	key(tt, ui.Cmd, ui.Key0)
+	for range 5 {
+		key(tt, ui.Cmd, ui.KeyMinus)
+	}
+
+	if a.zoom() != 0.75 {
+		t.Errorf("⌘0 then ⌘- past the smallest: %v", a.zoom())
+	}
+
+	a.loadSettings()
+	if a.zoom() != 0.75 {
+		t.Errorf("zoom not kept: %v", a.zoom())
+	}
+}

@@ -49,6 +49,10 @@ func (a *app) appMenu() *mygo.Menu {
 			{Label: "Search", Accelerator: accel("⌘F"), Click: do(func() { a.showWindow(); a.focus = "search" })},
 			{Label: "Command Palette…", Accelerator: accel("⌘K"), Click: do(func() { a.showWindow(); a.palette = true })},
 			mygo.Separator(),
+			{Label: "Zoom In", Accelerator: accel("⌘="), Click: do(func() { a.zoomBy(1) })},
+			{Label: "Zoom Out", Accelerator: accel("⌘-"), Click: do(func() { a.zoomBy(-1) })},
+			{Label: "Actual Size", Accelerator: accel("⌘0"), Click: do(func() { a.zoomBy(0) })},
+			mygo.Separator(),
 			{Role: mygo.RoleToggleFullScreen},
 		}},
 		// The list's one-key shortcuts stay off these items, which would take
