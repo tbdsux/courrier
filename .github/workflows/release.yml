@@ -1,4 +1,4 @@
-# Builds, signs and uploads courrier to a draft release for each v* tag,
+# Builds, signs and uploads courrier to a release for each v* tag,
 # as docs/github-actions.md of MyGo shows. Without the MYGO_UPDATER_PRIVATE_KEY
 # secret and updates.github in mygo.json it uploads the installers only (no
 # auto-updates); macOS signing and notarization need the secrets and the
@@ -10,23 +10,23 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write # the draft release, and the uploads to it
+  contents: write # the release, and the uploads to it
 
 jobs:
-  draft-release:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - name: Create the draft release
+      - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-              --draft --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+              --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
           fi
 
   build:
-    needs: draft-release
+    needs: release
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     env:

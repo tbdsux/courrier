@@ -112,7 +112,7 @@ images.
 `go tool mygo build` compiles, bundles and packages the app as `mygo.json`
 says (name, bundle identifier, version, the `mailto` URL scheme). The
 GitHub Actions workflow in `.github/workflows/release.yml` builds every
-platform for each `v*` tag and uploads to a draft release, which installed
-copies update from.
+platform for each `v*` tag and uploads to a release, published at once,
+which installed copies update from.
 
 For the look and feel (layout, themes, typography) see [design.md](design.md).
