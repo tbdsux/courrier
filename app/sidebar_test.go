@@ -97,3 +97,37 @@ func TestDragOutOfGroup(t *testing.T) {
 		}
 	}
 }
+
+// The item chosen in a focused sidebar shows on a tint, not the accent.
+func TestSideItemTint(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"), memSecrets{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer st.Close()
+	a := newApp(st, func(fn func()) { fn() })
+	a.set.Appearance = "Light"
+	tt := ui.NewTester(a.view, 1100, 800)
+	tt.Frame()
+	if err := tt.Click("Settings"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := tt.Click("General"); err != nil { // in Settings' menu
+		t.Fatal(err)
+	}
+
+	for tt.FramePending() {
+		tt.Frame()
+	}
+
+	r, ok := tt.Find("General")
+	if !ok || a.sel != "general" || !a.sideFocused {
+		t.Fatalf("General not chosen in a focused sidebar: sel %q, focused %v", a.sel, a.sideFocused)
+	}
+
+	if p := tt.Image().RGBAAt(int(r.X+r.W-4), int(r.Y+r.H/2)); p.R < 200 || p.G < 200 || p.B < 200 {
+		t.Errorf("chosen item drawn in %v, want a light tint", p)
+	}
+}

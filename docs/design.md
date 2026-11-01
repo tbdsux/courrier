@@ -23,8 +23,8 @@ and keep this page in step.
 │ 230          │ 340                │ the rest                     │
 │ accounts,    │ 50 rows a page,    │ header, actions, body,       │
 │ folders,     │ more as you scroll │ attachments                  │
-│ unified,     │                    │                              │
-│ settings     │                    │                              │
+│ unified;     │                    │                              │
+│ Settings     │                    │                              │
 └──────────────┴────────────────────┴──────────────────────────────┘
 ```
 
@@ -34,6 +34,7 @@ and keep this page in step.
 | Title bar | hidden; the app draws its own (min 32 high), draggable, clear of the system's window controls |
 | Sidebar / list widths | 230 / 340 DIP default, resizable split views, remembered |
 | Narrow (`narrowContent`) | under 600 DIP beside the sidebar: one pane, list *or* message, with a back button |
+| Settings | the Settings button at the sidebar's foot opens it beside the sidebar: a 190-wide menu (General, Accounts, Groups, Rules, Servers, Storage), then the chosen page |
 | Pages (settings, accounts) | centered, max 720 wide; padding 32, 18 when narrow; 40 at the bottom |
 | Forms | labels beside fields; above them under 520 DIP |
 

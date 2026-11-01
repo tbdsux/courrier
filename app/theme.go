@@ -190,6 +190,22 @@ func (a *app) card(c *ui.Context, key, title string, fn func()) {
 	})
 }
 
+// sideItem is a SidebarItem whose choice shows, while the sidebar has the
+// focus, as a tint of the accent rather than a solid fill.
+func (a *app) sideItem(c *ui.Context, id string, icon *ui.SVG, label string) ui.Element {
+	if id != a.sel || !a.sideFocused {
+		return ui.SidebarItem(c, id, icon, label)
+	}
+
+	t := c.Theme()
+	soft := *t
+	soft.Accent, soft.AccentText = t.Accent.Alpha(0.2), t.Accent
+	c.SetTheme(&soft)
+	defer c.SetTheme(t)
+
+	return ui.SidebarItem(c, id, icon, label)
+}
+
 // notice is a tinted line of status.
 // iconButton is a small square button showing an icon, named label.
 func iconButton(c *ui.Context, icon *ui.SVG, label, tip string) ui.Element {
@@ -239,7 +255,16 @@ const (
 	pageMaxWidth  = 720
 )
 
-func (a *app) contentWidth() float32 { return a.width - a.sidebarW }
+// settingsNavW is the width of Settings' menu of pages.
+const settingsNavW = 190
+
+func (a *app) contentWidth() float32 {
+	if a.inSettings() {
+		return a.width - a.sidebarW - settingsNavW
+	}
+
+	return a.width - a.sidebarW
+}
 
 // page lays out a scrolling page: centered and capped on wide windows,
 // with less padding on narrow ones.

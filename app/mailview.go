@@ -80,7 +80,6 @@ type layout struct {
 	Closed          []int64 // collapsed accounts
 	ClosedGroups    []int64
 	UnifiedClosed   bool
-	SettingsClosed  bool
 	TreePct         float32 // the sidebar's share above the sync status
 }
 
@@ -106,7 +105,7 @@ func (a *app) loadLayout() {
 			*a.groupOpen(g) = false
 		}
 
-		a.unifiedOpen, a.settingsOpen = !l.UnifiedClosed, !l.SettingsClosed
+		a.unifiedOpen = !l.UnifiedClosed
 
 		if l.TreePct > 0 {
 			a.treePct = l.TreePct
@@ -120,7 +119,7 @@ func (a *app) loadLayout() {
 
 // saveLayout stores the layout when it changed.
 func (a *app) saveLayout() {
-	l := layout{SidebarW: a.sidebarW, ListW: a.listW, UnifiedClosed: !a.unifiedOpen, SettingsClosed: !a.settingsOpen, TreePct: a.treePct}
+	l := layout{SidebarW: a.sidebarW, ListW: a.listW, UnifiedClosed: !a.unifiedOpen, TreePct: a.treePct}
 	if _, ok := a.mailbox(); ok {
 		l.Sel = a.sel
 	}
@@ -712,16 +711,16 @@ func (a *app) folderTree(c *ui.Context) {
 				total += a.unread(acc.ID)
 			}
 
-			badge(c, ui.SidebarItem(c, "u:inbox", inboxIcon, "Inbox"), total)
-			ui.SidebarItem(c, "u:flagged", flagIcon, "Flagged")
-			ui.SidebarItem(c, "u:snoozed", clockIcon, "Snoozed")
+			badge(c, a.sideItem(c, "u:inbox", inboxIcon, "Inbox"), total)
+			a.sideItem(c, "u:flagged", flagIcon, "Flagged")
+			a.sideItem(c, "u:snoozed", clockIcon, "Snoozed")
 
 			if len(a.outbox) > 0 {
-				badge(c, ui.SidebarItem(c, "u:outbox", outboxIcon, "Outbox"), len(a.outbox))
+				badge(c, a.sideItem(c, "u:outbox", outboxIcon, "Outbox"), len(a.outbox))
 			}
 
 			for i, q := range a.searches {
-				ui.SidebarItem(c, "s:"+strconv.Itoa(i), searchIcon, q).ContextMenu(func(m *ui.Menu) {
+				a.sideItem(c, "s:"+strconv.Itoa(i), searchIcon, q).ContextMenu(func(m *ui.Menu) {
 					if m.Item("Remove saved search").Chosen() {
 						a.unsaveSearch(i)
 					}
@@ -786,7 +785,7 @@ func (a *app) folderTree(c *ui.Context) {
 	}
 }
 
-// sideDivider separates the sidebar's parts: Unified, the accounts, Settings.
+// sideDivider separates the sidebar's parts: Unified and the accounts.
 func sideDivider(c *ui.Context) {
 	t := c.Theme()
 	ui.Divider(c).Margin(t.Space(3), t.Space(2), 0, t.Space(2))
@@ -985,7 +984,7 @@ func (a *app) folderItems(c *ui.Context, acc store.Account) {
 			icon = folderIcon
 		}
 
-		item := ui.SidebarItem(c, "f:"+strconv.FormatInt(f.ID, 10), icon, name).PaddingStart(indent)
+		item := a.sideItem(c, "f:"+strconv.FormatInt(f.ID, 10), icon, name).PaddingStart(indent)
 		badge(c, item, f.Unread)
 		item.ContextMenu(func(m *ui.Menu) { a.folderMenu(m, f, name) })
 

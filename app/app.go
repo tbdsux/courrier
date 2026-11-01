@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -50,7 +51,6 @@ type app struct {
 	sideDragging bool            // an account or group being dragged in the sidebar
 	groupOpens   map[int64]*bool
 	unifiedOpen  bool
-	settingsOpen bool
 	savedLayout  string
 	folders      []store.Folder
 	msgs         []store.Message
@@ -85,6 +85,7 @@ type app struct {
 	searchGen    int    // counts searches, to drop answers to older ones
 	searchNote   string // how the server search went
 	focus        string // "search" asks for the search field's focus
+	sideFocused  bool   // the sidebar had the focus in the last frame
 
 	// Sending
 	outbox     []store.Outgoing
@@ -202,24 +203,63 @@ func (a *app) panes(c *ui.Context) {
 			a.outboxView(c)
 		case isMail && len(a.accounts) > 0:
 			a.mailView(c)
-		case a.sel == "general":
-			a.settingsView(c)
-		case a.sel == "servers":
-			a.serversView(c)
-		case a.sel == "groups":
-			a.groupsView(c)
-		case a.sel == "rules":
-			a.rulesView(c)
-		case a.sel == "storage":
-			a.storageView(c)
-		case a.sel == "accounts":
-			a.accountsView(c)
-		case a.form != nil:
-			a.accountView(c, a.form)
+		case a.inSettings():
+			a.settingsPage(c)
 		default:
 			a.emptyView(c)
 		}
-	}).Fill()
+	}).FillWidth().Grow(1) // not Fill: the title bar takes some of the height
+}
+
+// settingsPages are the pages in Settings' menu.
+var settingsPages = []string{"general", "accounts", "groups", "rules", "servers", "storage"}
+
+// inSettings reports whether the main view shows Settings rather than mail.
+func (a *app) inSettings() bool { return slices.Contains(settingsPages, a.sel) || a.form != nil }
+
+// settingsPage is Settings' menu of pages beside the chosen one.
+func (a *app) settingsPage(c *ui.Context) {
+	ui.Row(c).Fill().Children(func() {
+		ui.Column(c).Width(settingsNavW).FillHeight().Background(a.pal.sidebar).Children(func() {
+			ui.Text(c, "Settings").FontSize(15).Bold().LetterSpacing(-0.3).Padding(18, 16, 10, 16)
+
+			side := ui.Sidebar(c, &a.sel, func() {
+				a.sideItem(c, "general", settingsIcon, "General")
+				a.sideItem(c, "accounts", userIcon, "Accounts")
+				a.sideItem(c, "groups", folderIcon, "Groups")
+				a.sideItem(c, "rules", filterIcon, "Rules")
+				a.sideItem(c, "servers", serverIcon, "Servers")
+				a.sideItem(c, "storage", driveIcon, "Storage")
+			}).Grow(1).Background(a.pal.sidebar)
+
+			// Only one of this and the main sidebar holds the chosen item.
+			if f := side.Focused(); f != a.sideFocused {
+				a.sideFocused = f
+				c.AnimationFrame()
+			}
+		})
+
+		ui.Column(c).Width(1).FillHeight().Background(c.Theme().Border)
+
+		ui.Column(c).Grow(1).FillHeight().Children(func() {
+			switch a.sel {
+			case "general":
+				a.settingsView(c)
+			case "servers":
+				a.serversView(c)
+			case "groups":
+				a.groupsView(c)
+			case "rules":
+				a.rulesView(c)
+			case "storage":
+				a.storageView(c)
+			case "accounts":
+				a.accountsView(c)
+			default:
+				a.accountView(c, a.form)
+			}
+		})
+	})
 }
 
 // load opens what the sidebar picked.
@@ -308,7 +348,7 @@ func (a *app) editForm(acc store.Account) *accountForm {
 
 func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Fill().Background(a.pal.sidebar).Children(func() {
+	ui.Column(c).Fill().Padding(0, 0, 8, 0).Background(a.pal.sidebar).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(16, 12, 12, 16).Children(func() {
 			ui.Image(c, appLogo).Size(26, 26)
 			ui.Text(c, "courrier").FontSize(15).Bold().LetterSpacing(-0.3).Grow(1)
@@ -338,25 +378,36 @@ func (a *app) sidebar(c *ui.Context) {
 				})
 			})
 		}).Grow(1)
+
+		ui.Divider(c)
+		b := ui.Button(c, "").Label("Settings").Tooltip("Settings (⌘,)").Padding(8, 12).Margin(6, 8, 8, 8).Radius(8).Background(a.pal.sidebar)
+		if a.inSettings() {
+			b.Background(a.pal.accentSoft)
+		} else if b.Hovered() {
+			b.Background(t.SurfaceHover)
+		}
+
+		b.Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, settingsIcon).FontSize(15).TextColor(t.TextMuted)
+				ui.Text(c, "Settings")
+			})
+		})
+		if b.Clicked() {
+			a.sel = "general"
+		}
 	})
 }
 
 func (a *app) sidebarTree(c *ui.Context) {
-	ui.Sidebar(c, &a.sel, func() {
-		a.folderTree(c)
-		if len(a.accounts) > 0 {
-			sideDivider(c)
-		}
+	side := ui.Sidebar(c, &a.sel, func() { a.folderTree(c) }).Fill().Background(a.pal.sidebar)
 
-		ui.SidebarSection(c, "Settings", &a.settingsOpen, func() {
-			ui.SidebarItem(c, "general", settingsIcon, "General")
-			ui.SidebarItem(c, "accounts", userIcon, "Accounts")
-			ui.SidebarItem(c, "groups", folderIcon, "Groups")
-			ui.SidebarItem(c, "rules", filterIcon, "Rules")
-			ui.SidebarItem(c, "servers", serverIcon, "Servers")
-			ui.SidebarItem(c, "storage", driveIcon, "Storage")
-		})
-	}).Fill().Background(a.pal.sidebar)
+	// The items built before the sidebar's focus is known: build them again
+	// when it changed.
+	if f := side.Focused(); f != a.sideFocused && !a.inSettings() {
+		a.sideFocused = f
+		c.AnimationFrame()
+	}
 }
 
 func (a *app) emptyView(c *ui.Context) {
