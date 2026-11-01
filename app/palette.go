@@ -9,13 +9,24 @@ import (
 
 // command is a row of the command palette.
 type command struct {
-	name string
-	keys string // its shortcut as Settings shows it; "" for none
-	run  func()
+	section string // the heading it shows under
+	name    string
+	sub     string // muted beside the name, as a folder's account
+	keys    string // its shortcut as Settings shows it; "" for none
+	icon    *ui.SVG
+	run     func()
 }
 
-// commands are what the palette offers: the shortcuts, Settings' pages and
-// every mailbox.
+// commandIcons are the icons of the shortcuts' commands, by what they do.
+var commandIcons = map[string]*ui.SVG{
+	"Next message": downIcon, "Previous message": upIcon, "Mark read or unread": mailIcon,
+	"Flag or unflag": flagIcon, "Snooze": clockIcon, "Archive": archiveIcon, "Delete": trashIcon,
+	"Move to…": moveIcon, "Reply": replyIcon, "Reply all": replyAllIcon, "Forward": forwardIcon,
+	"New message": composeIcon, "Search": searchIcon,
+}
+
+// commands are what the palette offers, by section: the shortcuts, every
+// mailbox and Settings' pages.
 func (a *app) commands() []command {
 	var cs []command
 	seen := map[string]bool{}
@@ -25,55 +36,63 @@ func (a *app) commands() []command {
 		}
 
 		seen[k.what] = true
-		cs = append(cs, command{k.what, k.label(i), func() { k.run(a) }})
+		cs = append(cs, command{"Actions", k.what, "", k.label(i), commandIcons[k.what], func() { k.run(a) }})
 	}
 
-	cs = append(cs, command{"Check mail", "⇧⌘N", a.checkAll})
+	cs = append(cs, command{"Actions", "Check mail", "", "⇧⌘N", refreshIcon, a.checkAll})
 
+	if len(a.accounts) > 0 {
+		goTo := func(name, sub string, icon *ui.SVG, sel string) {
+			cs = append(cs, command{"Mailboxes", name, sub, "", icon, func() { a.sel = sel }})
+		}
+		goTo("Inbox", "Unified", inboxIcon, "u:inbox")
+		goTo("Flagged", "Unified", flagIcon, "u:flagged")
+		goTo("Snoozed", "Unified", clockIcon, "u:snoozed")
+		goTo("Outbox", "Unified", outboxIcon, "u:outbox")
+
+		for i, q := range a.searches {
+			goTo(q, "Saved search", searchIcon, "s:"+strconv.Itoa(i))
+		}
+
+		for _, acc := range a.accounts {
+			for _, f := range a.folders {
+				if f.AccountID != acc.ID || f.NoSelect {
+					continue
+				}
+
+				icon := specialIcons[f.Special]
+				if icon == nil {
+					icon = folderIcon
+				}
+
+				name, _ := leaf(f)
+				goTo(name, acc.Email, icon, "f:"+strconv.FormatInt(f.ID, 10))
+			}
+		}
+	}
+
+	pages := []*ui.SVG{settingsIcon, userIcon, folderIcon, filterIcon, serverIcon, driveIcon}
 	for i, p := range settingsPages {
 		keys := ""
 		if i == 0 {
 			keys = "⌘,"
 		}
 
-		cs = append(cs, command{"Settings: " + strings.ToUpper(p[:1]) + p[1:], keys, func() { a.sel = p }})
-	}
-
-	if len(a.accounts) == 0 {
-		return cs
-	}
-
-	goTo := func(name, sel string) { cs = append(cs, command{"Go to " + name, "", func() { a.sel = sel }}) }
-	goTo("Inbox (unified)", "u:inbox")
-	goTo("Flagged", "u:flagged")
-	goTo("Snoozed", "u:snoozed")
-	goTo("Outbox", "u:outbox")
-
-	for i, q := range a.searches {
-		goTo("search “"+q+"”", "s:"+strconv.Itoa(i))
-	}
-
-	for _, acc := range a.accounts {
-		for _, f := range a.folders {
-			if f.AccountID == acc.ID && !f.NoSelect {
-				name, _ := leaf(f)
-				goTo(name+" · "+acc.Email, "f:"+strconv.FormatInt(f.ID, 10))
-			}
-		}
+		cs = append(cs, command{"Settings", strings.ToUpper(p[:1]) + p[1:], "Settings", keys, pages[i], func() { a.sel = p }})
 	}
 
 	return cs
 }
 
-// matching are the commands whose names hold every word of query.
+// matching are the commands whose name and sub hold every word of query.
 func matching(cs []command, query string) []command {
 	words := strings.Fields(strings.ToLower(query))
 	var out []command
 	for _, c := range cs {
-		name := strings.ToLower(c.name)
+		text := strings.ToLower(c.name + " " + c.sub)
 		ok := true
 		for _, w := range words {
-			ok = ok && strings.Contains(name, w)
+			ok = ok && strings.Contains(text, w)
 		}
 
 		if ok {
@@ -82,6 +101,38 @@ func matching(cs []command, query string) []command {
 	}
 
 	return out
+}
+
+// keycaps splits a shortcut as Settings shows it into its keys: "⇧⌘N" into
+// ⇧, ⌘ and N, "Page Up" whole.
+func keycaps(keys string) []string {
+	var caps []string
+	rest := keys
+	for _, r := range keys {
+		if !strings.ContainsRune("⌃⌥⇧⌘", r) || len(rest) == len(string(r)) {
+			break
+		}
+
+		caps = append(caps, string(r))
+		rest = rest[len(string(r)):]
+	}
+
+	if rest == "" {
+		return caps
+	}
+
+	return append(caps, rest)
+}
+
+// keycap draws keys as small keyboard keys.
+func keycap(c *ui.Context, keys string) {
+	t := c.Theme()
+	ui.Row(c).Gap(3).Children(func() {
+		for _, k := range keycaps(keys) {
+			ui.Text(c, k).FontSize(11).FontWeight(500).TextColor(t.TextMuted).
+				MinWidth(20).Padding(2, 5).Radius(5).Background(t.Surface).Border(1, t.Border).TextAlign(ui.Center)
+		}
+	})
 }
 
 // paletteButton is the title bar's way into the palette.
@@ -116,8 +167,8 @@ func (a *app) paletteKeys() string {
 	return ""
 }
 
-// paletteDialog is the command palette: type to narrow, ↑ and ↓ to choose,
-// Return to run.
+// paletteDialog is the command palette, near the top of the window: type
+// to narrow, ↑ and ↓ to choose, Return to run.
 func (a *app) paletteDialog(c *ui.Context) {
 	if !a.palette {
 		a.paletteQuery, a.paletteRow, a.paletteShown = "", 0, -1
@@ -125,6 +176,7 @@ func (a *app) paletteDialog(c *ui.Context) {
 	}
 
 	t := c.Theme()
+	_, h := c.Size()
 	cs := matching(a.commands(), a.paletteQuery)
 	a.paletteRow = max(0, min(a.paletteRow, len(cs)-1))
 
@@ -132,9 +184,17 @@ func (a *app) paletteDialog(c *ui.Context) {
 		a.palette = false
 		cmd.run()
 	}
-	ui.Modal(c, &a.palette, func() {
-		ui.Column(c).Gap(8).Width(min(520, a.width-80)).Children(func() {
-			in := ui.TextInput(c, &a.paletteQuery).Placeholder("Type a command or a mailbox").Label("Command").AutoFocus()
+	ui.DialogBase(c, &a.palette, func(back, panel ui.Element) {
+		// At a fixed height, so it stays put as the list narrows.
+		back.Background(ui.RGBA(0, 0, 0, 0.3)).Justify(ui.Start).Padding(min(h*0.14, 120), 0, 0, 0)
+		panel.Width(min(640, a.width-48)).Radius(14).Background(a.pal.card).Border(1, t.Border).
+			Shadow(0, 24, 60, 0, ui.RGBA(0, 0, 0, 0.3))
+
+		ui.Row(c).Gap(12).AlignItems(ui.Center).Padding(16, 18).Children(func() {
+			ui.Icon(c, searchIcon).FontSize(18).TextColor(t.TextMuted)
+
+			in := ui.TextInputBase(c, &a.paletteQuery).Placeholder("Search for commands and mailboxes…").Label("Command").
+				FontSize(17).Grow(1).AutoFocus()
 			in.OnShortcut(0, ui.KeyDown, func() { a.paletteRow = min(a.paletteRow+1, len(cs)-1) })
 			in.OnShortcut(0, ui.KeyUp, func() { a.paletteRow = max(a.paletteRow-1, 0) })
 			if in.Changed() {
@@ -145,36 +205,73 @@ func (a *app) paletteDialog(c *ui.Context) {
 				run(cs[a.paletteRow])
 			}
 
-			if len(cs) == 0 {
-				ui.Text(c, "No command matches.").FontSize(12).TextColor(t.TextMuted).Padding(8)
+			if n := len(a.targets()); n > 0 { // what the actions apply to
+				ui.Text(c, strconv.Itoa(n)+" selected").FontSize(11).FontWeight(500).TextColor(t.Accent).
+					Padding(3, 8).Radius(10).Background(a.pal.accentSoft)
 			}
+		})
+		ui.Divider(c)
 
-			ui.Scroll(c).MaxHeight(360).Children(func() {
-				ui.Column(c).Gap(2).Children(func() {
-					for i, cmd := range cs {
-						b := ui.Button(c.Key(i), "").Label(cmd.name).Justify(ui.Start).Padding(7, 10).Radius(6).Background(ui.Transparent).Border(0, ui.Transparent).Transition(hoverFade)
-						if i == a.paletteRow {
-							b.Background(t.Accent.Alpha(0.2))
-							if a.paletteShown != i { // once, so the wheel can still scroll it away
-								a.paletteShown = i
-								b.ScrollIntoView()
-							}
-						} else if b.Hovered() {
-							b.Background(t.SurfaceHover)
-						}
+		ui.Scroll(c).Height(min(380, h*0.5)).Children(func() {
+			ui.Column(c).Padding(6, 8).Children(func() {
+				if len(cs) == 0 {
+					ui.Text(c, "No results").TextColor(t.TextMuted).AlignSelf(ui.Center).Padding(40)
+				}
 
-						b.Children(func() {
-							ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, cmd.name).Grow(1).SingleLine()
-								ui.Text(c, cmd.keys).FontSize(11).TextColor(t.TextMuted)
-							})
-						})
-						if b.Clicked() {
-							run(cmd)
-						}
+				for i, cmd := range cs {
+					if i == 0 || cs[i-1].section != cmd.section {
+						ui.Text(c.Key("h"+cmd.section), cmd.section).FontSize(11).FontWeight(500).TextColor(t.TextMuted).Padding(10, 10, 6, 10)
 					}
-				})
+
+					a.paletteItem(c, i, cmd, run)
+				}
 			})
 		})
+
+		ui.Divider(c)
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 14).Radius(0, 0, 13, 13).Background(a.pal.sidebar).Children(func() {
+			ui.Image(c, appLogo).Size(16, 16)
+			ui.Text(c, "courrier").FontSize(12).TextColor(t.TextMuted).Grow(1)
+			ui.Text(c, "Run").FontSize(12).TextColor(t.Text)
+			keycap(c, "↩")
+			ui.Column(c).Size(1, 14).Background(t.Border).Margin(0, 4)
+			ui.Text(c, "Close").FontSize(12).TextColor(t.Text)
+			keycap(c, "esc")
+		})
 	})
+}
+
+// paletteItem is row i of the palette: an icon tile, the name, and its keys.
+func (a *app) paletteItem(c *ui.Context, i int, cmd command, run func(command)) {
+	t := c.Theme()
+	b := ui.Button(c.Key(i), "").Label(cmd.name).Justify(ui.Start).Padding(7, 10).Radius(8).
+		Background(ui.Transparent).Border(0, ui.Transparent).Transition(hoverFade)
+	if i == a.paletteRow {
+		b.Background(t.Surface)
+		if a.paletteShown != i { // once, so the wheel can still scroll it away
+			a.paletteShown = i
+			b.ScrollIntoView()
+		}
+	} else if b.Hovered() {
+		b.Background(t.Surface.Alpha(0.5))
+	}
+
+	b.Children(func() {
+		ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Center).Children(func() {
+			ui.Column(c).Size(26, 26).Radius(7).Background(a.pal.accentSoft).Center().Children(func() {
+				if cmd.icon != nil {
+					ui.Icon(c, cmd.icon).FontSize(14).TextColor(t.Accent)
+				}
+			})
+			ui.Text(c, cmd.name).SingleLine()
+			ui.Text(c, cmd.sub).FontSize(12).TextColor(t.TextMuted).Grow(1).SingleLine()
+
+			if cmd.keys != "" {
+				keycap(c, cmd.keys)
+			}
+		})
+	})
+	if b.Clicked() {
+		run(cmd)
+	}
 }

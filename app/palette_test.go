@@ -1,6 +1,8 @@
 package main
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -10,15 +12,15 @@ func TestPaletteRuns(t *testing.T) {
 	a, tt, _, _ := actionsApp(t)
 	key(tt, ui.Cmd, ui.KeyK)
 
-	if !a.palette || !tt.HasText("Go to Projects · jane@example.com") {
+	if !a.palette || !tt.HasText("Mailboxes") {
 		t.Fatalf("⌘K: open %v, %v", a.palette, tt.Texts())
 	}
 
-	tt.Type("go proj")
+	tt.Type("proj jane")
 	tt.Frame()
 	key(tt, 0, ui.KeyEnter)
 
-	if a.palette || a.sel == "u:inbox" {
+	if a.palette || !strings.HasPrefix(a.sel, "f:") {
 		t.Fatalf("enter: open %v, sel %s", a.palette, a.sel)
 	}
 
@@ -33,10 +35,22 @@ func TestPaletteRuns(t *testing.T) {
 	}
 }
 
+func TestKeycaps(t *testing.T) {
+	for keys, want := range map[string][]string{"⇧⌘N": {"⇧", "⌘", "N"}, "J": {"J"}, "Page Up": {"Page Up"}, "⌘": {"⌘"}} {
+		if got := keycaps(keys); !slices.Equal(got, want) {
+			t.Errorf("%s: %q", keys, got)
+		}
+	}
+}
+
 func TestPaletteMatching(t *testing.T) {
-	cs := []command{{name: "Reply all"}, {name: "Reply"}, {name: "Archive"}}
+	cs := []command{{name: "Reply all"}, {name: "Reply"}, {name: "Archive", sub: "jane@example.com"}}
 	if got := matching(cs, "ALL rep"); len(got) != 1 || got[0].name != "Reply all" {
 		t.Errorf("%+v", got)
+	}
+
+	if got := matching(cs, "arch jane"); len(got) != 1 {
+		t.Errorf("by account: %+v", got)
 	}
 
 	if got := matching(cs, " "); len(got) != 3 {
