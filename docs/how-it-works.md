@@ -90,7 +90,7 @@ One SQLite file, `courrier.db`; each `store/*.go` file creates its own tables.
 |---|---|
 | `servers`, `accounts`, `groups`, `identities` | server profiles, accounts, sidebar groups, send-as addresses |
 | `secrets` | sealed passwords and refresh tokens, one row per account |
-| `folders`, `messages`, `attachments` | the mail cache |
+| `folders`, `messages`, `attachments` | the mail cache; `messages.meta` is JSON of what the reader notes (unsubscribe, invite, sender checks, signature) |
 | `messages_fts` | full-text index (FTS5) for local search |
 | `thread_refs` | Message-ID / References links that group conversations |
 | `actions` | changes waiting for the server |
@@ -106,6 +106,13 @@ Plain-text mail is drawn natively. HTML mail is shown in the system web view
 under a strict Content-Security-Policy: no scripts at all, and images only
 from the message itself (`cid:`/`data:`) unless you choose to load remote
 images.
+
+Opening a message also reads its header for List-Unsubscribe and the
+topmost Authentication-Results, its calendar part for an invite, and the
+links of its HTML whose text shows another site than they go to. Signed
+and encrypted mail is fetched whole: an S/MIME signature covers the raw
+parts, and is checked against the system's authorities and the sender's
+address. What they find shows as notes above the message (`app/notes.go`).
 
 ## Building and releasing
 

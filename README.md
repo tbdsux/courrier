@@ -25,6 +25,12 @@ show HTML mail in a sandbox (no scripts, no remote images unless you allow them)
   online. Drafts survive a crash or a quit.
 - **Conversations**: replies grouped into one thread, your own included.
 - **Search**: instant local search, and server search for older mail.
+- **Reading**: one-click unsubscribe, calendar invites at a glance, print,
+  and text zoom.
+- **Safety**: a warning when a message fails its sender checks (DMARC, SPF,
+  DKIM), a prompt before opening a link that shows one site but goes to
+  another, and S/MIME signature checks. PGP and S/MIME mail is labeled as
+  signed or encrypted (courrier can't decrypt it yet).
 - **Rules, snooze and send later**: sort new mail automatically, snooze a
   message until a time you pick, schedule a send, templates and saved searches.
 - **Identities and signatures**: send as any of your addresses, each with its
@@ -45,7 +51,9 @@ show HTML mail in a sandbox (no scripts, no remote images unless you allow them)
 | `E` | Archive | `Z` | Snooze |
 | `#`, `Delete`, `⌫` | Delete | `V` | Move to… |
 | `⌘N` / `Ctrl+N` | New message | `⌘F` / `Ctrl+F` | Search |
-| `⌘K` / `Ctrl+K` | Command palette | | |
+| `⌘K` / `Ctrl+K` | Command palette | `⌘P` / `Ctrl+P` | Print |
+| `⌘=` / `Ctrl+=` | Zoom in | `⌘-` / `Ctrl+-` | Zoom out |
+| `⌘0` / `Ctrl+0` | Actual size | | |
 
 ## Install
 
