@@ -259,15 +259,23 @@ func notice(c *ui.Context, text string, color ui.Color) {
 // Layout breakpoints, in DIPs.
 const (
 	narrowContent = 600 // room beside the sidebar below which pages tighten
-	pageMaxWidth  = 720
+	wideContent   = 1000 // room beside the sidebar above which Settings' menu widens
+	pageMaxWidth  = 880
 )
 
-// settingsNavW is the width of Settings' menu of pages.
-const settingsNavW = 190
+// settingsNavW is the width of Settings' menu of pages: wider when the
+// window leaves room for it.
+func (a *app) settingsNavW() float32 {
+	if a.width-a.sidebarW < wideContent {
+		return 190
+	}
+
+	return 240
+}
 
 func (a *app) contentWidth() float32 {
 	if a.inSettings() {
-		return a.width - a.sidebarW - settingsNavW
+		return a.width - a.sidebarW - a.settingsNavW()
 	}
 
 	return a.width - a.sidebarW

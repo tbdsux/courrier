@@ -36,8 +36,8 @@ and keep this page in step.
 | List views (`views`) | Comfortable: avatar, sender, subject, snippet. Compact: sender and subject. One line: a row a line across the window, messages open over the list |
 | Reply | under the message, in a resizable split (45 % message); pop out to a window. Its From shows with several addresses, its Cc once used |
 | Narrow (`narrowContent`) | under 600 DIP beside the sidebar: one pane, list *or* message, with a back button |
-| Settings | the Settings button at the sidebar's foot opens it beside the sidebar: a 190-wide menu (General, Accounts, Groups, Rules, Servers, Storage), then the chosen page |
-| Pages (settings, accounts) | centered, max 720 wide; padding 32, 18 when narrow; 40 at the bottom |
+| Settings | the Settings button at the sidebar's foot opens it beside the sidebar: a menu 240 wide (190 when the window leaves less than 1000 beside the sidebar) (General, Accounts, Groups, Rules, Servers, Storage), then the chosen page |
+| Pages (settings, accounts) | centered, max 880 wide; padding 32, 18 when narrow; 40 at the bottom |
 | Forms | labels beside fields; above them under 520 DIP |
 
 ## Typography

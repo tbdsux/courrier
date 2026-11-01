@@ -220,7 +220,7 @@ func (a *app) inSettings() bool { return slices.Contains(settingsPages, a.sel) |
 // settingsPage is Settings' menu of pages beside the chosen one.
 func (a *app) settingsPage(c *ui.Context) {
 	ui.Row(c).Fill().Children(func() {
-		ui.Column(c).Width(settingsNavW).FillHeight().Background(a.pal.sidebar).Children(func() {
+		ui.Column(c).Width(a.settingsNavW()).FillHeight().Background(a.pal.sidebar).Children(func() {
 			ui.Text(c, "Settings").FontSize(15).Bold().LetterSpacing(-0.3).Padding(18, 16, 10, 16)
 
 			side := ui.Sidebar(c, &a.sel, func() {
