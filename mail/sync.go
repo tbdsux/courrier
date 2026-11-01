@@ -14,7 +14,7 @@ import (
 
 // The intervals of background sync.
 var (
-	InboxPoll  = 5 * time.Minute  // without IDLE, and for POP3
+	InboxPoll  = 5 * time.Minute  // also with IDLE, which may stop delivering on a connection silently dead
 	FolderPoll = 15 * time.Minute // every folder's counts, and the folders opened
 	FillBehind = true             // fetch the older headers of the folders synced, between syncs
 	newsLook   = 30 * time.Second // while filling in, how often to look at the Inbox
@@ -467,7 +467,7 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 		}
 
 		next := lastFull.Add(FolderPoll)
-		if inboxDue := lastInbox.Add(InboxPoll); !canIdle && inboxDue.Before(next) {
+		if inboxDue := lastInbox.Add(InboxPoll); inboxDue.Before(next) {
 			next = inboxDue
 		}
 

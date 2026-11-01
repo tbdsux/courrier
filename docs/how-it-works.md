@@ -28,7 +28,9 @@ makes goes into the cache first; the syncers carry it to the server.
 Each account has one `mail.Syncer`, running in its own goroutine:
 
 - **IMAP**: IDLE on the Inbox for push; the Inbox is polled every 5 minutes
-  without IDLE, other folders every 15. With CONDSTORE/QRESYNC only changed
+  anyway, which also finds a connection dead without a word (one that
+  doesn't answer the end of IDLE in 30 seconds is redialed), other
+  folders every 15. With CONDSTORE/QRESYNC only changed
   flags and vanished UIDs are fetched; without them it compares UIDs.
   A first sync fetches headers newest first, in pages, then fills in older
   mail between syncs (not a folder of all mail, like Gmail's All Mail).
