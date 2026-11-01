@@ -136,5 +136,5 @@ To register the clients:
 
 ## License
 
-[MIT](LICENSE). The bundled JetBrains Mono fonts are under the
-[SIL Open Font License 1.1](app/fonts/OFL.txt).
+[MIT](LICENSE). The bundled Inter font is under the
+[SIL Open Font License 1.1](app/fonts/Inter-OFL.txt).

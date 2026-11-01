@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"hash/fnv"
 	"html"
@@ -8,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -351,10 +353,30 @@ func (r *reader) pageKey(theme string) string {
 func pageTheme(t *ui.Theme, p palette) string {
 	css := func(c ui.Color) string { return fmt.Sprintf("rgba(%d,%d,%d,%.3f)", c.R, c.G, c.B, float32(c.A)/255) }
 	scheme := map[bool]string{true: "dark", false: "light"}[t.Dark]
-	return fmt.Sprintf(":root { color-scheme: %s; --bg: %s; --text: %s; --muted: %s; --border: %s; --accent: %s; --hover: %s; --chip: %s; --size: %.0fpx; }",
-		scheme, css(t.Background), css(t.Text), css(t.TextMuted), css(t.Border), css(t.Accent), css(t.SurfaceHover), css(p.sidebar), t.FontSize+1) +
+	font := "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+	if t.Font != "" {
+		font = strconv.Quote(t.Font) + ", " + font
+	}
+
+	return fmt.Sprintf(":root { color-scheme: %s; --bg: %s; --text: %s; --muted: %s; --border: %s; --accent: %s; --hover: %s; --chip: %s; --size: %.0fpx; --font: %s; }",
+		scheme, css(t.Background), css(t.Text), css(t.TextMuted), css(t.Border), css(t.Accent), css(t.SurfaceHover), css(p.sidebar), t.FontSize+1, font) +
 		map[bool]string{true: darkCSS}[t.Dark]
 }
+
+// pageFonts gives the page Inter, which the system doesn't have: its
+// regular and semibold, the weights the page uses (bold takes semibold).
+var pageFonts = sync.OnceValue(func() string {
+	var sb strings.Builder
+	for _, f := range []struct {
+		file   string
+		weight int
+	}{{"Inter-Regular.ttf", 400}, {"Inter-SemiBold.ttf", 600}} {
+		data, _ := fontFiles.ReadFile("fonts/" + f.file)
+		fmt.Fprintf(&sb, "@font-face { font-family: %q; font-weight: %d; src: url(data:font/ttf;base64,%s); }\n", sansFamily, f.weight, base64.StdEncoding.EncodeToString(data))
+	}
+
+	return sb.String()
+})
 
 // darkCSS keeps HTML mail, made for white, on white in a dark theme.
 const darkCSS = `
@@ -363,7 +385,7 @@ const darkCSS = `
 `
 
 const pageCSS = `
-body { margin: 0; padding: 8px 16px 24px; font: var(--size)/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); background: var(--bg); }
+body { margin: 0; padding: 8px 16px 56px; font: var(--size)/1.45 var(--font); color: var(--text); background: var(--bg); }
 a { color: var(--accent); }
 details.msg { border-bottom: 1px solid var(--border); }
 details > summary { list-style: none; cursor: pointer; }
@@ -474,7 +496,7 @@ func scopedHTML(src, scope string) string {
 // theme (pageTheme's).
 func (r *reader) conversationPage(theme string) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "<html><head><style>%s%s</style></head><body>", theme, pageCSS)
+	fmt.Fprintf(&sb, "<html><head><style>%s%s%s</style></head><body>", pageFonts(), theme, pageCSS)
 
 	for _, cd := range stack(len(r.thread), r.isOpen, r.unfold) {
 		if cd.more > 0 {

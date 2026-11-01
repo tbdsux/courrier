@@ -8,19 +8,19 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// JetBrains Mono NL (no code ligatures, so "->" in mail stays as typed),
-// under the SIL Open Font License in fonts/OFL.txt.
+// Inter, the app's typeface, under the SIL Open Font License in
+// fonts/Inter-OFL.txt.
 //
 //go:embed fonts/*.ttf
 var fontFiles embed.FS
 
-const fontFamily = "JetBrains Mono"
+const sansFamily = "Inter"
 
 func registerFonts() {
 	entries, _ := fontFiles.ReadDir("fonts")
 	for _, e := range entries {
 		data, _ := fontFiles.ReadFile("fonts/" + e.Name())
-		if err := ui.RegisterFont(data, fontFamily); err != nil {
+		if err := ui.RegisterFont(data, sansFamily); err != nil {
 			log.Println("font:", e.Name(), err) // the system font stands in
 		}
 	}
@@ -150,7 +150,8 @@ func styled(system *ui.Theme, appearance string, fontSize float32) (*ui.Theme, p
 	}
 
 	t := *base
-	t.Font, t.FontSize, t.Radius, t.Spacing = fontFamily, fontSize, 8, 4
+	t.Font, t.FontSize, t.Radius, t.Spacing = sansFamily, fontSize, 10, 4
+
 	t.Background, t.Surface, t.SurfaceHover, t.SurfacePressed = ui.Hex(l.bg), ui.Hex(l.surface), ui.Hex(l.hover), ui.Hex(l.pressed)
 	t.Border, t.Text, t.TextMuted = ui.Hex(l.border), ui.Hex(l.text), ui.Hex(l.muted)
 	t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = ui.Hex(l.accent), ui.Hex(l.accentHover), ui.Hex(l.accentPressed), ui.Hex(l.accentText)

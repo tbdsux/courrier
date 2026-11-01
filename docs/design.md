@@ -10,7 +10,7 @@ and keep this page in step.
   cache; the network catches up behind it (see [how it works](how-it-works.md)).
 - **Keyboard first, mouse friendly.** Every list action has a single-key
   shortcut (rebindable in Settings) and a visible button.
-- **Calm and dense.** One monospace typeface, few colors, color only where it
+- **Calm and roomy.** One sans typeface, Inter, few colors, color only where it
   means something: the accent marks selection and action, green success, red danger.
 - **Native, not a web page.** MyGo's native UI draws everything except the body
   of HTML mail, which gets a locked-down system web view.
@@ -39,9 +39,8 @@ and keep this page in step.
 
 ## Typography
 
-One family: **JetBrains Mono NL** (Regular, Medium, Bold, embedded). The
-"NL" cut has no ligatures, so `->` or `!=` in mail stays as typed. If a font
-fails to load, the system font stands in.
+**Inter** throughout (Regular, Medium, SemiBold, Bold, embedded, and in the
+conversation's web view too). If it fails to load, the system font stands in.
 
 | Role | Size | Weight / tracking |
 |---|---|---|

@@ -1523,8 +1523,8 @@ func (a *app) messageRow(c *ui.Context, m store.Message, folder bool) ui.Element
 // The web view's guard: no script-src means no script runs, and images
 // come only from the message unless the user allows remote ones.
 const (
-	csp       = "default-src 'none'; img-src data: cid:; style-src 'unsafe-inline'"
-	cspRemote = "default-src 'none'; img-src data: cid: https: http:; style-src 'unsafe-inline'"
+	csp       = "default-src 'none'; img-src data: cid:; style-src 'unsafe-inline'; font-src data:"
+	cspRemote = "default-src 'none'; img-src data: cid: https: http:; style-src 'unsafe-inline'; font-src data:"
 )
 
 // sandbox puts the CSP at the very top of a message's HTML, where the

@@ -118,3 +118,14 @@ func TestAppearances(t *testing.T) {
 		t.Error("System on a dark system isn't Dark")
 	}
 }
+
+// The page shows Inter, embedded, as the app does.
+func TestPageFont(t *testing.T) {
+	th, _ := styled(ui.LightTheme(), "Light", 13)
+	page := (&reader{}).conversationPage(pageTheme(th, palette{}))
+	for _, want := range []string{`@font-face { font-family: "Inter"; font-weight: 400; src: url(data:font/ttf;base64,`, `--font: "Inter", -apple-system`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+}
