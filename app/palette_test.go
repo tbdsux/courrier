@@ -73,3 +73,20 @@ func TestPaletteTitleBar(t *testing.T) {
 		t.Error("the title bar's button didn't open it")
 	}
 }
+
+func TestPrintWithoutWebView(t *testing.T) {
+	a, tt, _, _ := actionsApp(t)
+	a.cur = nil
+	key(tt, ui.Cmd, ui.KeyP)
+
+	if !tt.HasText("Choose a message to print.") {
+		t.Errorf("⌘P with nothing open: %v", tt.Texts())
+	}
+
+	a.cur = &reader{}
+	a.print()
+
+	if a.toast != "Printing needs the system web view." {
+		t.Errorf("⌘P without a web view: %q", a.toast)
+	}
+}

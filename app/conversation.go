@@ -428,6 +428,10 @@ details.more[open] > summary { display: none; }
 .acts { display: flex; gap: 8px; padding: 16px 0 16px 44px; }
 .acts a { border: 1px solid var(--border); border-radius: 18px; padding: 6px 16px; color: var(--text); text-decoration: none; font-weight: 500; }
 .acts a:hover, .att a:hover { background: var(--hover); }
+@media print {
+  body { padding: 0; }
+  .acts, .note a, .ql, details.q > summary { display: none; }
+}
 `
 
 var link = regexp.MustCompile(`https?://[^\s<>"]+[^\s<>".,;:!?)\]']`)

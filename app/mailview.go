@@ -1901,6 +1901,18 @@ func (a *app) saveEML(m store.Message) {
 	a.saveMessage(m, "Save message", fileName(cmp.Or(m.Subject, "message"))+".eml", func(raw []byte) ([]byte, error) { return raw, nil })
 }
 
+// print prints the conversation shown, as its page shows it.
+func (a *app) print() {
+	switch {
+	case a.cur == nil:
+		a.toast = "Choose a message to print."
+	case a.web == nil:
+		a.toast = "Printing needs the system web view."
+	default:
+		a.web.Page().Print()
+	}
+}
+
 // saveMessage asks where to save what part makes of a message, and
 // fetches it unless the cache keeps it whole.
 func (a *app) saveMessage(m store.Message, title, name string, part func(raw []byte) ([]byte, error)) {
