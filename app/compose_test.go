@@ -148,6 +148,25 @@ func TestIdentities(t *testing.T) {
 	}
 }
 
+// A message without an address to answer says so instead of opening a reply.
+func TestReplyNoAddress(t *testing.T) {
+	a, tt, _, _ := actionsApp(t)
+	click(t, tt, 0, "Launch plan")
+	a.cur.m.FromAddr = ""
+	a.respond("reply")
+
+	if a.reply != nil || !strings.HasPrefix(a.toast, "Can't reply") {
+		t.Fatalf("reply %v toast %q", a.reply, a.toast)
+	}
+
+	a.toast = ""
+	a.respond("forward")
+
+	if a.reply == nil || a.toast != "" {
+		t.Fatalf("forward: reply %v toast %q", a.reply, a.toast)
+	}
+}
+
 // A reply opens under its message; opening another message discards it
 // unedited and keeps it as a draft once written in.
 func TestReplyUnder(t *testing.T) {

@@ -41,9 +41,9 @@ func actionsApp(t *testing.T) (*app, *ui.Tester, *store.Store, int64) {
 
 	day := time.Date(2026, 10, 20, 10, 0, 0, 0, time.Local)
 	must(st.AddHeaders(acc.ID, "INBOX", []courrier.Header{
-		{UID: 1, FromName: "Ann", Subject: "Oldest", Date: day},
-		{UID: 2, FromName: "Bob Lee", Subject: "Launch plan", Snippet: "ship the launch on Monday", Date: day.Add(time.Hour)},
-		{UID: 3, FromName: "Cy", Subject: "Newest", Date: day.Add(2 * time.Hour)},
+		{UID: 1, FromName: "Ann", FromAddr: "ann@example.com", Subject: "Oldest", Date: day},
+		{UID: 2, FromName: "Bob Lee", FromAddr: "bob@example.com", Subject: "Launch plan", Snippet: "ship the launch on Monday", Date: day.Add(time.Hour)},
+		{UID: 3, FromName: "Cy", FromAddr: "cy@example.com", Subject: "Newest", Date: day.Add(2 * time.Hour)},
 	}))
 
 	must(st.AddHeaders(acc.ID, "Trash", []courrier.Header{{UID: 1, FromName: "Dee", Subject: "Old junk", Date: day, Flags: courrier.Flags{Seen: true}}}))

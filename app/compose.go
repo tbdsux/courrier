@@ -1060,6 +1060,10 @@ func (a *app) respond(kind string) {
 			d.Draft, d.ReplyPath, d.ReplyUID = courrier.Forward(o, files), "", 0
 		} else {
 			d.Draft = courrier.Reply(o, a.myAddrs(), kind == "all")
+			if d.To == "" && d.Cc == "" { // no From, Reply-To or other recipient with an address
+				a.toast = "Can't reply: the message has no address to reply to."
+				return
+			}
 		}
 
 		for _, acc := range a.accounts {
