@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"html"
@@ -24,11 +25,42 @@ type note struct {
 // notes are the notes of message m, whose body is b.
 func notes(m store.Message, b courrier.Body) []note {
 	var out []note
+	if inv := b.Invite; inv != nil {
+		out = append(out, note{warn: inv.Method == "CANCEL", text: inviteText(*inv)})
+	}
+
 	if len(b.Unsubscribe) > 0 {
 		out = append(out, note{text: "This message is from a mailing list.", label: "Unsubscribe", link: fmt.Sprintf("courrier://unsubscribe/%d", m.ID)})
 	}
 
 	return out
+}
+
+// inviteText says what an invite is, when and where, on one line.
+func inviteText(inv courrier.Invite) string {
+	kind := map[string]string{"REQUEST": "Invitation", "CANCEL": "Cancelled", "REPLY": "Reply to an invitation"}[inv.Method]
+	parts := []string{cmp.Or(kind, "Event") + ": " + cmp.Or(inv.Summary, "(no title)")}
+	switch s, e := inv.Start.Local(), inv.End.Local(); {
+	case inv.Start.IsZero():
+	case inv.AllDay:
+		parts = append(parts, s.Format("Mon, Jan 2")+" (all day)")
+	case inv.End.IsZero():
+		parts = append(parts, longDate(s))
+	case s.YearDay() == e.YearDay() && s.Year() == e.Year():
+		parts = append(parts, longDate(s)+"–"+e.Format("15:04"))
+	default:
+		parts = append(parts, longDate(s)+" – "+longDate(e))
+	}
+
+	if inv.Location != "" {
+		parts = append(parts, inv.Location)
+	}
+
+	if inv.Organizer != "" {
+		parts = append(parts, "from "+inv.Organizer)
+	}
+
+	return strings.Join(parts, " · ")
 }
 
 // pageNotes writes m's notes for the conversation's page.

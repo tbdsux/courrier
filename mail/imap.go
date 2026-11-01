@@ -642,7 +642,7 @@ func (ic *imapConn) open(cache Cache, account int64, path string, uid uint32) er
 	}
 
 	if e, _ := message.Read(bytes.NewReader(append(m.FindBodySection(head), "\r\n"...))); e != nil {
-		b.Meta = metaOf(e.Header)
+		b.readHeader(e.Header)
 	}
 
 	if !ok {
@@ -665,6 +665,10 @@ func (ic *imapConn) open(cache Cache, account int64, path string, uid uint32) er
 func shown(sp *imap.BodyStructureSinglePart) bool {
 	mt := sp.MediaType()
 	if d := sp.Disposition(); (mt == "text/plain" || mt == "text/html") && (d == nil || !strings.EqualFold(d.Value, "attachment")) && sp.Filename() == "" {
+		return true
+	}
+
+	if isCalendar(mt) && sp.Size <= 1<<20 { // read for its invite
 		return true
 	}
 

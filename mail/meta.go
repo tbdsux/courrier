@@ -15,11 +15,12 @@ import (
 type Meta struct {
 	Unsubscribe []string `json:",omitempty"` // List-Unsubscribe's https: and mailto: URLs, in order
 	OneClick    bool     `json:",omitempty"` // its https: URL unsubscribes with one POST (RFC 8058)
+	Invite      *Invite  `json:",omitempty"` // the event of its calendar part
 }
 
-// metaOf reads Meta from a message's header.
-func metaOf(h message.Header) Meta {
-	var m Meta
+// readHeader reads what Meta keeps of a message's header.
+func (m *Meta) readHeader(h message.Header) {
+	m.Unsubscribe = nil
 	for _, f := range strings.Split(h.Get("List-Unsubscribe"), ",") {
 		u := strings.Trim(strings.TrimSpace(f), "<>")
 		if l := strings.ToLower(u); strings.HasPrefix(l, "https://") || strings.HasPrefix(l, "mailto:") {
@@ -28,8 +29,6 @@ func metaOf(h message.Header) Meta {
 	}
 
 	m.OneClick = strings.Contains(strings.ToLower(h.Get("List-Unsubscribe-Post")), "list-unsubscribe=one-click") && m.UnsubscribeURL() != ""
-
-	return m
 }
 
 // UnsubscribeURL is the https: URL to unsubscribe at, "" when none.

@@ -34,7 +34,7 @@ func Parse(raw []byte) (Header, Body, error) {
 	ps := newParts()
 	walk(e, "", ps.add)
 	b := ps.body()
-	b.Meta = metaOf(e.Header)
+	b.readHeader(e.Header)
 
 	for _, a := range b.Attachments {
 		if ps.inline[a.ContentID] == "" {
@@ -79,6 +79,16 @@ func (ps *parts) add(part string, p *message.Entity) {
 		mt = "application/octet-stream"
 	}
 
+	if isCalendar(mt) {
+		if ps.b.Invite == nil {
+			ps.b.Invite = parseInvite(data)
+		}
+
+		if name == "" {
+			name = "invite.ics"
+		}
+	}
+
 	cid := strings.Trim(p.Header.Get("Content-Id"), "<> ")
 	if cid != "" && strings.HasPrefix(mt, "image/") && len(data) <= maxInline {
 		ps.inline[cid] = "data:" + mt + ";base64," + base64.StdEncoding.EncodeToString(data)
@@ -86,6 +96,8 @@ func (ps *parts) add(part string, p *message.Entity) {
 
 	ps.attach(Attachment{Part: part, Filename: name, MIMEType: mt, Size: int64(len(data)), ContentID: cid})
 }
+
+func isCalendar(mt string) bool { return mt == "text/calendar" || mt == "application/ics" }
 
 // attach adds an attachment, named after its Content-ID when unnamed.
 func (ps *parts) attach(a Attachment) {
