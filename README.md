@@ -43,6 +43,7 @@ show HTML mail in a sandbox (no scripts, no remote images unless you allow them)
 | `E` | Archive | `Z` | Snooze |
 | `#`, `Delete`, `⌫` | Delete | `V` | Move to… |
 | `⌘N` / `Ctrl+N` | New message | `⌘F` / `Ctrl+F` | Search |
+| `⌘K` / `Ctrl+K` | Command palette | | |
 
 ## Install
 

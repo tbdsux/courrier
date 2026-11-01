@@ -41,6 +41,7 @@ var shortcuts = []shortcut{
 	{"F", "Forward", 0, ui.KeyF, false, func(a *app) { a.respond("forward") }},
 	{"⌘N", "New message", ui.Cmd, ui.KeyN, true, (*app).newMessage},
 	{"⌘F", "Search", ui.Cmd, ui.KeyF, true, func(a *app) { a.focus = "search" }},
+	{"⌘K", "Command palette", ui.Cmd, ui.KeyK, true, func(a *app) { a.palette = true }},
 }
 
 var defaultShortcuts = slices.Clone(shortcuts)

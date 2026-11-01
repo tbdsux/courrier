@@ -31,7 +31,8 @@ and keep this page in step.
 | Spec | Value |
 |---|---|
 | Window | 960 × 680 default, 560 × 420 minimum; size and position remembered |
-| Title bar | hidden; the app draws its own (min 32 high), draggable, clear of the system's window controls |
+| Title bar | hidden; the app draws its own (min 32 high), draggable, clear of the system's window controls. The main window's holds the command palette's button (320 wide at most) |
+| Command palette (⌘K) | a dialog 520 wide: a field, then the shortcuts' commands, Settings' pages and every mailbox, narrowed by every word typed; ↑ ↓ choose, Return runs |
 | Sidebar / list widths | 230 / 340 DIP default, resizable split views, remembered |
 | List views (`views`) | Comfortable: avatar, sender, subject, snippet. Compact: sender and subject. One line: a row a line across the window, messages open over the list |
 | Reply | under the message, in a resizable split (45 % message); pop out to a window. Its From shows with several addresses, its Cc once used |

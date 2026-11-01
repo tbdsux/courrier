@@ -78,7 +78,11 @@ type app struct {
 	askExpunge   bool
 	expunging    []store.Message
 	movePick     bool // the Move to… picker
-	recording    int  // 1 + the shortcut Settings records keys for; 0 for none
+	palette      bool // the command palette
+	paletteQuery string
+	paletteRow   int // the command Return runs
+	paletteShown int // the row last scrolled into view
+	recording    int // 1 + the shortcut Settings records keys for; 0 for none
 	moveFilter   string
 	query        string // the search typed, "" for none
 	searchAll    int    // 1: in All mail rather than the mailbox shown
@@ -183,12 +187,13 @@ func (a *app) view(c *ui.Context) {
 	}
 
 	ui.Column(c).Fill().Children(func() {
-		titleBar(c, "courrier", a.pal.sidebar)
+		titleBar(c, "courrier", a.pal.sidebar, a.paletteButton)
 		a.panes(c)
 	})
 
 	a.folderDialogs(c)
 	a.moveDialogs(c)
+	a.paletteDialog(c)
 	laterDialog(c, &a.later, min(380, a.width-80))
 	a.saveLayout()
 }

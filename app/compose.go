@@ -846,7 +846,7 @@ func (cm *compose) view(c *ui.Context) {
 	}
 
 	ui.Column(c).Fill().Background(pal.card).Children(func() {
-		titleBar(c, cm.title(), pal.card)
+		titleBar(c, cm.title(), pal.card, nil)
 		cm.form(c, false)
 	})
 }

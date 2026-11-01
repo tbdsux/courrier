@@ -308,8 +308,9 @@ func (a *app) formIn(c *ui.Context, width float32, fn func()) {
 }
 
 // titleBar draws the title bar of a window with a hidden one, clear of the
-// system's window controls. It draws nothing where they hide, as in full screen.
-func titleBar(c *ui.Context, title string, bg ui.Color) {
+// system's window controls, with middle in place of the title when given. It
+// draws nothing where they hide, as in full screen.
+func titleBar(c *ui.Context, title string, bg ui.Color, middle func(*ui.Context)) {
 	bar := c.TitleBar()
 	if bar.Height == 0 {
 		return
@@ -317,6 +318,11 @@ func titleBar(c *ui.Context, title string, bg ui.Color) {
 
 	ui.Row(c).Height(max(bar.Height, 32)).Padding(0, bar.Right+12, 0, bar.Left+12).AlignItems(ui.Center).Justify(ui.Center).
 		Background(bg).DragWindow().Children(func() {
+		if middle != nil {
+			middle(c)
+			return
+		}
+
 		ui.Text(c, title).FontSize(12).Bold().TextColor(c.Theme().TextMuted).SingleLine()
 	})
 }

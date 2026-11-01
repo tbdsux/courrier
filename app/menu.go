@@ -47,6 +47,7 @@ func (a *app) appMenu() *mygo.Menu {
 		{Role: mygo.RoleEditMenu},
 		{Label: "View", Submenu: []*mygo.MenuItem{
 			{Label: "Search", Accelerator: accel("⌘F"), Click: do(func() { a.showWindow(); a.focus = "search" })},
+			{Label: "Command Palette…", Accelerator: accel("⌘K"), Click: do(func() { a.showWindow(); a.palette = true })},
 			mygo.Separator(),
 			{Role: mygo.RoleToggleFullScreen},
 		}},
