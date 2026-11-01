@@ -272,9 +272,9 @@ func attachStmts(msgID string, args []any, as []mail.Attachment) []sqlite.Statem
 func (s *Store) SetBody(account int64, path string, uid uint32, b mail.Body) error {
 	msg := "(SELECT id FROM messages WHERE folder_id = " + folderID + " AND uid = ?)"
 	args := []any{account, path, int64(uid)}
-	stmts := []sqlite.Statement{{SQL: `UPDATE messages SET body_text = ?, body_html = ?, opened = ?,
+	stmts := []sqlite.Statement{{SQL: `UPDATE messages SET body_text = ?, body_html = ?, meta = ?, opened = ?,
 snippet = CASE WHEN snippet = '' THEN ? ELSE snippet END WHERE id = ` + msg,
-		Args: append([]any{b.Text, b.HTML, time.Now().Unix(), mail.Snippet(b)}, args...)}}
+		Args: append([]any{b.Text, b.HTML, metaJSON(b.Meta), time.Now().Unix(), mail.Snippet(b)}, args...)}}
 	_, err := s.db.Transaction(ctx, append(stmts, attachStmts(msg, args, b.Attachments)...))
 	return err
 }
@@ -323,7 +323,7 @@ func (s *Store) addStored(account int64, path string, h mail.Header, b mail.Body
 	ins := headerStmt(fargs, uid, fargs, h)
 	newest := "(SELECT MAX(id) FROM messages)" // the row just inserted, in this transaction
 	stmts := append([]sqlite.Statement{ins}, threadStmts(account, newest, nil, h)...)
-	stmts = append(stmts, sqlite.Statement{SQL: "UPDATE messages SET body_text = ?, body_html = ?, raw = ? WHERE id = " + newest, Args: []any{b.Text, b.HTML, raw}})
+	stmts = append(stmts, sqlite.Statement{SQL: "UPDATE messages SET body_text = ?, body_html = ?, meta = ?, raw = ? WHERE id = " + newest, Args: []any{b.Text, b.HTML, metaJSON(b.Meta), raw}})
 	stmts = append(stmts, attachStmts(newest, nil, b.Attachments)...)
 	_, err := s.db.Transaction(ctx, append(stmts, more...))
 	return err
@@ -415,7 +415,7 @@ func (s *Store) Messages(folder int64, limit int) ([]Message, error) {
 
 // Message returns one message with its cached body.
 func (s *Store) Message(id int64) (Message, mail.Body, error) {
-	rows, err := s.db.Query(ctx, "SELECT "+messageCols+", COALESCE(m.body_text, ''), COALESCE(m.body_html, '') FROM messages m JOIN folders f ON f.id = m.folder_id WHERE m.id = ?", id)
+	rows, err := s.db.Query(ctx, "SELECT "+messageCols+", COALESCE(m.body_text, ''), COALESCE(m.body_html, ''), m.meta FROM messages m JOIN folders f ON f.id = m.folder_id WHERE m.id = ?", id)
 	if err != nil {
 		return Message{}, mail.Body{}, err
 	}
@@ -426,6 +426,7 @@ func (s *Store) Message(id int64) (Message, mail.Body, error) {
 
 	r := rows.Values[0]
 	b := mail.Body{Text: r[21].(string), HTML: r[22].(string)}
+	json.Unmarshal([]byte(r[23].(string)), &b.Meta) // mail cached before meta was kept has none
 	att, err := s.db.Query(ctx, "SELECT part, filename, mime_type, size, content_id FROM attachments WHERE message_id = ? ORDER BY id", id)
 	if err != nil {
 		return Message{}, mail.Body{}, err
@@ -517,4 +518,10 @@ func (s *Store) Pref(key string) string {
 func (s *Store) SetPref(key, value string) error {
 	_, err := s.db.Execute(ctx, "INSERT INTO prefs (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", key, value)
 	return err
+}
+
+// metaJSON is m as the meta column keeps it.
+func metaJSON(m mail.Meta) string {
+	b, _ := json.Marshal(m)
+	return string(b)
 }

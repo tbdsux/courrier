@@ -34,6 +34,7 @@ func Parse(raw []byte) (Header, Body, error) {
 	ps := newParts()
 	walk(e, "", ps.add)
 	b := ps.body()
+	b.Meta = metaOf(e.Header)
 
 	for _, a := range b.Attachments {
 		if ps.inline[a.ContentID] == "" {

@@ -249,6 +249,8 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 				ui.Text(c, "This message isn't downloaded yet. It will be once courrier is online.").TextColor(t.TextMuted).Wrap()
 
 			default:
+				a.cardNotes(c, m, body)
+
 				text := body.Text
 				if strings.TrimSpace(text) == "" {
 					text = courrier.HTMLText(body.HTML)
@@ -327,6 +329,9 @@ func (a *app) pageLink(u *url.URL) {
 			a.focusOn(r, m)
 			a.respond(u.Host)
 
+		case "unsubscribe":
+			a.unsubscribe(m, r.bodies[m.ID])
+
 		case "save":
 			for _, at := range r.bodies[m.ID].Attachments {
 				if at.Part == u.Query().Get("part") {
@@ -359,8 +364,8 @@ func pageTheme(t *ui.Theme, p palette) string {
 		font = strconv.Quote(t.Font) + ", " + font
 	}
 
-	return fmt.Sprintf(":root { color-scheme: %s; --bg: %s; --text: %s; --muted: %s; --border: %s; --accent: %s; --hover: %s; --chip: %s; --size: %.0fpx; --font: %s; }",
-		scheme, css(t.Background), css(t.Text), css(t.TextMuted), css(t.Border), css(t.Accent), css(t.SurfaceHover), css(p.sidebar), t.FontSize+1, font) +
+	return fmt.Sprintf(":root { color-scheme: %s; --bg: %s; --text: %s; --muted: %s; --border: %s; --accent: %s; --warn: %s; --hover: %s; --chip: %s; --size: %.0fpx; --font: %s; }",
+		scheme, css(t.Background), css(t.Text), css(t.TextMuted), css(t.Border), css(t.Accent), css(t.Warning), css(t.SurfaceHover), css(p.sidebar), t.FontSize+1, font) +
 		map[bool]string{true: darkCSS}[t.Dark]
 }
 
@@ -415,6 +420,11 @@ details.more > summary::before, details.more > summary::after { content: ""; fle
 details.more[open] > summary { display: none; }
 .att { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .att a { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; color: var(--text); text-decoration: none; font-size: 12px; }
+.note { display: flex; gap: 10px; align-items: center; margin: 0 0 10px; padding: 6px 12px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.note span { flex: 1; }
+.note.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.note a { flex: none; border: 1px solid var(--border); border-radius: 14px; padding: 2px 12px; color: var(--text); text-decoration: none; font-size: 12px; }
+.note a:hover { background: var(--hover); }
 .acts { display: flex; gap: 8px; padding: 16px 0 16px 44px; }
 .acts a { border: 1px solid var(--border); border-radius: 18px; padding: 6px 16px; color: var(--text); text-decoration: none; font-weight: 500; }
 .acts a:hover, .att a:hover { background: var(--hover); }
@@ -546,6 +556,10 @@ func (r *reader) pageCard(sb *strings.Builder, i int) {
 
 	fmt.Fprintf(sb, `<div class="line"><span class="name">%s</span><span class="addr">%s</span><span class="date">%s</span></div>`, esc(author(m)), addr, esc(longDate(m.Date)))
 	fmt.Fprintf(sb, `<div class="sub snip">%s</div><div class="sub to">%s</div></div></summary><div class="content">`, esc(m.Snippet), esc(recipients(m)))
+
+	if has {
+		pageNotes(sb, m, b)
+	}
 
 	switch {
 	case !has:

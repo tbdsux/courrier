@@ -48,6 +48,7 @@ type Attachment struct {
 type Body struct {
 	Text, HTML  string
 	Attachments []Attachment
+	Meta
 }
 
 // Cache is where a Syncer writes what it fetches. store.Store implements it.

@@ -195,3 +195,25 @@ func TestPrefs(t *testing.T) {
 		t.Errorf("pref %q", s.Pref("x"))
 	}
 }
+
+func TestBodyMeta(t *testing.T) {
+	s, _ := open(t)
+	acc := account(t, s)
+	must(t, s.SetFolders(acc, []mail.Folder{{Path: "INBOX", Special: "inbox", UIDValidity: 7}}))
+	must(t, s.AddHeaders(acc, "INBOX", []mail.Header{header(1, false)}))
+	must(t, s.SetBody(acc, "INBOX", 1, mail.Body{Text: "hi", Meta: mail.Meta{Unsubscribe: []string{"https://example.com/u"}, OneClick: true}}))
+
+	m, ok, err := s.MessageByUID(acc, "INBOX", 1)
+	must(t, err)
+
+	if !ok {
+		t.Fatal("not cached")
+	}
+
+	_, b, err := s.Message(m.ID)
+	must(t, err)
+
+	if b.UnsubscribeURL() != "https://example.com/u" || !b.OneClick {
+		t.Errorf("meta %+v", b.Meta)
+	}
+}
