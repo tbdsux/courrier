@@ -1,7 +1,7 @@
 {
   "name": "courrier",
   "identifier": "dev.tbdsux.courrier",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "main": "./app",
   "out": "build",
   "urlSchemes": ["mailto"],
