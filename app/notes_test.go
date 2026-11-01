@@ -1,10 +1,12 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	courrier "courrier/mail"
+	"courrier/store"
 )
 
 func TestInviteText(t *testing.T) {
@@ -18,5 +20,26 @@ func TestInviteText(t *testing.T) {
 		if got := inviteText(inv); got != want {
 			t.Errorf("got %q, want %q", got, want)
 		}
+	}
+}
+
+func TestOpenLinkAsksOnMislink(t *testing.T) {
+	var opened []string
+	a := &app{openURL: func(u string) { opened = append(opened, u) }}
+	a.cur = &reader{bodies: map[int64]courrier.Body{1: {Meta: courrier.Meta{Mislinks: []courrier.Mislink{{Shown: "paypal.com", Target: "evil.example"}}}}}}
+
+	a.openLink("https://ok.example/", "ok.example")
+	a.openLink("https://EVIL.example/login", "EVIL.example")
+
+	if len(opened) != 1 || opened[0] != "https://ok.example/" || !a.link.open || a.link.url != "https://EVIL.example/login" {
+		t.Errorf("opened %v, asking %+v", opened, a.link)
+	}
+}
+
+func TestAuthNote(t *testing.T) {
+	m := store.Message{ID: 1, Header: courrier.Header{FromAddr: "ceo@bank.example"}}
+	ns := notes(m, courrier.Body{Meta: courrier.Meta{Auth: courrier.Auth{DMARC: "fail"}}})
+	if len(ns) != 1 || !ns[0].warn || !strings.Contains(ns[0].text, "may not be from bank.example") {
+		t.Errorf("notes %+v", ns)
 	}
 }

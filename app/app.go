@@ -71,6 +71,7 @@ type app struct {
 	web          *mygo.WebView // nil in tests: HTML shows as text
 	webShown     string
 	openURL      func(string)
+	link         linkAsk                                  // a message's link to open once the user agrees
 	saveFile     func(title, name string) (string, error) // asks where to save; "" when canceled
 	openFile     func(title string) (string, error)       // asks for a file to read; "" when canceled
 	pickDir      func(title string) (string, error)       // asks for a folder; "" when canceled
@@ -193,6 +194,7 @@ func (a *app) view(c *ui.Context) {
 
 	a.folderDialogs(c)
 	a.moveDialogs(c)
+	a.linkDialog(c)
 	a.paletteDialog(c)
 	laterDialog(c, &a.later, min(380, a.width-80))
 	a.saveLayout()

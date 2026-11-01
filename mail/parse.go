@@ -117,6 +117,8 @@ func (ps *parts) body() Body {
 		ps.b.HTML = strings.ReplaceAll(ps.b.HTML, "cid:"+cid, url)
 	}
 
+	ps.b.Mislinks = mislinks(ps.b.HTML)
+
 	return ps.b
 }
 

@@ -13,9 +13,11 @@ import (
 // Meta is what courrier reads from a message beyond its content: from its
 // header, its invite and its signature.
 type Meta struct {
-	Unsubscribe []string `json:",omitempty"` // List-Unsubscribe's https: and mailto: URLs, in order
-	OneClick    bool     `json:",omitempty"` // its https: URL unsubscribes with one POST (RFC 8058)
-	Invite      *Invite  `json:",omitempty"` // the event of its calendar part
+	Unsubscribe []string  `json:",omitempty"` // List-Unsubscribe's https: and mailto: URLs, in order
+	OneClick    bool      `json:",omitempty"` // its https: URL unsubscribes with one POST (RFC 8058)
+	Invite      *Invite   `json:",omitempty"` // the event of its calendar part
+	Auth        Auth      `json:",omitzero"`
+	Mislinks    []Mislink `json:",omitempty"` // links of its HTML that show another site than they go to
 }
 
 // readHeader reads what Meta keeps of a message's header.
@@ -29,6 +31,7 @@ func (m *Meta) readHeader(h message.Header) {
 	}
 
 	m.OneClick = strings.Contains(strings.ToLower(h.Get("List-Unsubscribe-Post")), "list-unsubscribe=one-click") && m.UnsubscribeURL() != ""
+	m.Auth = authOf(h.Get("Authentication-Results"))
 }
 
 // UnsubscribeURL is the https: URL to unsubscribe at, "" when none.

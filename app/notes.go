@@ -25,6 +25,15 @@ type note struct {
 // notes are the notes of message m, whose body is b.
 func notes(m store.Message, b courrier.Body) []note {
 	var out []note
+	if b.Auth.Failed() {
+		who := "who it says"
+		if _, domain, ok := strings.Cut(m.FromAddr, "@"); ok {
+			who = domain
+		}
+
+		out = append(out, note{warn: true, text: "This message failed its sender checks: it may not be from " + who + ". Be careful with its links and attachments."})
+	}
+
 	if inv := b.Invite; inv != nil {
 		out = append(out, note{warn: inv.Method == "CANCEL", text: inviteText(*inv)})
 	}
@@ -99,6 +108,43 @@ func (a *app) cardNotes(c *ui.Context, m store.Message, b courrier.Body) {
 				}
 			}
 		})
+	}
+}
+
+// linkAsk is a link whose text showed another site, waiting for the
+// user's word to open it.
+type linkAsk struct {
+	open bool
+	url  string
+	mis  courrier.Mislink
+}
+
+// openLink opens a link of the message shown in the browser, after asking
+// when its text showed another site than it goes to.
+func (a *app) openLink(raw, host string) {
+	if r := a.cur; r != nil {
+		for _, b := range r.bodies {
+			for _, mis := range b.Mislinks {
+				if strings.EqualFold(mis.Target, host) {
+					a.link = linkAsk{open: true, url: raw, mis: mis}
+					return
+				}
+			}
+		}
+	}
+
+	a.openURL(raw)
+}
+
+func (a *app) linkDialog(c *ui.Context) {
+	if !a.link.open {
+		return
+	}
+
+	l := a.link
+	msg := "The link shows " + l.mis.Shown + " but goes to " + l.mis.Target + ". Phishing mail often hides where a link goes."
+	if ui.AlertDialog(c, &a.link.open, "Open "+l.mis.Target+"?", msg, "Cancel", "Open") == 1 {
+		a.openURL(l.url)
 	}
 }
 

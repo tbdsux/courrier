@@ -1638,7 +1638,8 @@ func (a *app) guardNavigation(e *mygo.NavigateEvent) {
 	}
 
 	if err == nil && e.UserInitiated && a.openURL != nil && (u.Scheme == "http" || u.Scheme == "https" || u.Scheme == "mailto") {
-		a.openURL(e.URL)
+		raw := e.URL
+		a.update(func() { a.openLink(raw, u.Hostname()) })
 	}
 }
 
