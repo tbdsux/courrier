@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/egoist/mygo/ui"
 	"testing"
+	"time"
 
 	"courrier/store"
 )
@@ -118,9 +119,8 @@ func TestSideItemTint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for tt.FramePending() {
-		tt.Frame()
-	}
+	// The clock stands still in a Tester: run the item's fade to its end.
+	tt.Advance(time.Second)
 
 	r, ok := tt.Find("General")
 	if !ok || a.sel != "general" || !a.sideFocused {

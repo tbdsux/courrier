@@ -1664,7 +1664,8 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 	}
 
 	ui.Column(c).Fill().Children(func() {
-		ui.Column(c).Gap(6).Padding(18, 24, 10, 24).Children(func() {
+		// Keyed by the message, so each one opened enters anew.
+		ui.Column(c.Key(m.ID)).Gap(6).Padding(18, 24, 10, 24).Transition(openFade).Children(func() {
 			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
 				if narrow && ui.Button(c, "").Label("Back").Padding(4).Children(func() { ui.Icon(c, backIcon).FontSize(16) }).Clicked() {
 					a.cur, a.msgRow = nil, -1

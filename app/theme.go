@@ -4,9 +4,16 @@ import (
 	"embed"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
+
+// hoverFade eases a control's fill in and out as the pointer comes and goes.
+var hoverFade = ui.ElementTransition{Colors: true, Duration: 120 * time.Millisecond}
+
+// openFade brings in an opened message's header, a little from below.
+var openFade = ui.ElementTransition{Enter: &ui.Motion{Y: 6}}
 
 // Inter, the app's typeface, under the SIL Open Font License in
 // fonts/Inter-OFL.txt.
@@ -194,7 +201,7 @@ func (a *app) card(c *ui.Context, key, title string, fn func()) {
 // focus, as a tint of the accent rather than a solid fill.
 func (a *app) sideItem(c *ui.Context, id string, icon *ui.SVG, label string) ui.Element {
 	if id != a.sel || !a.sideFocused {
-		return ui.SidebarItem(c, id, icon, label)
+		return ui.SidebarItem(c, id, icon, label).Transition(hoverFade)
 	}
 
 	t := c.Theme()
@@ -203,7 +210,7 @@ func (a *app) sideItem(c *ui.Context, id string, icon *ui.SVG, label string) ui.
 	c.SetTheme(&soft)
 	defer c.SetTheme(t)
 
-	return ui.SidebarItem(c, id, icon, label)
+	return ui.SidebarItem(c, id, icon, label).Transition(hoverFade)
 }
 
 // notice is a tinted line of status.
@@ -211,7 +218,7 @@ func (a *app) sideItem(c *ui.Context, id string, icon *ui.SVG, label string) ui.
 func iconButton(c *ui.Context, icon *ui.SVG, label, tip string) ui.Element {
 	t := c.Theme()
 	b := ui.Button(c, "").Label(label).Tooltip(tip).
-		Size(30, 30).Padding(0).Radius(8).Justify(ui.Center).AlignItems(ui.Center)
+		Size(30, 30).Padding(0).Radius(8).Justify(ui.Center).AlignItems(ui.Center).Transition(hoverFade)
 	if b.Hovered() {
 		b.Background(t.SurfaceHover)
 	}
@@ -226,7 +233,7 @@ func segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 	parts := ui.SegmentedBase(c, selected, len(labels))
 	parts.Track.AlignSelf(ui.Start).AlignItems(ui.Stretch).Padding(3).Gap(2).Radius(18).Background(t.Surface).Children(func() {
 		for i, label := range labels {
-			s := parts.Segment(i).Padding(6, 16).Radius(15).Justify(ui.Center).AlignItems(ui.Center)
+			s := parts.Segment(i).Padding(6, 16).Radius(15).Justify(ui.Center).AlignItems(ui.Center).Transition(hoverFade)
 			color := t.TextMuted
 			if i == *selected {
 				s.Background(t.Background).Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.12))

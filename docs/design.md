@@ -117,6 +117,9 @@ dark themes too.
 - **Drafts** save as you type; nothing typed is ever lost to a crash.
 - **HTML mail**: no scripts; remote images blocked unless allowed in
   Settings or for that message.
+- **Motion**: brief and quiet. Hover fills fade in 120 ms (`hoverFade`);
+  an opened message's header rises 6 px into place (`openFade`). With the
+  system's reduce motion on, only the fades remain.
 - **Background**: with "Show in menu bar" on (the default), closing the
   window hides it and sync continues; Quit from the menu bar item.
 
