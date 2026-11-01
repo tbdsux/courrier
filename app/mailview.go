@@ -1245,8 +1245,13 @@ func errSummary(err error) string {
 
 // Panes
 
+// views are the message list's looks: rows with an avatar and a line of
+// the message, rows of sender and subject, and a row a line across the
+// window, which messages open over.
+var views = []string{"Comfortable", "Compact", "One line"}
+
 func (a *app) mailView(c *ui.Context) {
-	if a.contentWidth() < narrowContent {
+	if a.contentWidth() < narrowContent || a.set.View == "One line" {
 		if a.cur != nil {
 			a.messageView(c, true)
 		} else {
@@ -1305,13 +1310,14 @@ func (a *app) messageList(c *ui.Context) {
 				a.saveSearch(q)
 			}
 
-			if len(a.accounts) > 0 && iconButton(c, composeIcon, "Compose", "New message (⌘N)").Clicked() {
-				a.newMessage()
-			}
-
-			if len(a.accounts) > 0 && len(a.templates) > 0 {
-				ui.Button(c, "▾").Label("New from template").Padding(4).Menu(a.templatesMenu)
-			}
+			iconButton(c, layoutIcon, "List view", "List view").Menu(func(m *ui.Menu) {
+				for _, v := range views {
+					if m.Item(v).Checked(a.set.View == v).Chosen() {
+						a.set.View = v
+						a.saveSettings()
+					}
+				}
+			})
 
 			if sy := a.syncers[f.AccountID]; isFolder && sy != nil && sy.status.Syncing || a.loadingMore {
 				ui.Spinner(c).Label("Syncing")
@@ -1472,60 +1478,114 @@ func (a *app) messageRow(c *ui.Context, m store.Message, folder bool) ui.Element
 		}
 	}
 
-	row := ui.Row(c).Gap(10).Padding(10, 14, 10, 10).Drag(drag)
+	name := sender(m)
+	if m.Count > 1 && m.People != "" {
+		name = fmt.Sprintf("%s (%d)", m.People, m.Count)
+	}
+
+	if f, ok := a.folder(m.FolderID); ok && folder {
+		where, _ := leaf(f)
+		name += " · " + where
+	}
+
+	who := func() ui.Element {
+		e := ui.Text(c, name).SingleLine()
+		if !m.Seen {
+			e.Bold()
+		}
+
+		return e
+	}
+	marks := func() {
+		if m.Answered {
+			ui.Icon(c, replyIcon).FontSize(12).TextColor(muted).Label("Answered")
+		}
+
+		if m.HasAttach {
+			ui.Icon(c, paperclipIcon).FontSize(12).TextColor(muted).Label("Attachment")
+		}
+
+		if m.Flagged {
+			ui.Icon(c, flagIcon).FontSize(12).TextColor(warn).Label("Flagged")
+		}
+
+		ui.Text(c, shortDate(m.Date, time.Now())).FontSize(11).TextColor(muted).Shrink(0)
+	}
+	subj := func() ui.Element {
+		if strings.Contains(m.HitSubject, store.Hit) {
+			return ui.RichText(c, hits(m.HitSubject)...).SingleLine()
+		}
+
+		e := ui.Text(c, subject(m.Subject)).SingleLine()
+		if !m.Seen {
+			e.FontWeight(500)
+		}
+
+		return e
+	}
+	snippet := func() ui.Element {
+		switch {
+		case strings.Contains(m.HitSnippet, store.Hit):
+			return ui.RichText(c, hits(m.HitSnippet)...).FontSize(12).TextColor(muted).SingleLine()
+		case m.Snippet != "":
+			return ui.Text(c, m.Snippet).FontSize(12).TextColor(muted).SingleLine()
+		}
+
+		return ui.Element{}
+	}
+	dot := func() ui.Element {
+		d := ui.Box(c).Size(7, 7).Radius(4).Shrink(0).Label("")
+		if !m.Seen {
+			d.Background(accent).Label("Unread")
+		}
+
+		return d
+	}
+
+	view := a.set.View // "Comfortable" for any other
+	row := ui.Row(c).Gap(10).Drag(drag)
+	switch view {
+	case "One line":
+		row.Padding(12, 18, 12, 14).Gap(14).AlignItems(ui.Center)
+	case "Compact":
+		row.Padding(8, 14, 8, 10)
+	default:
+		row.Padding(12, 14, 12, 10)
+	}
+
 	if !m.Seen && !chosen { // translucent, so the list's hover still shows through
-		row.Background(t.SurfacePressed.Alpha(0.75))
+		row.Background(t.SurfacePressed.Alpha(0.5))
 	}
 
 	return row.Children(func() {
-		dot := ui.Box(c).Size(7, 7).Radius(4).Margin(5, 0, 0, 0).Shrink(0).Label("")
-		if !m.Seen {
-			dot.Background(accent).Label("Unread")
+		if view == "One line" {
+			dot()
+			who().Width(200).Shrink(0)
+			ui.Row(c).Gap(12).AlignItems(ui.Center).Grow(1).Shrink(1).Children(func() {
+				subj().Shrink(0).MaxWidth(420)
+				snippet().Shrink(1)
+			})
+			marks()
+			return
+		}
+
+		if view == "Compact" {
+			dot().Margin(6, 0, 0, 0)
+		} else {
+			dot().Margin(11, 0, 0, 0)
+			ui.Avatar(c, strings.TrimPrefix(sender(m), "To: "), nil)
 		}
 
 		ui.Column(c).Grow(1).Gap(3).Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				name := sender(m)
-				if m.Count > 1 && m.People != "" {
-					name = fmt.Sprintf("%s (%d)", m.People, m.Count)
-				}
-
-				if f, ok := a.folder(m.FolderID); ok && folder {
-					where, _ := leaf(f)
-					name += " · " + where
-				}
-
-				who := ui.Text(c, name).SingleLine().Grow(1)
-				if !m.Seen {
-					who.Bold()
-				}
-
-				if m.Answered {
-					ui.Icon(c, replyIcon).FontSize(12).TextColor(muted).Label("Answered")
-				}
-
-				if m.HasAttach {
-					ui.Icon(c, paperclipIcon).FontSize(12).TextColor(muted).Label("Attachment")
-				}
-
-				if m.Flagged {
-					ui.Icon(c, flagIcon).FontSize(12).TextColor(warn).Label("Flagged")
-				}
-
-				ui.Text(c, shortDate(m.Date, time.Now())).FontSize(11).TextColor(muted)
+				who().Grow(1)
+				marks()
 			})
 
-			if strings.Contains(m.HitSubject, store.Hit) {
-				ui.RichText(c, hits(m.HitSubject)...).SingleLine()
-			} else {
-				ui.Text(c, subject(m.Subject)).SingleLine()
-			}
+			subj()
 
-			switch {
-			case strings.Contains(m.HitSnippet, store.Hit):
-				ui.RichText(c, hits(m.HitSnippet)...).FontSize(12).TextColor(muted).SingleLine()
-			case m.Snippet != "":
-				ui.Text(c, m.Snippet).FontSize(12).TextColor(muted).SingleLine()
+			if view != "Compact" {
+				snippet()
 			}
 		})
 	})

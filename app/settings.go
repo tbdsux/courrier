@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -9,6 +10,7 @@ import (
 // settings are the user's choices on the General page, kept between launches.
 type settings struct {
 	FontSize     float64
+	View         string  // the message list's, one of views
 	Appearance   string  // one of appearances
 	HTMLFirst    bool    // messages open as HTML when they have it
 	RemoteImages bool    // load remote images in every message
@@ -36,7 +38,7 @@ type system struct {
 }
 
 func defaultSettings() settings {
-	return settings{FontSize: 13, Appearance: "System", Sound: true, Badge: true, MenuBar: true, Threads: true, KeepBodies: 90, GroupGap: 4}
+	return settings{FontSize: 13, View: "Comfortable", Appearance: "System", Sound: true, Badge: true, MenuBar: true, Threads: true, KeepBodies: 90, GroupGap: 4}
 }
 
 func (a *app) loadSettings() {
@@ -57,7 +59,7 @@ func (a *app) saveSettings() {
 func (a *app) settingsView(c *ui.Context) {
 	s := &a.set
 	before := *s
-	view, badge := 0, 0
+	view, badge, list := 0, 0, max(slices.Index(views, s.View), 0)
 	if s.HTMLFirst {
 		view = 1
 	}
@@ -72,6 +74,8 @@ func (a *app) settingsView(c *ui.Context) {
 		a.formIn(c, a.contentWidth(), func() {
 			a.card(c, "look", "Appearance", func() {
 				ui.Field(c, "Theme", func() { ui.Select(c, &s.Appearance, appearances).Width(200) })
+				ui.Field(c, "Message list", func() { segmented(c, &list, views...) }).
+					Description("One line shows the list across the window, and messages open over it.")
 				ui.Field(c, "Font size", func() { ui.NumberInput(c, &s.FontSize, 10, 20, 1).Width(120) })
 				ui.Field(c, "Group spacing", func() { ui.NumberInput(c, &s.GroupGap, 0, 16, 1).Width(120) }).
 					Description("Room above each account in a sidebar group.")
@@ -114,12 +118,12 @@ func (a *app) settingsView(c *ui.Context) {
 
 		if ui.Button(c, "Reset to defaults").Clicked() {
 			*s = defaultSettings()
-			view, badge = 0, 0
+			view, badge, list = 0, 0, max(slices.Index(views, s.View), 0)
 			a.resetShortcuts()
 		}
 	})
 
-	s.HTMLFirst, s.Badge = view == 1, badge == 0
+	s.HTMLFirst, s.Badge, s.View = view == 1, badge == 0, views[list]
 
 	if *s != before {
 		a.showCounts()

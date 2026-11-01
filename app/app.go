@@ -367,6 +367,30 @@ func (a *app) sidebar(c *ui.Context) {
 			}
 		})
 
+		if len(a.accounts) > 0 {
+			ui.Row(c).Gap(6).Padding(0, 12, 10, 12).Children(func() {
+				// A tint of the accent, not a solid fill, as chosen rows are.
+				b := ui.Button(c, "").Label("Compose").Tooltip("New message (⌘N)").Padding(9, 16).Radius(18).Grow(1).Background(a.pal.accentSoft)
+				if b.Hovered() {
+					b.Background(t.Accent.Alpha(0.22))
+				}
+
+				b.Children(func() {
+					ui.Row(c).Gap(8).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+						ui.Icon(c, composeIcon).FontSize(15).TextColor(t.Accent)
+						ui.Text(c, "Compose").FontWeight(600).TextColor(t.Accent)
+					})
+				})
+				if b.Clicked() {
+					a.newMessage()
+				}
+
+				if len(a.templates) > 0 {
+					iconButton(c, draftsIcon, "New from template", "New from template").Size(36, 36).Radius(18).Menu(a.templatesMenu)
+				}
+			})
+		}
+
 		ui.SplitVerticalPercent(c, &a.treePct, func() { a.sidebarTree(c) }, func() {
 			ui.Scroll(c).Fill().Children(func() {
 				ui.Column(c).Gap(2).Padding(10, 16, 20, 16).Children(func() {

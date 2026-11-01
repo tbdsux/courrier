@@ -227,3 +227,16 @@ func TestReplyUnder(t *testing.T) {
 		t.Fatalf("popped out not to reopen: %+v", ds)
 	}
 }
+
+// Each list view shows the messages.
+func TestListViews(t *testing.T) {
+	a, tt, _, _ := actionsApp(t)
+	for _, v := range views {
+		a.set.View = v
+		tt.Frame()
+
+		if !tt.HasText("Launch plan") {
+			t.Errorf("%s: %v", v, tt.Texts())
+		}
+	}
+}

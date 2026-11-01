@@ -306,7 +306,7 @@ func TestShortcutsListed(t *testing.T) {
 func TestShortcutsRebound(t *testing.T) {
 	a, tt, _, _ := actionsApp(t)
 	a.sel = "general"
-	tt.SetSize(1100, 1800)
+	tt.SetSize(1100, 2000)
 	tt.Frame()
 
 	must := func(err error) {
