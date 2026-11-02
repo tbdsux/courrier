@@ -19,7 +19,7 @@ makes goes into the cache first; the syncers carry it to the server.
 
 | Package | What it does |
 |---|---|
-| `app/` (package `main`) | The window and its views, built with MyGo's native UI (`ui.View`). `main.go` wires up the app: single-instance lock, `mailto:` links, notification clicks, dialogs, the updater. `mailview.go` is the three panes, `compose.go` the compose window, `settings.go` / `servers.go` / `form.go` the account and settings screens, `rules.go` / `later.go` rules, snooze and send later, `notify.go` / `tray.go` notifications, badge and menu bar. |
+| `app/` (package `main`) | The window and its views, built with MyGo's native UI (`ui.View`). `main.go` wires up the app: single-instance lock, `mailto:` links, notification clicks, dialogs, the updater. `mailview.go` is the three panes and the message list, `folders.go` the folder tree, `reader.go` the message shown, `sync.go` starts each account's syncer, `compose.go` the compose window, `settings.go` / `servers.go` / `form.go` the account and settings screens, `rules.go` / `later.go` rules, snooze and send later, `notify.go` / `tray.go` notifications, badge and menu bar. |
 | `mail/` | Protocols. `imap.go` (go-imap v2, IDLE, CONDSTORE/QRESYNC), `pop3.go`, `smtp.go`, `oauth.go` (PKCE + loopback redirect, XOAUTH2), `parse.go` (go-message), `compose.go` (building MIME), `markdown.go`, `mbox.go` (export), `search.go` (server search query parsing), `check.go` (the "Test connection" check), and `sync.go`, the `Syncer`. |
 | `store/` | All persistent state, in one SQLite database (MyGo's sqlite plugin). |
 

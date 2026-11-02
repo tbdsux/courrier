@@ -20,7 +20,9 @@ built on [MyGo](https://mygo.egoist.dev)'s native UI (no web frontend).
 ## Layout
 
 - `app/` (package `main`, set as `main` in `mygo.json`): the UI. `app.go`
-  sidebar and window, `mailview.go` the three panes, `compose.go`,
+  sidebar and window, `mailview.go` the message list and panes,
+  `folders.go` the folder tree, `reader.go` the message, `sync.go` the
+  syncers, `compose.go`,
   `settings.go`, `tray.go`, `theme.go` (icons, palette, shared widgets).
   `app/assets/` and `app/fonts/` are embedded: `tray.png` is the tray icon
   and sidebar logo.
