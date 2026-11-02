@@ -117,6 +117,16 @@ func TestIdentities(t *testing.T) {
 		t.Fatalf("identity picked: %+v", cm.d)
 	}
 
+	// One without a signature drops it, and switching back restores it.
+	for _, tc := range []struct{ from, want string }{{"Jane <jane@list.example>", ""}, {"Help <help@example.com>", "\n\n-- \nThe help desk"}} {
+		cm.from = tc.from
+		cm.syncFields()
+
+		if cm.d.Text != tc.want {
+			t.Fatalf("%s: %q", tc.from, cm.d.Text)
+		}
+	}
+
 	cm.saveLocal()
 	ds, _ := st.OpenDrafts()
 	if len(ds) != 1 || ds[0].From != "Help <help@example.com>" {
