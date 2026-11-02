@@ -346,6 +346,8 @@ func TestShortcutsRebound(t *testing.T) {
 		t.Errorf("not saved: %v %v", m, k)
 	}
 
+	tt.Scroll(700, 1000, 0, 5000) // to the page's end, wherever fonts put it
+	tt.Frame()
 	must(tt.Click("Reset shortcuts"))
 	tt.Frame()
 	a.loadShortcuts()
