@@ -5,6 +5,9 @@ import (
 	"unicode"
 
 	"github.com/emersion/go-imap/v2"
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 )
 
 // Query is a search as typed: words and "phrases", which match as
@@ -131,7 +134,6 @@ func (q Query) Criteria() *imap.SearchCriteria {
 // Matches reports whether h matches q as the cache's search would, in
 // memory: each word a prefix of a word of its field. Words without an
 // operator look in the header's fields and snippet, not the body.
-// shortcut: no diacritics folding, unlike FTS5; add it if rules miss accented words.
 func (q Query) Matches(h Header) bool {
 	for _, c := range []struct {
 		field string
@@ -150,7 +152,10 @@ func (q Query) Matches(h Header) bool {
 	return (!q.HasAttach || h.HasAttach) && (!q.Unread || !h.Seen) && (!q.Flagged || h.Flagged)
 }
 
-// words is s in lower case, its runs of other than letters and digits one space.
+// words is s in lower case without accents, as FTS5's remove_diacritics
+// folds them, its runs of other than letters and digits one space.
 func words(s string) string {
+	s, _, _ = transform.String(transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC), s)
+
 	return strings.Join(strings.FieldsFunc(strings.ToLower(s), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }), " ")
 }

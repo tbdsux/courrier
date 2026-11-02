@@ -42,7 +42,7 @@ func TestParseQuery(t *testing.T) {
 }
 
 func TestMatches(t *testing.T) {
-	h := Header{FromName: "Bob Lee", FromAddr: "bob@shop.example", To: "Me <me@x.com>", Subject: "Your receipt #42", Snippet: "Thanks for the order",
+	h := Header{FromName: "Bob Lee", FromAddr: "bob@shop.example", To: "Me <me@x.com>", Subject: "Your receipt #42 from the café", Snippet: "Thanks for the order",
 		HasAttach: true}
 	for _, c := range []struct {
 		q    string
@@ -54,7 +54,7 @@ func TestMatches(t *testing.T) {
 		{"order", true}, {`"the order"`, true}, {`"order the"`, false},
 		{"has:attachment", true}, {"is:unread", true}, {"is:flagged", false},
 		{"from:bob subject:receipt is:unread", true}, {"from:bob subject:invoice", false},
-		{"RECEIPT", true},
+		{"RECEIPT", true}, {"subject:cafe", true}, {"subject:CAFÉ", true}, {"subject:cafè", true},
 	} {
 		if got := ParseQuery(c.q).Matches(h); got != c.want {
 			t.Errorf("%q: %v", c.q, got)

@@ -12,11 +12,11 @@ require (
 	github.com/smallstep/pkcs7 v0.2.3
 	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
+	golang.org/x/text v0.43.0
 )
 
 require (
 	github.com/ebitengine/purego v0.11.2 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	golang.org/x/image v0.47.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
 )
