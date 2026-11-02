@@ -344,7 +344,7 @@ func TestSandbox(t *testing.T) {
 
 	// Navigation, as the meta refresh tries, is cancelled; clicked links open outside.
 	var opened []string
-	a := &app{openURL: func(u string) { opened = append(opened, u) }}
+	a := &app{openURL: func(u string) { opened = append(opened, u) }, update: func(f func()) { f() }}
 	for _, e := range []*mygo.NavigateEvent{{URL: "about:blank"}, {URL: "https://evil.example"}, {URL: "https://example.com", UserInitiated: true}, {URL: "file:///etc/passwd", UserInitiated: true}} {
 		a.guardNavigation(e)
 

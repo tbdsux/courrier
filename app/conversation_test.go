@@ -74,7 +74,8 @@ func TestConversationPage(t *testing.T) {
 		bodies: map[int64]courrier.Body{
 			1: {Text: "Monday?"},
 			2: {Text: "Yes.\n\nOn Mon Bob wrote:\n> Monday?"},
-			3: {HTML: `<html><head><style>p { color: red }</style><script>x()</script></head><body style="margin:0"><p>Great</p><div class="gmail_quote">old</div></body></html>`},
+			3: {HTML: `<html><head><style>p { color: red }</style><script>x()</script></head><body style="margin:0"><p>Great</p><div class="gmail_quote">old</div></body></html>`,
+				Meta: courrier.Meta{Unsubscribe: []string{"https://example.com/u"}}},
 		},
 		open: map[int64]bool{}, wasSeen: map[int64]bool{1: true, 2: true}, view: 1}
 	r.m = r.thread[2]
@@ -89,6 +90,7 @@ func TestConversationPage(t *testing.T) {
 		`<label class="ql" for="q3"`,
 		`<details class="q"><summary title="Show quoted text">•••</summary>`,
 		`courrier://reply/3`,
+		`<a href="courrier://unsubscribe/3">Unsubscribe</a>`,
 		`color-scheme: dark; --bg: rgba(17,17,19,1.000)`,
 		`.html { background: #fff;`, // HTML mail on white in the dark
 	} {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"slices"
 
@@ -21,6 +22,7 @@ type settings struct {
 	Threads      bool    // the list shows a row a conversation
 	KeepBodies   int     // days the bodies of IMAP mail stay cached; 0 keeps every one
 	GroupGap     float64 // DIPs above each account in a sidebar group
+	Zoom         float64 // the message's text, 1 its size; 0 reads as 1
 }
 
 // system is what Settings shows of courrier's place in the system, read
@@ -39,6 +41,26 @@ type system struct {
 
 func defaultSettings() settings {
 	return settings{FontSize: 13, View: "Comfortable", Appearance: "System", Sound: true, Badge: true, MenuBar: true, Threads: true, KeepBodies: 90, GroupGap: 4}
+}
+
+// zooms are the reading pane's zoom steps.
+var zooms = []float64{0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2}
+
+func (a *app) zoom() float64 { return cmp.Or(a.set.Zoom, 1) }
+
+// zoomBy zooms the reading pane a step in (+1) or out (-1), or back to
+// its size (0).
+func (a *app) zoomBy(step int) {
+	i := slices.Index(zooms, a.zoom())
+	switch {
+	case step == 0 || i < 0:
+		i = slices.Index(zooms, 1)
+	default:
+		i = min(max(i+step, 0), len(zooms)-1)
+	}
+
+	a.set.Zoom = zooms[i]
+	a.saveSettings()
 }
 
 func (a *app) loadSettings() {

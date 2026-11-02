@@ -34,6 +34,18 @@ func Parse(raw []byte) (Header, Body, error) {
 	ps := newParts()
 	walk(e, "", ps.add)
 	b := ps.body()
+	b.readHeader(e.Header)
+
+	if mt, _, _ := e.Header.ContentType(); isSecure(mt) {
+		var signed []byte
+		b.Security, signed = readSecurity(e.Header, raw, ps.smime, h.FromAddr)
+		if signed != nil {
+			// shortcut: attachments signed inside stay in smime.p7m, as their parts can't be saved by number; unwrap them if users ask.
+			if _, in, err := Parse(signed); err == nil {
+				b.Text, b.HTML, b.Invite, b.Mislinks = in.Text, in.HTML, in.Invite, in.Mislinks
+			}
+		}
+	}
 
 	for _, a := range b.Attachments {
 		if ps.inline[a.ContentID] == "" {
@@ -50,6 +62,7 @@ func Parse(raw []byte) (Header, Body, error) {
 type parts struct {
 	b      Body
 	inline map[string]string // cid → data: URL
+	smime  []byte            // the S/MIME signature, or signed-data
 }
 
 func newParts() *parts { return &parts{inline: map[string]string{}} }
@@ -78,6 +91,26 @@ func (ps *parts) add(part string, p *message.Entity) {
 		mt = "application/octet-stream"
 	}
 
+	switch mt {
+	case "application/pkcs7-signature", "application/x-pkcs7-signature":
+		ps.smime = data
+		return // a signature is no attachment
+	case "application/pgp-signature", "application/pgp-encrypted":
+		return
+	case "application/pkcs7-mime", "application/x-pkcs7-mime":
+		ps.smime = data
+	}
+
+	if isCalendar(mt) {
+		if ps.b.Invite == nil {
+			ps.b.Invite = parseInvite(data)
+		}
+
+		if name == "" {
+			name = "invite.ics"
+		}
+	}
+
 	cid := strings.Trim(p.Header.Get("Content-Id"), "<> ")
 	if cid != "" && strings.HasPrefix(mt, "image/") && len(data) <= maxInline {
 		ps.inline[cid] = "data:" + mt + ";base64," + base64.StdEncoding.EncodeToString(data)
@@ -85,6 +118,8 @@ func (ps *parts) add(part string, p *message.Entity) {
 
 	ps.attach(Attachment{Part: part, Filename: name, MIMEType: mt, Size: int64(len(data)), ContentID: cid})
 }
+
+func isCalendar(mt string) bool { return mt == "text/calendar" || mt == "application/ics" }
 
 // attach adds an attachment, named after its Content-ID when unnamed.
 func (ps *parts) attach(a Attachment) {
@@ -103,6 +138,9 @@ func (ps *parts) body() Body {
 	for cid, url := range ps.inline {
 		ps.b.HTML = strings.ReplaceAll(ps.b.HTML, "cid:"+cid, url)
 	}
+
+	ps.b.Mislinks = mislinks(ps.b.HTML)
+	ps.b.Security = inlinePGP(ps.b.Text)
 
 	return ps.b
 }

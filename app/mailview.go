@@ -44,8 +44,9 @@ type reader struct {
 	pending int            // bodies being fetched
 	unfold  bool           // the fold of closed messages opened
 	err     string
-	view    int  // 0 plain text, 1 HTML
-	remote  bool // remote images allowed
+	view    int      // 0 plain text, 1 HTML
+	remote  bool     // remote images allowed
+	mine    []string // my addresses, which replies skip
 	// All the header fields, fetched when shown.
 	fields     []courrier.Field
 	fieldsBusy bool
@@ -548,7 +549,7 @@ func (a *app) openMessage(m store.Message) {
 	}
 
 	r := &reader{thread: thread, bodies: map[int64]courrier.Body{}, open: map[int64]bool{}, quotes: map[int64]bool{},
-		wasSeen: map[int64]bool{}, asked: map[int64]bool{}, remote: a.set.RemoteImages}
+		wasSeen: map[int64]bool{}, asked: map[int64]bool{}, remote: a.set.RemoteImages, mine: a.myAddrs()}
 	r.m = thread[len(thread)-1] // the newest, else the newest unread
 	for _, x := range thread {
 		r.wasSeen[x.ID] = x.Seen
@@ -1638,7 +1639,8 @@ func (a *app) guardNavigation(e *mygo.NavigateEvent) {
 	}
 
 	if err == nil && e.UserInitiated && a.openURL != nil && (u.Scheme == "http" || u.Scheme == "https" || u.Scheme == "mailto") {
-		a.openURL(e.URL)
+		raw := e.URL
+		a.update(func() { a.openLink(raw, u.Hostname()) })
 	}
 }
 
@@ -1681,11 +1683,11 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 					return
 				}
 
-				if iconButton(c, replyIcon, "Reply", "Reply (r)").Clicked() {
+				if iconButton(c, replyIcon, "Reply", "Reply (r)").Disabled(!canReply(m, r.body, false, r.mine)).Clicked() {
 					a.respond("reply")
 				}
 
-				if iconButton(c, replyAllIcon, "Reply all", "Reply all (a)").Clicked() {
+				if iconButton(c, replyAllIcon, "Reply all", "Reply all (a)").Disabled(!canReply(m, r.body, true, r.mine)).Clicked() {
 					a.respond("all")
 				}
 
@@ -1754,13 +1756,17 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 
 // replyBar offers to answer the message shown, under it.
 func (a *app) replyBar(c *ui.Context) {
-	t := c.Theme()
+	t, r := c.Theme(), a.cur
 	ui.Divider(c)
 	ui.Row(c).Gap(8).Padding(12, 24).Children(func() {
 		for _, b := range []struct {
 			icon        *ui.SVG
 			label, kind string
 		}{{replyIcon, "Reply", "reply"}, {replyAllIcon, "Reply all", "all"}, {forwardIcon, "Forward", "forward"}} {
+			if b.kind != "forward" && !canReply(r.m, r.body, b.kind == "all", r.mine) {
+				continue
+			}
+
 			btn := ui.Button(c.Key(b.kind), "").Label(b.label).Padding(7, 16).Radius(18).Border(1, t.Border).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Icon(c, b.icon).FontSize(14).TextColor(t.TextMuted)
@@ -1810,6 +1816,11 @@ func (a *app) messageBody(c *ui.Context, r *reader) {
 			a.webShown = key
 			a.web.SetBackgroundColor(fmt.Sprintf("#%02x%02x%02x", t.Background.R, t.Background.G, t.Background.B)) // no white flash as it loads
 			a.web.Page().LoadHTML(sandbox(r.conversationPage(theme), r.remote), "")
+		}
+
+		if z := a.zoom(); z != a.webZoom {
+			a.webZoom = z
+			a.web.Page().SetZoomFactor(z)
 		}
 
 		ui.WebView(c, a.web).Grow(1)
@@ -1899,6 +1910,18 @@ func (a *app) saveAttachment(m store.Message, at courrier.Attachment) {
 // saveEML saves a message whole, as a .eml file.
 func (a *app) saveEML(m store.Message) {
 	a.saveMessage(m, "Save message", fileName(cmp.Or(m.Subject, "message"))+".eml", func(raw []byte) ([]byte, error) { return raw, nil })
+}
+
+// print prints the conversation shown, as its page shows it.
+func (a *app) print() {
+	switch {
+	case a.cur == nil:
+		a.toast = "Choose a message to print."
+	case a.web == nil:
+		a.toast = "Printing needs the system web view."
+	default:
+		a.web.Page().Print()
+	}
 }
 
 // saveMessage asks where to save what part makes of a message, and

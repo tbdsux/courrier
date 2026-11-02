@@ -42,6 +42,10 @@ var shortcuts = []shortcut{
 	{"⌘N", "New message", ui.Cmd, ui.KeyN, true, (*app).newMessage},
 	{"⌘F", "Search", ui.Cmd, ui.KeyF, true, func(a *app) { a.focus = "search" }},
 	{"⌘K", "Command palette", ui.Cmd, ui.KeyK, true, func(a *app) { a.palette = true }},
+	{"⌘P", "Print", ui.Cmd, ui.KeyP, true, (*app).print},
+	{"⌘=", "Zoom in", ui.Cmd, ui.KeyEqual, true, func(a *app) { a.zoomBy(1) }},
+	{"⌘-", "Zoom out", ui.Cmd, ui.KeyMinus, true, func(a *app) { a.zoomBy(-1) }},
+	{"⌘0", "Actual size", ui.Cmd, ui.Key0, true, func(a *app) { a.zoomBy(0) }},
 }
 
 var defaultShortcuts = slices.Clone(shortcuts)

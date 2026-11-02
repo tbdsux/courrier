@@ -70,7 +70,9 @@ type app struct {
 	syncOn       bool
 	web          *mygo.WebView // nil in tests: HTML shows as text
 	webShown     string
+	webZoom      float64 // the zoom set on web's page
 	openURL      func(string)
+	link         linkAsk                                  // a message's link to open once the user agrees
 	saveFile     func(title, name string) (string, error) // asks where to save; "" when canceled
 	openFile     func(title string) (string, error)       // asks for a file to read; "" when canceled
 	pickDir      func(title string) (string, error)       // asks for a folder; "" when canceled
@@ -193,6 +195,7 @@ func (a *app) view(c *ui.Context) {
 
 	a.folderDialogs(c)
 	a.moveDialogs(c)
+	a.linkDialog(c)
 	a.paletteDialog(c)
 	laterDialog(c, &a.later, min(380, a.width-80))
 	a.saveLayout()
@@ -396,7 +399,13 @@ func (a *app) sidebar(c *ui.Context) {
 			})
 		}
 
-		ui.SplitVerticalPercent(c, &a.treePct, func() { a.sidebarTree(c) }, func() {
+		// The split's line, which drags, falls between Settings and the sync status.
+		ui.SplitVerticalPercent(c, &a.treePct, func() {
+			ui.Column(c).Fill().Children(func() {
+				ui.Column(c).Grow(1).Children(func() { a.sidebarTree(c) })
+				a.settingsButton(c)
+			})
+		}, func() {
 			ui.Scroll(c).Fill().Children(func() {
 				ui.Column(c).Gap(2).Padding(10, 16, 20, 16).Children(func() {
 					if len(a.accounts) == 0 {
@@ -407,25 +416,28 @@ func (a *app) sidebar(c *ui.Context) {
 				})
 			})
 		}).Grow(1)
-
-		ui.Divider(c)
-		b := ui.Button(c, "").Label("Settings").Tooltip("Settings (⌘,)").Padding(8, 12).Margin(6, 8, 8, 8).Radius(8).Background(a.pal.sidebar)
-		if a.inSettings() {
-			b.Background(a.pal.accentSoft)
-		} else if b.Hovered() {
-			b.Background(t.SurfaceHover)
-		}
-
-		b.Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, settingsIcon).FontSize(15).TextColor(t.TextMuted)
-				ui.Text(c, "Settings")
-			})
-		})
-		if b.Clicked() {
-			a.sel = "general"
-		}
 	})
+}
+
+// settingsButton opens Settings, from under the folders.
+func (a *app) settingsButton(c *ui.Context) {
+	t := c.Theme()
+	b := ui.Button(c, "").Label("Settings").Tooltip("Settings (⌘,)").Justify(ui.Start).Padding(8, 12).Margin(4, 8, 6, 8).Radius(8).Background(a.pal.sidebar).Border(0, ui.Transparent)
+	if a.inSettings() {
+		b.Background(a.pal.accentSoft)
+	} else if b.Hovered() {
+		b.Background(t.SurfaceHover)
+	}
+
+	b.Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, settingsIcon).FontSize(15).TextColor(t.TextMuted)
+			ui.Text(c, "Settings")
+		})
+	})
+	if b.Clicked() {
+		a.sel = "general"
+	}
 }
 
 func (a *app) sidebarTree(c *ui.Context) {

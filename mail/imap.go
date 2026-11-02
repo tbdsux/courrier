@@ -630,14 +630,21 @@ func (ic *imapConn) section(path string, uid uint32, spec imap.PartSpecifier) ([
 // message it fetches only the text and the inline images: saving an
 // attachment fetches the whole message.
 func (ic *imapConn) open(cache Cache, account int64, path string, uid uint32) error {
-	m, err := ic.fetchUID(path, uid, &imap.FetchOptions{UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true}})
+	head := &imap.FetchItemBodySection{Specifier: imap.PartSpecifierHeader, Peek: true}
+	m, err := ic.fetchUID(path, uid, &imap.FetchOptions{UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true}, BodySection: []*imap.FetchItemBodySection{head}})
 	if err != nil {
 		return err
 	}
 
-	b, ok, err := ic.shownParts(uid, m.BodyStructure)
-	if err != nil {
-		return err
+	b, ok := Body{}, false
+	if !isSecure(m.BodyStructure.MediaType()) { // a signature needs the message whole
+		if b, ok, err = ic.shownParts(uid, m.BodyStructure); err != nil {
+			return err
+		}
+	}
+
+	if e, _ := message.Read(bytes.NewReader(append(m.FindBodySection(head), "\r\n"...))); e != nil {
+		b.readHeader(e.Header)
 	}
 
 	if !ok {
@@ -660,6 +667,10 @@ func (ic *imapConn) open(cache Cache, account int64, path string, uid uint32) er
 func shown(sp *imap.BodyStructureSinglePart) bool {
 	mt := sp.MediaType()
 	if d := sp.Disposition(); (mt == "text/plain" || mt == "text/html") && (d == nil || !strings.EqualFold(d.Value, "attachment")) && sp.Filename() == "" {
+		return true
+	}
+
+	if isCalendar(mt) && sp.Size <= 1<<20 { // read for its invite
 		return true
 	}
 
