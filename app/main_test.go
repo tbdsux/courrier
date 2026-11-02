@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -507,8 +509,15 @@ func TestReplySendUndo(t *testing.T) {
 }
 
 func TestSignInAccount(t *testing.T) {
-	defer func(id string) { courrier.Google.ClientID = id }(courrier.Google.ClientID)
+	defer func(id, url string) { courrier.Google.ClientID, courrier.Google.TokenURL = id, url }(courrier.Google.ClientID, courrier.Google.TokenURL)
 	courrier.Google.ClientID = "test"
+	// The provider rotates the refresh token on the test's first refresh.
+	tokens := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"access_token":"access","token_type":"Bearer","expires_in":3600,"refresh_token":"refresh-2"}`)
+	}))
+	defer tokens.Close()
+	courrier.Google.TokenURL = tokens.URL
 	sec := memSecrets{}
 	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"), sec)
 	if err != nil {
@@ -519,7 +528,16 @@ func TestSignInAccount(t *testing.T) {
 	updates := make(chan func(), 1)
 	a := newApp(st, func(fn func()) { updates <- fn })
 	var checked []courrier.Endpoint
-	a.check = func(_ context.Context, e courrier.Endpoint) error { checked = append(checked, e); return nil }
+	a.check = func(ctx context.Context, e courrier.Endpoint) error {
+		checked = append(checked, e)
+		if e.Token != nil {
+			_, err := e.Token(ctx, len(checked) == 1)
+			return err
+		}
+
+		return nil
+	}
+
 	var hint string
 	a.signIn = func(_ context.Context, p *courrier.Provider, h string, _ func(string)) (string, error) {
 		hint = h
@@ -559,7 +577,8 @@ func TestSignInAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	finish()
+	finish() // the rotated refresh token
+	finish() // the test's result, which saves
 
 	if len(checked) != 2 || checked[0].Token == nil || checked[1].Username != "jane@gmail.com" {
 		t.Errorf("checked %+v", checked)
@@ -569,7 +588,7 @@ func TestSignInAccount(t *testing.T) {
 		t.Fatalf("saved %+v %s", a.accounts, f.saveErr)
 	}
 
-	if in, _, _ := st.Passwords(a.accounts[0].ID); in != "refresh-1" {
+	if in, _, _ := st.Passwords(a.accounts[0].ID); in != "refresh-2" {
 		t.Errorf("refresh token %q", in)
 	}
 

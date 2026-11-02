@@ -781,7 +781,14 @@ func (a *app) test(f *accountForm, save bool) {
 		return
 	}
 
-	in, out := f.endpoints(a.profiles)
+	k := f.oauth()
+	in, out := f.endpoints(a.profiles, func(rt string) {
+		a.update(func() { // runs before the result's update, so a save keeps it
+			if f.refreshFor == k {
+				f.refresh = rt
+			}
+		})
+	})
 	f.testing, f.testMsg, f.saveErr = true, "", ""
 	f.testGen++
 	gen := f.testGen

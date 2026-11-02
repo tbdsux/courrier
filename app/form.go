@@ -374,14 +374,15 @@ func (f *accountForm) validate() map[string]string {
 	return errs
 }
 
-func (f *accountForm) endpoints(profiles []store.Server) (in, out courrier.Endpoint) {
+// endpoints are the form's servers; onRefresh gets a refresh token the
+// provider rotates while they are in use.
+func (f *accountForm) endpoints(profiles []store.Server, onRefresh func(string)) (in, out courrier.Endpoint) {
 	s := f.resolve(profiles)
 	user, pass := f.smtpCreds()
 	in = courrier.Endpoint{Protocol: s.Protocol, Host: s.InHost, Port: s.InPort, Security: s.InSecurity, Username: f.inUsername(), Password: f.inPass}
 	out = courrier.Endpoint{Protocol: "smtp", Host: s.SMTPHost, Port: s.SMTPPort, Security: s.SMTPSecurity, Username: user, Password: pass}
 	if k := f.oauth(); k != "" {
-		// shortcut: a refresh token the provider rotates during the test isn't kept; the old one still works until it expires.
-		tk := courrier.NewTokens(providers[k], f.refresh, nil)
+		tk := courrier.NewTokens(providers[k], f.refresh, onRefresh)
 		in.Token, out.Token = tk.Token, tk.Token
 	}
 
