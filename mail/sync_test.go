@@ -730,8 +730,14 @@ func TestNewMailIMAP(t *testing.T) {
 }
 
 func TestNewMailPOP3(t *testing.T) {
+	t.Run("full", func(t *testing.T) { testNewMailPOP3(t, []string{"a"}) })
+	t.Run("empty at first", func(t *testing.T) { testNewMailPOP3(t, nil) })
+}
+
+// testNewMailPOP3 polls a mailbox holding ids, then one with two more:
+// only the second poll's mail is new.
+func testNewMailPOP3(t *testing.T, ids []string) {
 	var mu sync.Mutex
-	ids := []string{"a"}
 	port := mail.FakeServer(t, "+OK POP3 ready", func(l string) string {
 		mu.Lock()
 		defer mu.Unlock()
@@ -759,9 +765,13 @@ func TestNewMailPOP3(t *testing.T) {
 	s, ch := syncer(t, st, acc, mail.Endpoint{Protocol: "pop3", Host: "127.0.0.1", Port: port, Security: "none", Username: "jane", Password: "secret"})
 
 	count := func(n int) func() bool {
-		return func() bool { f := folder(t, st, "INBOX"); return f.ID != 0 && len(subjects(t, st, f.ID)) == n }
+		return func() bool {
+			f := folder(t, st, "INBOX")
+			return n == 0 && !s.Updated().IsZero() || f.ID != 0 && len(subjects(t, st, f.ID)) == n
+		}
 	}
-	if got := news(t, ch, "first poll", count(1)); len(got) != 0 {
+	first := len(ids)
+	if got := news(t, ch, "first poll", count(first)); len(got) != 0 {
 		t.Fatalf("first poll reported %v", got)
 	}
 
@@ -770,7 +780,7 @@ func TestNewMailPOP3(t *testing.T) {
 	mu.Unlock()
 	s.Refresh("INBOX")
 
-	if got := news(t, ch, "second poll", count(3)); fmt.Sprint(got) != "[2 3]" {
+	if got := news(t, ch, "second poll", count(first+2)); fmt.Sprint(got) != fmt.Sprint([]uint32{uint32(first) + 1, uint32(first) + 2}) {
 		t.Fatalf("second poll reported %v", got)
 	}
 }

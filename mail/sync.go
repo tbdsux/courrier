@@ -65,6 +65,7 @@ type Syncer struct {
 	// filled holds the folders whose older mail is all cached, as far as
 	// this run knows.
 	filled map[string]bool
+	polled bool          // POP3: a poll of this run succeeded, so the next one's mail is new
 	wake   chan struct{} // a connection came back: retry the outbox
 	nudge  chan struct{} // the user sent or retried: also after a wrong password
 
@@ -702,7 +703,8 @@ func (s *Syncer) runPOP3(ctx context.Context, pending *[]request) (connected boo
 }
 
 // pollPOP3 polls once, noting the mail it downloads as new unless it is
-// the account's first poll. The store numbers the downloads after the
+// the account's first poll: none seen before, and none polled this run,
+// so a mailbox empty at first still notifies. The store numbers the downloads after the
 // Inbox's newest.
 func (s *Syncer) pollPOP3(ctx context.Context) error {
 	seen, err := s.Cache.SeenUIDLs(s.Account)
@@ -716,7 +718,7 @@ func (s *Syncer) pollPOP3(ctx context.Context) error {
 	}
 
 	got, err := pollPOP3(ctx, s.Endpoint, s.Account, s.Keep, s.Cache)
-	if got && len(seen) > 0 { // what it stored before failing is new too
+	if got && (len(seen) > 0 || s.polled) { // what it stored before failing is new too
 		if _, after, err := s.Cache.UIDRange(s.Account, "INBOX"); err == nil {
 			var uids []uint32
 			for u := before + 1; u <= after; u++ {
@@ -726,6 +728,8 @@ func (s *Syncer) pollPOP3(ctx context.Context) error {
 			s.addNew("INBOX", uids)
 		}
 	}
+
+	s.polled = s.polled || err == nil
 
 	return err
 }

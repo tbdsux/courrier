@@ -1,6 +1,9 @@
 package mail
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // SMTPServer is smtpServer for the tests of package mail_test.
 var SMTPServer = smtpServer
@@ -22,4 +25,12 @@ func SyncOnce(e Endpoint, cache Cache, account int64, path string) error {
 	f := Folder{Path: path}
 	_, err = ic.syncFolder(cache, account, &f, false)
 	return err
+}
+
+// Updated is when s last synced, zero before its first sync.
+func (s *Syncer) Updated() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.updated
 }
