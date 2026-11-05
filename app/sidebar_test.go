@@ -2,12 +2,14 @@ package main
 
 import (
 	"path/filepath"
+	"strconv"
 
 	"fmt"
 	"github.com/egoist/mygo/ui"
 	"testing"
 	"time"
 
+	courrier "courrier/mail"
 	"courrier/store"
 )
 
@@ -129,5 +131,139 @@ func TestSideItemTint(t *testing.T) {
 
 	if p := tt.Image().RGBAAt(int(r.X+r.W-4), int(r.Y+r.H/2)); p.R < 200 || p.G < 200 || p.B < 200 {
 		t.Errorf("chosen item drawn in %v, want a light tint", p)
+	}
+}
+
+// sideViewApp is actionsApp with a second account, whose Inbox it returns.
+func sideViewApp(t *testing.T) (*app, *ui.Tester, int64, string) {
+	a, tt, st, _ := actionsApp(t)
+	acc := store.Account{DisplayName: "Bo", Email: "bo@example.com", InUsername: "bo", SMTPUsername: "bo"}
+	srv := store.Server{Name: "y", Protocol: "imap", InHost: "h", InPort: 993, InSecurity: "tls", SMTPHost: "h", SMTPPort: 465, SMTPSecurity: "tls", Hidden: true}
+	if err := st.SaveAccount(&acc, &srv, "pw", "pw"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := st.SetFolders(acc.ID, []courrier.Folder{{Path: "INBOX", Special: "inbox", UIDValidity: 1}, {Path: "Receipts", UIDValidity: 1}}); err != nil {
+		t.Fatal(err)
+	}
+
+	a.reload()
+	a.reloadMail()
+	tt.Frame()
+
+	for _, f := range a.folders {
+		if f.AccountID == acc.ID && f.Special == "inbox" {
+			return a, tt, acc.ID, "f:" + strconv.FormatInt(f.ID, 10)
+		}
+	}
+
+	t.Fatal("no Inbox for the second account")
+
+	return nil, nil, 0, ""
+}
+
+func pickSideView(t *testing.T, tt *ui.Tester, label string) {
+	t.Helper()
+
+	if err := tt.Click("Sidebar view"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := tt.ChooseMenuItem(label); err != nil {
+		t.Fatalf("%v: %v", err, tt.Menu())
+	}
+
+	tt.Frame()
+}
+
+func TestSideViews(t *testing.T) {
+	a, tt, id, inbox := sideViewApp(t)
+
+	if !tt.HasText("Unified") || !tt.HasText("jane@example.com") || !tt.HasText("Projects") {
+		t.Fatalf("all accounts: %v", tt.Texts())
+	}
+
+	pickSideView(t, tt, "bo@example.com")
+
+	if a.sideView != id || a.sel != inbox || !tt.HasText("Receipts") || tt.HasText("Projects") || tt.HasText("Flagged") {
+		t.Fatalf("single account: view %d, sel %s, %v", a.sideView, a.sel, tt.Texts())
+	}
+
+	pickSideView(t, tt, "Unified")
+
+	if a.sel != "u:inbox" || !tt.HasText("Flagged") || tt.HasText("Receipts") || tt.HasText("Projects") {
+		t.Fatalf("unified: sel %s, %v", a.sel, tt.Texts())
+	}
+
+	pickSideView(t, tt, "Unread")
+
+	if tt.HasText("bo@example.com") || tt.HasText("Projects") || !tt.HasText("jane@example.com") {
+		t.Fatalf("unread: %v", tt.Texts())
+	}
+
+	// Kept between launches.
+	a.saveLayout()
+	again := newApp(a.st, a.update)
+	if again.sideView != sideUnread {
+		t.Errorf("view after a restart: %d", again.sideView)
+	}
+}
+
+// Unread keeps the open folder, though it has nothing unread.
+func TestSideViewUnreadKeepsOpenFolder(t *testing.T) {
+	a, tt, _, inbox := sideViewApp(t)
+	a.sel = inbox
+	pickSideView(t, tt, "Unread")
+
+	if !tt.HasText("bo@example.com") {
+		t.Fatalf("the open folder's account left: %v", tt.Texts())
+	}
+}
+
+// A pick from outside the view changes the view, so the pick shows in it.
+func TestFitSideView(t *testing.T) {
+	a, tt, id, inbox := sideViewApp(t)
+	pickSideView(t, tt, "jane@example.com")
+
+	a.sel = inbox // as the palette or a notification would
+	tt.Frame()
+
+	if a.sideView != id {
+		t.Errorf("another account's folder: view %d, want %d", a.sideView, id)
+	}
+
+	a.sel = "u:flagged"
+	tt.Frame()
+
+	if a.sideView != sideAll {
+		t.Errorf("a unified mailbox from one account: view %d", a.sideView)
+	}
+
+	pickSideView(t, tt, "Unified")
+
+	a.sel = inbox
+	tt.Frame()
+
+	if a.sideView != sideAll {
+		t.Errorf("a folder from Unified: view %d", a.sideView)
+	}
+
+	a.sideView = 9999 // its account deleted
+	tt.Frame()
+
+	if a.sideView != sideAll {
+		t.Errorf("a gone account: view %d", a.sideView)
+	}
+}
+
+// Settings stay open when the view changes.
+func TestSideViewKeepsSettings(t *testing.T) {
+	a, tt, _, _ := sideViewApp(t)
+	a.sel = "general"
+	tt.Frame()
+	pickSideView(t, tt, "bo@example.com")
+
+	if a.sel != "general" {
+		t.Errorf("sel %q", a.sel)
 	}
 }

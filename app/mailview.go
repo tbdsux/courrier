@@ -75,6 +75,7 @@ type layout struct {
 	ClosedGroups    []int64
 	UnifiedClosed   bool
 	TreePct         float32 // the sidebar's share above the sync status
+	SideView        int64
 }
 
 func (a *app) loadLayout() {
@@ -100,6 +101,7 @@ func (a *app) loadLayout() {
 		}
 
 		a.unifiedOpen = !l.UnifiedClosed
+		a.sideView = l.SideView
 
 		if l.TreePct > 0 {
 			a.treePct = l.TreePct
@@ -113,7 +115,7 @@ func (a *app) loadLayout() {
 
 // saveLayout stores the layout when it changed.
 func (a *app) saveLayout() {
-	l := layout{SidebarW: a.sidebarW, ListW: a.listW, UnifiedClosed: !a.unifiedOpen, TreePct: a.treePct}
+	l := layout{SidebarW: a.sidebarW, ListW: a.listW, UnifiedClosed: !a.unifiedOpen, TreePct: a.treePct, SideView: a.sideView}
 	if _, ok := a.mailbox(); ok {
 		l.Sel = a.sel
 	}

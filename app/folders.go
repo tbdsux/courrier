@@ -69,31 +69,179 @@ func (a *app) unread(account int64) int {
 	return n
 }
 
-func (a *app) folderTree(c *ui.Context) {
-	if len(a.accounts) > 0 {
-		ui.SidebarSection(c, "Unified", &a.unifiedOpen, func() {
-			total := 0
-			for _, acc := range a.accounts {
-				total += a.unread(acc.ID)
+// The sidebar's views other than a single account, whose ID stands for it.
+const (
+	sideAll     int64 = 0
+	sideUnified int64 = -1
+	sideUnread  int64 = -2
+)
+
+var sideViews = []struct {
+	id    int64
+	label string
+}{{sideAll, "All accounts"}, {sideUnified, "Unified"}, {sideUnread, "Unread"}}
+
+// sideViewButton picks what the sidebar lists.
+func (a *app) sideViewButton(c *ui.Context) {
+	t := c.Theme()
+	label := ""
+	for _, v := range sideViews {
+		if v.id == a.sideView {
+			label = v.label
+		}
+	}
+
+	for _, acc := range a.accounts {
+		if acc.ID == a.sideView {
+			label = acc.Email
+		}
+	}
+
+	b := ui.Button(c, "").Label("Sidebar view").Tooltip("Sidebar view").Justify(ui.Start).Padding(6, 10).Margin(0, 8, 6, 8).Radius(8).Background(a.pal.sidebar).Border(0, ui.Transparent).Transition(hoverFade)
+	if b.Hovered() {
+		b.Background(t.SurfaceHover)
+	}
+
+	b.Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Grow(1).Children(func() {
+			ui.Icon(c, layoutIcon).FontSize(15).TextColor(t.TextMuted)
+			ui.Text(c, label).SingleLine().Grow(1)
+			ui.Icon(c, chevronIcon).FontSize(13).TextColor(t.TextMuted)
+		})
+	})
+	b.Menu(func(m *ui.Menu) {
+		for _, v := range sideViews {
+			if m.Item(v.label).Radio(a.sideView == v.id).Chosen() {
+				a.setSideView(v.id)
 			}
+		}
 
-			badge(c, a.sideItem(c, "u:inbox", inboxIcon, "Inbox"), total)
-			a.sideItem(c, "u:flagged", flagIcon, "Flagged")
-			a.sideItem(c, "u:snoozed", clockIcon, "Snoozed")
+		m.Separator()
 
-			if len(a.outbox) > 0 {
-				badge(c, a.sideItem(c, "u:outbox", outboxIcon, "Outbox"), len(a.outbox))
+		for _, acc := range a.accounts {
+			if m.Item(acc.Email).Radio(a.sideView == acc.ID).Chosen() {
+				a.setSideView(acc.ID)
 			}
+		}
+	})
+}
 
-			for i, q := range a.searches {
-				a.sideItem(c, "s:"+strconv.Itoa(i), searchIcon, q).ContextMenu(func(m *ui.Menu) {
-					if m.Item("Remove saved search").Chosen() {
-						a.unsaveSearch(i)
-					}
-				})
+// setSideView shows view v, and moves the pick into it if it's a mailbox
+// the view doesn't list. Settings stay open.
+func (a *app) setSideView(v int64) {
+	a.sideView = v
+	if _, ok := a.mailbox(); !ok {
+		return
+	}
+
+	if v == sideUnified && strings.HasPrefix(a.sel, "f:") {
+		a.sel = "u:inbox"
+	}
+
+	if v <= 0 {
+		return
+	}
+
+	inbox := "" // an account not synced yet has none to pick
+	for _, f := range a.folders {
+		if f.AccountID != v {
+			continue
+		}
+
+		sel := "f:" + strconv.FormatInt(f.ID, 10)
+		if sel == a.sel {
+			return
+		}
+
+		if f.Special == "inbox" {
+			inbox = sel
+		}
+	}
+
+	a.sel = inbox
+}
+
+// fitSideView leaves a view that can't show the pick, which the palette
+// and notifications can move anywhere, or whose account is gone.
+func (a *app) fitSideView() {
+	if len(a.accounts) == 0 || a.sideView > 0 && !slices.ContainsFunc(a.accounts, func(acc store.Account) bool { return acc.ID == a.sideView }) {
+		a.sideView = sideAll
+	}
+
+	folder := strings.HasPrefix(a.sel, "f:")
+	switch {
+	case a.sideView == sideUnified && folder:
+		a.sideView = sideAll
+
+	case a.sideView > 0 && folder:
+		for _, f := range a.folders {
+			if a.sel == "f:"+strconv.FormatInt(f.ID, 10) {
+				a.sideView = f.AccountID
+			}
+		}
+
+	case a.sideView > 0 && a.sel != "u:outbox" && (strings.HasPrefix(a.sel, "u:") || strings.HasPrefix(a.sel, "s:")):
+		a.sideView = sideAll
+	}
+}
+
+// sideShows reports whether the view lists f. Unread keeps the open folder,
+// so reading its last message doesn't pull it from under you.
+func (a *app) sideShows(f store.Folder) bool {
+	return a.sideView != sideUnread || !f.NoSelect && f.Unread > 0 || a.sel == "f:"+strconv.FormatInt(f.ID, 10)
+}
+
+func (a *app) outboxItem(c *ui.Context) {
+	if len(a.outbox) > 0 {
+		badge(c, a.sideItem(c, "u:outbox", outboxIcon, "Outbox"), len(a.outbox))
+	}
+}
+
+func (a *app) unifiedItems(c *ui.Context) {
+	total := 0
+	for _, acc := range a.accounts {
+		total += a.unread(acc.ID)
+	}
+
+	badge(c, a.sideItem(c, "u:inbox", inboxIcon, "Inbox"), total)
+	a.sideItem(c, "u:flagged", flagIcon, "Flagged")
+	a.sideItem(c, "u:snoozed", clockIcon, "Snoozed")
+	a.outboxItem(c)
+
+	for i, q := range a.searches {
+		a.sideItem(c, "s:"+strconv.Itoa(i), searchIcon, q).ContextMenu(func(m *ui.Menu) {
+			if m.Item("Remove saved search").Chosen() {
+				a.unsaveSearch(i)
 			}
 		})
+	}
+}
+
+func (a *app) folderTree(c *ui.Context) {
+	if a.sideView == sideUnified {
+		a.unifiedItems(c)
+		return
+	}
+
+	if a.sideView > 0 {
+		for _, acc := range a.accounts {
+			if acc.ID == a.sideView {
+				a.folderItems(c, acc)
+			}
+		}
+
+		a.outboxItem(c) // mail waiting to go stays in sight in every view
+
+		return
+	}
+
+	if len(a.accounts) > 0 {
+		ui.SidebarSection(c, "Unified", &a.unifiedOpen, func() { a.unifiedItems(c) })
 		sideDivider(c)
+	}
+
+	if a.sideView == sideUnread && !slices.ContainsFunc(a.folders, a.sideShows) {
+		ui.Text(c, "No unread mail").FontSize(12).TextColor(c.Theme().TextMuted).Padding(4, 12)
 	}
 
 	// Ungrouped accounts and the groups that have accounts, in their order.
@@ -105,6 +253,13 @@ func (a *app) folderTree(c *ui.Context) {
 	wasDragging := a.sideDragging // the zone takes the drop the frame after the drag ends
 	a.sideDragging = false        // the sections say, as they come
 	for _, b := range a.sideBlocks() {
+		b = slices.DeleteFunc(b, func(p store.Place) bool { // in Unread; sideDrop still orders every block
+			return a.sideView == sideUnread && !p.Group && !slices.ContainsFunc(a.folders, func(f store.Folder) bool { return f.AccountID == p.ID && a.sideShows(f) })
+		})
+		if len(b) == 0 {
+			continue
+		}
+
 		if !b[0].Group {
 			a.accountSection(c, accs[b[0].ID])
 			continue
@@ -328,7 +483,7 @@ func (a *app) folderItems(c *ui.Context, acc store.Account) {
 	t := c.Theme()
 	var fs []store.Folder
 	for _, f := range a.folders {
-		if f.AccountID == acc.ID {
+		if f.AccountID == acc.ID && a.sideShows(f) {
 			fs = append(fs, f)
 		}
 	}
@@ -534,6 +689,9 @@ func (a *app) applyFolderEdit(fe *folderEdit) {
 func (a *app) deleteFolder(f store.Folder) {
 	if a.sel == "f:"+strconv.FormatInt(f.ID, 10) {
 		a.sel = "u:inbox"
+		if a.sideView > 0 {
+			a.setSideView(a.sideView) // to the account's Inbox, not out of its view
+		}
 	}
 
 	if f.Local {

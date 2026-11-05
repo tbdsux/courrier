@@ -19,7 +19,9 @@ show HTML mail in a sandbox (no scripts, no remote images unless you allow them)
   SSL/TLS, STARTTLS or none. Presets for Gmail and Outlook, and
   "Sign in with Google / Microsoft" (OAuth2) when the build has client IDs.
 - **Three panes**: folders, message list, message. A unified inbox and a
-  flagged view across all accounts. HTML mail and attachments.
+  flagged view across all accounts. The sidebar lists every account, the
+  unified mailboxes, unread folders, or a single account. HTML mail and
+  attachments.
 - **Works offline**: mail is cached locally. Read, flag, archive, delete and
   move without a connection; actions and sent mail go out once you're back
   online. Drafts survive a crash or a quit.

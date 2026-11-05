@@ -51,6 +51,7 @@ type app struct {
 	sideDragging bool            // an account or group being dragged in the sidebar
 	groupOpens   map[int64]*bool
 	unifiedOpen  bool
+	sideView     int64 // what the sidebar lists: sideAll, sideUnified, sideUnread or an account's ID
 	savedLayout  string
 	folders      []store.Folder
 	msgs         []store.Message
@@ -356,6 +357,7 @@ func (a *app) editForm(acc store.Account) *accountForm {
 
 func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
+	a.fitSideView()
 	ui.Column(c).Fill().Padding(0, 0, 8, 0).Background(a.pal.sidebar).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(16, 12, 12, 16).Children(func() {
 			ui.Image(c, appLogo).Size(26, 26)
@@ -397,6 +399,8 @@ func (a *app) sidebar(c *ui.Context) {
 					iconButton(c, draftsIcon, "New from template", "New from template").Size(36, 36).Radius(18).Menu(a.templatesMenu)
 				}
 			})
+
+			a.sideViewButton(c)
 		}
 
 		// The split's line, which drags, falls between Settings and the sync status.
