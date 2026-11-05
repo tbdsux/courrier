@@ -3,6 +3,7 @@ package mail
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"io"
 	netmail "net/mail"
 	"regexp"
@@ -25,7 +26,8 @@ type File struct {
 type Draft struct {
 	From          string
 	To, Cc, Bcc   string
-	Subject, Text string
+	Subject, Text string // Text is the plain-text part
+	HTML          string // the HTML part; "" reads Text as markdown
 	InReplyTo     string // the Message-ID of the message answered
 	References    string // space separated
 	Files         []File
@@ -144,10 +146,10 @@ func Build(d Draft, date time.Time) (raw []byte, rcpts []string, err error) {
 
 	h.Set("MIME-Version", "1.0")
 
-	// The markdown as typed, readable as plain text, and as HTML.
+	// The message as plain text and as HTML.
 	parts := []struct {
 		typ, body string
-	}{{"text/plain", d.Text}, {"text/html", MarkdownHTML(d.Text)}}
+	}{{"text/plain", d.Text}, {"text/html", d.htmlPart()}}
 	writeParts := func(iw *gomail.InlineWriter) error {
 		for _, p := range parts {
 			var ph gomail.InlineHeader
@@ -248,6 +250,7 @@ func DraftFrom(raw []byte) (Draft, error) {
 	d := Draft{From: addrList(mh, "From"), To: addrList(mh, "To"), Cc: addrList(mh, "Cc"), Bcc: addrList(mh, "Bcc"),
 		Text: b.Text, Files: Files(raw)}
 	d.Subject, _ = mh.Subject()
+	d.HTML = b.HTML
 
 	if strings.TrimSpace(d.Text) == "" {
 		d.Text = HTMLText(b.HTML)
@@ -258,6 +261,19 @@ func DraftFrom(raw []byte) (Draft, error) {
 	d.References = strings.Join(bracket(mh.MsgIDList("References")), " ")
 
 	return d, nil
+}
+
+// htmlPart is the HTML of the message: the editor's, with the spacing it
+// shows, else its text read as markdown.
+func (d Draft) htmlPart() string {
+	if d.HTML == "" {
+		return MarkdownHTML(d.Text)
+	}
+
+	h := strings.TrimPrefix(d.HTML, `<meta charset="utf-8">`)
+	h = strings.ReplaceAll(h, "<p>", `<p style="margin:0">`)
+
+	return htmlPage(strings.ReplaceAll(h, "<blockquote>", `<blockquote style="`+quoteStyle+`">`))
 }
 
 func bracket(ids []string, _ error) []string {
@@ -323,6 +339,15 @@ func (o Original) text() string {
 	return strings.TrimRight(strings.ReplaceAll(t, "\r\n", "\n"), "\n")
 }
 
+// bodyHTML is o's message as HTML, its text a line at a time when it has none.
+func (o Original) bodyHTML() string {
+	if strings.TrimSpace(o.HTML) != "" {
+		return o.HTML
+	}
+
+	return strings.ReplaceAll(html.EscapeString(o.text()), "\n", "<br>")
+}
+
 // Reply answers o: its Reply-To, else its sender, and with all its other
 // recipients too, never mine (every account's address) nor ones that take
 // no replies.
@@ -369,8 +394,10 @@ func Reply(o Original, mine []string, all bool) Draft {
 		who = o.FromAddr
 	}
 
+	attribution := fmt.Sprintf("On %s, %s wrote:", o.Date.Local().Format("Mon, 2 Jan 2006 at 15:04"), who)
+
 	var q strings.Builder
-	fmt.Fprintf(&q, "\n\nOn %s, %s wrote:\n", o.Date.Local().Format("Mon, 2 Jan 2006 at 15:04"), who)
+	fmt.Fprintf(&q, "\n\n%s\n", attribution)
 
 	for _, l := range strings.Split(o.text(), "\n") {
 		if strings.HasPrefix(l, ">") {
@@ -381,6 +408,7 @@ func Reply(o Original, mine []string, all bool) Draft {
 	}
 
 	d.Text = q.String()
+	d.HTML = "<p>" + html.EscapeString(attribution) + "</p><blockquote>" + o.bodyHTML() + "</blockquote>"
 
 	return d
 }
@@ -397,5 +425,13 @@ func Forward(o Original, files []File) Draft {
 
 	fmt.Fprintf(&b, "\n%s\n", o.text())
 
-	return Draft{Subject: "Fwd: " + strip(fwdPrefix, o.Subject), Text: b.String(), Files: files}
+	var h strings.Builder
+	head, _, _ := strings.Cut(strings.TrimPrefix(b.String(), "\n\n"), "\n\n")
+	for _, l := range strings.Split(head, "\n") {
+		h.WriteString("<p>" + html.EscapeString(l) + "</p>")
+	}
+
+	h.WriteString("<p><br></p>" + o.bodyHTML())
+
+	return Draft{Subject: "Fwd: " + strip(fwdPrefix, o.Subject), Text: b.String(), HTML: h.String(), Files: files}
 }

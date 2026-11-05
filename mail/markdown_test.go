@@ -54,3 +54,42 @@ func TestBuildHTMLPart(t *testing.T) {
 		t.Errorf("draft reads back %q", d.Text)
 	}
 }
+
+func TestBuildEditorHTML(t *testing.T) {
+	raw, _, err := mail.Build(mail.Draft{From: "a@x.com", To: "b@x.com", Subject: "s", Text: "Hi Bob\n> said",
+		HTML: `<meta charset="utf-8"><p>Hi <b>Bob</b></p><blockquote><p>said</p></blockquote>`}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, b, _ := mail.Parse(raw)
+	if !strings.Contains(b.HTML, `<p style="margin:0">Hi <b>Bob</b></p>`) || !strings.Contains(b.HTML, `<blockquote style="`) || strings.Count(b.HTML, "<meta") != 1 {
+		t.Errorf("html %q", b.HTML)
+	}
+
+	if !strings.Contains(b.Text, "> said") {
+		t.Errorf("text %q", b.Text)
+	}
+
+	d, err := mail.DraftFrom(raw)
+	if err != nil || !strings.Contains(d.HTML, "<b>Bob</b>") {
+		t.Errorf("draft html %q %v", d.HTML, err)
+	}
+}
+
+func TestReplyQuotesHTML(t *testing.T) {
+	o := mail.Original{Header: mail.Header{FromName: "A & B", Subject: "s"}, Body: mail.Body{Text: "plain", HTML: "<p><b>rich</b></p>"}}
+	if h := mail.Reply(o, nil, false).HTML; !strings.Contains(h, "A &amp; B wrote:") || !strings.Contains(h, "<blockquote><p><b>rich</b></p></blockquote>") {
+		t.Errorf("reply %q", h)
+	}
+
+	if h := mail.Forward(o, nil).HTML; !strings.Contains(h, "<p>From: ") || !strings.Contains(h, "<b>rich</b>") {
+		t.Errorf("forward %q", h)
+	}
+
+	o.HTML = ""
+	o.Text = "a <b>\nc"
+	if h := mail.Reply(o, nil, false).HTML; !strings.Contains(h, "a &lt;b&gt;<br>c") {
+		t.Errorf("plain original %q", h)
+	}
+}

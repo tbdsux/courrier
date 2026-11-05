@@ -10,11 +10,13 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	courrier "courrier/mail"
 	"courrier/store"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/richtext"
 )
 
 // The waits of compose: the undo window of Send, and how long after the
@@ -51,11 +53,12 @@ type compose struct {
 	serverAgain bool
 	suggest     []string
 	toast       string
-	preview     bool      // the formatted message beside the markdown
-	sel         selection // the message's, as last seen
-	selPending  bool      // sel was set by the toolbar: select it in the text area
-	sig         string    // the signature block as inserted, which a new From swaps; "" for none
-	sigPos      int       // where an empty sig is, while the text is sigText; -1 when unknown
+	doc         *richtext.Document
+	shown       richtext.Text // the text at the last check for edits
+	linkOpen    bool
+	linkURL     string
+	sig         string // the signature block as inserted, as text, which a new From swaps; "" for none
+	sigPos      int    // where an empty sig is, while the text is sigText; -1 when unknown
 	sigText     string
 	at          time.Time // Send later's time; zero to send now
 	later       laterAsk
@@ -166,6 +169,8 @@ func (a *app) newCompose(d store.Draft, fresh, inline bool) *compose {
 	}
 
 	d.Open = !inline // a reply under its message doesn't reopen as a window
+	text := draftText(d)
+	setBody(&d, text)
 
 	if err := a.st.SaveDraft(&d); err != nil {
 		a.toast = "Couldn't save the draft: " + err.Error()
@@ -173,8 +178,8 @@ func (a *app) newCompose(d store.Draft, fresh, inline bool) *compose {
 	}
 
 	cm := &compose{a: a, d: d, fresh: fresh, from: d.From, to: splitList(d.To), cc: splitList(d.Cc), bcc: splitList(d.Bcc),
-		showBcc: d.Bcc != "", preview: a.st.Pref("ui.preview") == "1", update: a.update, close: func() {}, sigPos: -1}
-	if sig := a.sigBlock(d.From); fresh && sigAt(d.Text, sig) >= 0 {
+		showBcc: d.Bcc != "", doc: richtext.NewDocument(text), shown: text, update: a.update, close: func() {}, sigPos: -1}
+	if sig := mdText(a.sigBlock(d.From)).String(); fresh && sigAt(text.String(), sig) >= 0 {
 		cm.sig = sig
 	}
 
@@ -237,7 +242,7 @@ func (a *app) popOut() {
 // identity has none, for a From picked before any edit to put one there.
 func (cm *compose) noSigAt(pos int) {
 	if cm != nil && cm.sig == "" {
-		cm.sigPos, cm.sigText = pos, cm.d.Text
+		cm.sigPos, cm.sigText = pos, cm.doc.Text().String()
 	}
 }
 
@@ -292,7 +297,7 @@ func (a *app) compose(m courrier.Draft) {
 
 	d.From = a.fromOf(d.AccountID)
 	d.Text += a.sigBlock(d.From)
-	a.openCompose(d, true).noSigAt(len(d.Text))
+	a.openCompose(d, true).noSigAt(len(mdText(d.Text).String()))
 }
 
 func (cm *compose) title() string {
@@ -303,7 +308,7 @@ func (cm *compose) title() string {
 }
 
 func (cm *compose) snapshot() string {
-	return fmt.Sprintf("%q %q %q %q %q %q %d", cm.from, cm.to, cm.cc, cm.bcc, cm.d.Subject, cm.d.Text, len(cm.d.Attached))
+	return fmt.Sprintf("%q %q %q %q %q %d", cm.from, cm.to, cm.cc, cm.bcc, cm.d.Subject, len(cm.d.Attached))
 }
 
 // syncFields copies the window's choices into the draft.
@@ -321,30 +326,35 @@ func (cm *compose) syncFields() {
 			cm.d.AccountID = id.AccountID
 		}
 
-		i := sigAt(cm.d.Text, cm.sig)
-		if cm.sig == "" && cm.d.Text == cm.sigText {
+		text := cm.doc.Text().String()
+		i := sigAt(text, cm.sig)
+		if cm.sig == "" && text == cm.sigText {
 			i = cm.sigPos
 		}
 
 		if i >= 0 { // not edited: the new identity's takes its place
-			sig := cm.a.sigBlock(cm.from)
-			cm.d.Text, cm.sig = cm.d.Text[:i]+sig+cm.d.Text[i+len(cm.sig):], sig
-			cm.sigPos, cm.sigText = i, cm.d.Text
+			sig := mdText(cm.a.sigBlock(cm.from))
+			start := utf8.RuneCountInString(text[:i])
+			end := start + utf8.RuneCountInString(cm.sig)
+			cm.doc.Edit(func(e *richtext.Edit) { e.Replace(start, end, sig) })
+			cm.sig = sig.String()
+			cm.sigPos, cm.sigText = i, cm.doc.Text().String()
 		}
 	}
 
+	setBody(&cm.d, cm.doc.Text())
 	cm.d.To, cm.d.Cc, cm.d.Bcc = strings.Join(cm.to, ", "), strings.Join(cm.cc, ", "), strings.Join(cm.bcc, ", ")
 	cm.d.From = cm.from
 }
 
 // track notices edits and schedules the saves after the last one.
 func (cm *compose) track() {
-	s := cm.snapshot()
-	if s == cm.snap {
+	s, text := cm.snapshot(), cm.doc.Text()
+	if s == cm.snap && text.Same(cm.shown) {
 		return
 	}
 
-	cm.snap, cm.edited = s, true
+	cm.snap, cm.shown, cm.edited = s, text, true
 	cm.gen++
 	gen := cm.gen
 	time.AfterFunc(localSave, func() {
@@ -471,7 +481,7 @@ func (cm *compose) requestClose() bool {
 }
 
 func (cm *compose) empty() bool {
-	return len(cm.to)+len(cm.cc)+len(cm.bcc)+len(cm.d.Attached) == 0 && strings.TrimSpace(cm.d.Subject+cm.d.Text) == ""
+	return len(cm.to)+len(cm.cc)+len(cm.bcc)+len(cm.d.Attached) == 0 && strings.TrimSpace(cm.d.Subject+cm.doc.Text().String()) == ""
 }
 
 func (cm *compose) finish() {
@@ -633,7 +643,7 @@ func (a *app) send(cm *compose) error {
 // saveTemplate keeps a copy of the message to start others from.
 func (cm *compose) saveTemplate() {
 	cm.syncFields()
-	d := store.Draft{AccountID: cm.d.AccountID, Draft: cm.d.Draft, Template: true}
+	d := store.Draft{AccountID: cm.d.AccountID, Draft: cm.d.Draft, Rich: cm.d.Rich, Template: true}
 	d.InReplyTo, d.References = "", ""
 
 	for _, f := range cm.d.Attached {
@@ -1076,7 +1086,7 @@ func (a *app) respond(kind string) {
 			}
 		}
 
-		d.Text = a.sigBlock(d.From) + d.Text // above the quote
+		d.Rich = richJSON(richtext.ParseHTML(d.HTML).Insert(0, mdText(a.sigBlock(d.From)+"\n\n"))) // above the quote
 		cm := a.newCompose(withFiles(d), true, true)
 		cm.noSigAt(0)
 		a.replyUnder(cm, r.thread[0].ID)

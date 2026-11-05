@@ -59,7 +59,11 @@ server reported (UIDPLUS).
 
 ## Sending
 
-Compose saves the draft to the database as you type (it survives a crash),
+The message is edited as attributed text with MyGo's `ui/richtext`. A draft
+keeps it as JSON (`rich`), and builds its HTML part from it, and a plain-text
+part with lists and quotes marked. A reply or forward loads the original's HTML
+into the editor, which keeps its structure and inline formats, not its colors
+or table layout. Compose saves the draft to the database as you type (it survives a crash),
 and syncs it to the server's Drafts folder. Send moves it to the outbox;
 the syncer sends it over SMTP when online, or at its `send_after` time for
 send later, then stores a copy in Sent unless the server does that itself.

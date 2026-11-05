@@ -283,7 +283,7 @@ func blocksHTML(b *strings.Builder, blocks []MDBlock) {
 			fmt.Fprintf(b, "</%s>\n", bl.Kind)
 
 		case "quote":
-			b.WriteString(`<blockquote style="margin:0 0 0 .8ex;border-left:2px solid #ccc;padding-left:1ex;color:#555">` + "\n")
+			b.WriteString(`<blockquote style="` + quoteStyle + `">` + "\n")
 			blocksHTML(b, bl.Children)
 			b.WriteString("</blockquote>\n")
 
@@ -295,13 +295,19 @@ func blocksHTML(b *strings.Builder, blocks []MDBlock) {
 	}
 }
 
+const quoteStyle = "margin:0 0 0 .8ex;border-left:2px solid #ccc;padding-left:1ex;color:#555"
+
 // MarkdownHTML renders markdown as the HTML part of a mail.
 func MarkdownHTML(src string) string {
 	var b strings.Builder
-	b.WriteString(`<!doctype html><html><head><meta charset="utf-8"></head>` +
-		`<body style="font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.45">` + "\n")
 	blocksHTML(&b, Markdown(src))
-	b.WriteString("</body></html>\n")
 
-	return b.String()
+	return htmlPage(b.String())
+}
+
+// htmlPage puts a mail's HTML in a page with its font.
+func htmlPage(body string) string {
+	return `<!doctype html><html><head><meta charset="utf-8"></head>` +
+		`<body style="font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.45">` + "\n" +
+		body + "</body></html>\n"
 }
