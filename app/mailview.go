@@ -52,6 +52,7 @@ type folderEdit struct {
 	account   int64
 	parent    string       // new: the folder it goes in, "" for the top
 	target    store.Folder // rename or delete
+	path      string       // what target is renamed to
 	delim     string
 	name      string
 	err       string

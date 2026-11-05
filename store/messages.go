@@ -71,6 +71,7 @@ var _ mail.Cache = (*Store)(nil)
 // Folder is a cached folder of an account.
 type Folder struct {
 	ID, AccountID int64
+	Favorite      bool // listed in the sidebar's Favorites view
 	mail.Folder
 }
 
@@ -144,7 +145,7 @@ func (s *Store) UpdateFolder(account int64, f mail.Folder) error {
 }
 
 const folderCols = `id, account_id, path, delim, special, noselect, local, uidvalidity, uidnext,
-CASE WHEN uidvalidity = 0 THEN (SELECT COUNT(*) FROM messages WHERE folder_id = folders.id AND seen = 0) ELSE unread END, total`
+CASE WHEN uidvalidity = 0 THEN (SELECT COUNT(*) FROM messages WHERE folder_id = folders.id AND seen = 0) ELSE unread END, total, favorite`
 
 // Folders returns every account's folders, by account and path.
 func (s *Store) Folders() ([]Folder, error) {
@@ -155,7 +156,7 @@ func (s *Store) Folders() ([]Folder, error) {
 
 	out := make([]Folder, len(rows.Values))
 	for i, r := range rows.Values {
-		out[i] = Folder{ID: r[0].(int64), AccountID: r[1].(int64), Folder: mail.Folder{
+		out[i] = Folder{ID: r[0].(int64), AccountID: r[1].(int64), Favorite: r[11].(int64) != 0, Folder: mail.Folder{
 			Path: r[2].(string), Delim: r[3].(string), Special: r[4].(string), NoSelect: r[5].(int64) != 0, Local: r[6].(int64) != 0,
 			UIDValidity: uint32(r[7].(int64)), UIDNext: uint32(r[8].(int64)), Unread: int(r[9].(int64)), Total: int(r[10].(int64)),
 		}}
@@ -492,6 +493,13 @@ func (s *Store) AddLocalFolder(account int64, path, special string) error {
 
 func (s *Store) RenameFolder(id int64, path string) error {
 	_, err := s.db.Execute(ctx, "UPDATE folders SET path = ? WHERE id = ?", path, id)
+	return err
+}
+
+// SetFavorite marks a folder by its path, which a rename on the server
+// leaves a new row for.
+func (s *Store) SetFavorite(account int64, path string, on bool) error {
+	_, err := s.db.Execute(ctx, "UPDATE folders SET favorite = ? WHERE account_id = ? AND path = ?", on, account, path)
 	return err
 }
 

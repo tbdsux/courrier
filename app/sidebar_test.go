@@ -267,3 +267,43 @@ func TestSideViewKeepsSettings(t *testing.T) {
 		t.Errorf("sel %q", a.sel)
 	}
 }
+
+func TestSideViewFavorites(t *testing.T) {
+	a, tt, id, _ := sideViewApp(t)
+	pickSideView(t, tt, "Favorites")
+
+	if !tt.HasText("No favorites yet. Right-click a folder under All accounts to add it.") || tt.HasText("Receipts") {
+		t.Fatalf("no favorites: %v", tt.Texts())
+	}
+
+	pickSideView(t, tt, "All accounts")
+
+	if err := tt.RightClick("Receipts"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := tt.ChooseMenuItem("Add to favorites"); err != nil {
+		t.Fatalf("%v: %v", err, tt.Menu())
+	}
+
+	tt.Frame()
+	pickSideView(t, tt, "Favorites")
+
+	if !tt.HasText("Receipts") || !tt.HasText("bo@example.com") || tt.HasText("jane@example.com") || tt.HasText("Projects") {
+		t.Fatalf("favorites: %v", tt.Texts())
+	}
+
+	// A sync keeps the mark; a rename on the server, which makes a new row,
+	// gets it from folderDone.
+	if err := a.st.SetFolders(id, []courrier.Folder{{Path: "INBOX", Special: "inbox", UIDValidity: 1}, {Path: "Bills", UIDValidity: 1}}); err != nil {
+		t.Fatal(err)
+	}
+
+	fe := &folderEdit{account: id, target: store.Folder{Favorite: true}, path: "Bills"}
+	a.folderDone(fe)(nil)
+	tt.Frame()
+
+	if !tt.HasText("Bills") {
+		t.Errorf("after a rename: %v", tt.Texts())
+	}
+}

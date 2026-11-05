@@ -71,15 +71,16 @@ func (a *app) unread(account int64) int {
 
 // The sidebar's views other than a single account, whose ID stands for it.
 const (
-	sideAll     int64 = 0
-	sideUnified int64 = -1
-	sideUnread  int64 = -2
+	sideAll       int64 = 0
+	sideUnified   int64 = -1
+	sideUnread    int64 = -2
+	sideFavorites int64 = -3
 )
 
 var sideViews = []struct {
 	id    int64
 	label string
-}{{sideAll, "All accounts"}, {sideUnified, "Unified"}, {sideUnread, "Unread"}}
+}{{sideAll, "All accounts"}, {sideUnified, "Unified"}, {sideUnread, "Unread"}, {sideFavorites, "Favorites"}}
 
 // sideViewButton picks what the sidebar lists.
 func (a *app) sideViewButton(c *ui.Context) {
@@ -185,10 +186,22 @@ func (a *app) fitSideView() {
 	}
 }
 
-// sideShows reports whether the view lists f. Unread keeps the open folder,
-// so reading its last message doesn't pull it from under you.
+// sideShows reports whether the view lists f. Unread and Favorites keep the
+// open folder, so reading its last message doesn't pull it from under you.
 func (a *app) sideShows(f store.Folder) bool {
-	return a.sideView != sideUnread || !f.NoSelect && f.Unread > 0 || a.sel == "f:"+strconv.FormatInt(f.ID, 10)
+	switch a.sideView {
+	case sideUnread:
+		return !f.NoSelect && f.Unread > 0 || a.sel == "f:"+strconv.FormatInt(f.ID, 10)
+	case sideFavorites:
+		return f.Favorite || a.sel == "f:"+strconv.FormatInt(f.ID, 10)
+	}
+	return true
+}
+
+func (a *app) setFavorite(account int64, path string, on bool) {
+	if err := a.st.SetFavorite(account, path, on); err != nil {
+		a.toast = "Couldn't change favorites: " + err.Error()
+	}
 }
 
 func (a *app) outboxItem(c *ui.Context) {
@@ -240,8 +253,14 @@ func (a *app) folderTree(c *ui.Context) {
 		sideDivider(c)
 	}
 
-	if a.sideView == sideUnread && !slices.ContainsFunc(a.folders, a.sideShows) {
-		ui.Text(c, "No unread mail").FontSize(12).TextColor(c.Theme().TextMuted).Padding(4, 12)
+	filtered := a.sideView == sideUnread || a.sideView == sideFavorites
+	if filtered && !slices.ContainsFunc(a.folders, a.sideShows) {
+		empty := "No unread mail"
+		if a.sideView == sideFavorites {
+			empty = "No favorites yet. Right-click a folder under All accounts to add it."
+		}
+
+		ui.Text(c, empty).FontSize(12).TextColor(c.Theme().TextMuted).Padding(4, 12).Wrap()
 	}
 
 	// Ungrouped accounts and the groups that have accounts, in their order.
@@ -253,8 +272,8 @@ func (a *app) folderTree(c *ui.Context) {
 	wasDragging := a.sideDragging // the zone takes the drop the frame after the drag ends
 	a.sideDragging = false        // the sections say, as they come
 	for _, b := range a.sideBlocks() {
-		b = slices.DeleteFunc(b, func(p store.Place) bool { // in Unread; sideDrop still orders every block
-			return a.sideView == sideUnread && !p.Group && !slices.ContainsFunc(a.folders, func(f store.Folder) bool { return f.AccountID == p.ID && a.sideShows(f) })
+		b = slices.DeleteFunc(b, func(p store.Place) bool { // sideDrop still orders every block
+			return filtered && !p.Group && !slices.ContainsFunc(a.folders, func(f store.Folder) bool { return f.AccountID == p.ID && a.sideShows(f) })
 		})
 		if len(b) == 0 {
 			continue
@@ -531,6 +550,17 @@ func (a *app) folderMenu(m *ui.Menu, f store.Folder, name string) {
 	}
 
 	m.Separator()
+
+	favorite := "Add to favorites"
+	if f.Favorite {
+		favorite = "Remove from favorites"
+	}
+
+	if m.Item(favorite).Chosen() {
+		a.setFavorite(f.AccountID, f.Path, !f.Favorite)
+		a.reloadMail()
+	}
+
 	// POP3 servers only have an Inbox: the folders made here are local.
 	editable := f.Special != "inbox" && (!pop3 || f.Local)
 	if m.Item("Rename…").Disabled(!editable).Chosen() {
@@ -627,6 +657,10 @@ func (a *app) folderDone(fe *folderEdit) func(error) {
 				return
 			}
 
+			if fe.target.Favorite {
+				a.setFavorite(fe.account, fe.path, true)
+			}
+
 			fe.open = false
 			a.reloadMail()
 		})
@@ -657,7 +691,7 @@ func (a *app) applyFolderEdit(fe *folderEdit) {
 		path = parent + fe.delim + name
 	}
 
-	fe.err = ""
+	fe.err, fe.path = "", path
 
 	if a.isPOP3(fe.account) {
 		var err error

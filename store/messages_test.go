@@ -217,3 +217,27 @@ func TestBodyMeta(t *testing.T) {
 		t.Errorf("meta %+v", b.Meta)
 	}
 }
+
+// A sync leaves a folder's favorite mark alone.
+func TestSetFavorite(t *testing.T) {
+	s, _ := open(t)
+	acc := account(t, s)
+	must(t, s.SetFolders(acc, []mail.Folder{{Path: "INBOX", Special: "inbox"}}))
+	must(t, s.SetFavorite(acc, "INBOX", true))
+	must(t, s.SetFolders(acc, []mail.Folder{{Path: "INBOX", Special: "inbox", UIDValidity: 1, Unread: 2}}))
+
+	fs, err := s.Folders()
+	must(t, err)
+
+	if len(fs) != 1 || !fs[0].Favorite {
+		t.Fatalf("after a sync: %+v", fs)
+	}
+
+	must(t, s.SetFavorite(acc, "INBOX", false))
+	fs, err = s.Folders()
+	must(t, err)
+
+	if fs[0].Favorite {
+		t.Errorf("not cleared: %+v", fs)
+	}
+}
