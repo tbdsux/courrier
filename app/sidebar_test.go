@@ -3,6 +3,7 @@ package main
 import (
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"fmt"
 	"github.com/egoist/mygo/ui"
@@ -169,10 +170,21 @@ func pickSideView(t *testing.T, tt *ui.Tester, label string) {
 		t.Fatal(err)
 	}
 
-	if err := tt.ChooseMenuItem(label); err != nil {
-		t.Fatalf("%v: %v", err, tt.Menu())
+	chooseItem(tt, label)
+}
+
+// chooseItem chooses an item of the menu drawn in the window by typing it,
+// as its label can show elsewhere too, under the menu.
+func chooseItem(tt *ui.Tester, label string) {
+	for _, r := range strings.ToLower(label) {
+		if r < 'a' || r > 'z' {
+			break // the letters before it tell the items in these tests apart
+		}
+
+		tt.TypeKey(0, ui.KeyA+ui.Key(r-'a'), string(r))
 	}
 
+	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
 }
 
@@ -282,11 +294,7 @@ func TestSideViewFavorites(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := tt.ChooseMenuItem("Add to favorites"); err != nil {
-		t.Fatalf("%v: %v", err, tt.Menu())
-	}
-
-	tt.Frame()
+	chooseItem(tt, "Add to favorites")
 	pickSideView(t, tt, "Favorites")
 
 	if !tt.HasText("Receipts") || !tt.HasText("bo@example.com") || tt.HasText("jane@example.com") || tt.HasText("Projects") {

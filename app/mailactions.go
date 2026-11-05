@@ -709,8 +709,8 @@ func (a *app) actionButtons(c *ui.Context) {
 		a.toggleRead(ms)
 	}
 
-	iconButton(c, moveIcon, "Move", "Move to… (v)").Menu(func(m *ui.Menu) { a.moveMenu(m, ms) })
-	iconButton(c, clockIcon, "Snooze", "Snooze (z)").Menu(func(m *ui.Menu) { a.snoozeMenu(m, ms) })
+	buttonMenu(c, iconButton(c, moveIcon, "Move", "Move to… (v)"), func(m *ui.Menu) { a.moveMenu(m, ms) })
+	buttonMenu(c, iconButton(c, clockIcon, "Snooze", "Snooze (z)"), func(m *ui.Menu) { a.snoozeMenu(m, ms) })
 }
 
 // manyChosen is the message pane while several rows are chosen.

@@ -110,7 +110,7 @@ func (a *app) sideViewButton(c *ui.Context) {
 			ui.Icon(c, chevronIcon).FontSize(13).TextColor(t.TextMuted)
 		})
 	})
-	b.Menu(func(m *ui.Menu) {
+	buttonMenu(c, b, func(m *ui.Menu) {
 		for _, v := range sideViews {
 			if m.Item(v.label).Radio(a.sideView == v.id).Chosen() {
 				a.setSideView(v.id)
@@ -222,7 +222,7 @@ func (a *app) unifiedItems(c *ui.Context) {
 	a.outboxItem(c)
 
 	for i, q := range a.searches {
-		a.sideItem(c, "s:"+strconv.Itoa(i), searchIcon, q).ContextMenu(func(m *ui.Menu) {
+		rowMenu(c, a.sideItem(c, "s:"+strconv.Itoa(i), searchIcon, q), func(m *ui.Menu) {
 			if m.Item("Remove saved search").Chosen() {
 				a.unsaveSearch(i)
 			}
@@ -526,7 +526,7 @@ func (a *app) folderItems(c *ui.Context, acc store.Account) {
 
 		item := a.sideItem(c, "f:"+strconv.FormatInt(f.ID, 10), icon, name).PaddingStart(indent)
 		badge(c, item, f.Unread)
-		item.ContextMenu(func(m *ui.Menu) { a.folderMenu(m, f, name) })
+		rowMenu(c, item, func(m *ui.Menu) { a.folderMenu(m, f, name) })
 
 		if d, over := ui.DragOver[msgDrag](item); over && d.account == f.AccountID && d.folder != f.ID {
 			item.Background(t.Accent.Alpha(0.22))

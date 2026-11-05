@@ -231,13 +231,13 @@ func (a *app) rulesView(c *ui.Context) {
 					accounts = append(accounts, acc.Email)
 				}
 
-				ui.Field(c, "Account", func() { ui.Select(c, &e.account, accounts) })
+				ui.Field(c, "Account", func() { dropdown(c, &e.account, accounts) })
 				field(c, e.errs, "query", "Mail matching", func() { ui.TextInput(c, &e.query).Placeholder("from:shop.com subject:receipt") }).
 					Description("As you search: words, from:, to:, subject:, has:attachment, is:flagged.")
 				ui.Field(c, "Mark as read", func() { ui.Switch(c, &e.read) })
 				ui.Field(c, "Flag", func() { ui.Switch(c, &e.flag) })
 				ui.Field(c, "Don't notify", func() { ui.Switch(c, &e.quiet) })
-				field(c, e.errs, "then", "Then", func() { ui.Select(c, &e.then, thens) })
+				field(c, e.errs, "then", "Then", func() { dropdown(c, &e.then, thens) })
 
 				if e.then == thens[3] {
 					var paths []string
@@ -251,7 +251,7 @@ func (a *app) rulesView(c *ui.Context) {
 						if e.account == allAccounts { // each account's folder of that name
 							ui.TextInput(c, &e.folder).Placeholder("Receipts")
 						} else {
-							ui.Select(c, &e.folder, paths)
+							dropdown(c, &e.folder, paths)
 						}
 					})
 				}

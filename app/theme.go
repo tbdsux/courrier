@@ -210,13 +210,42 @@ func (a *app) sideItem(c *ui.Context, id string, icon *ui.SVG, label string) ui.
 		return ui.SidebarItem(c, id, icon, label).Transition(hoverFade)
 	}
 
+	defer softAccent(c)()
+
+	return ui.SidebarItem(c, id, icon, label).Transition(hoverFade)
+}
+
+// softAccent makes the accent a tint until the function it returns runs,
+// for what shows a choice as a solid fill otherwise.
+func softAccent(c *ui.Context) func() {
 	t := c.Theme()
 	soft := *t
 	soft.Accent, soft.AccentText = t.Accent.Alpha(0.2), t.Accent
 	c.SetTheme(&soft)
-	defer c.SetTheme(t)
 
-	return ui.SidebarItem(c, id, icon, label).Transition(hoverFade)
+	return func() { c.SetTheme(t) }
+}
+
+// buttonMenu makes e a button opening a menu drawn in the window, not the
+// system's, which looks out of place on Linux.
+func buttonMenu(c *ui.Context, e ui.Element, build func(m *ui.Menu)) ui.Element {
+	defer softAccent(c)()
+
+	return e.PopoverMenuButton(build)
+}
+
+// rowMenu gives e a context menu drawn in the window, as buttonMenu does.
+func rowMenu(c *ui.Context, e ui.Element, build func(m *ui.Menu)) ui.Element {
+	defer softAccent(c)()
+
+	return e.PopoverMenu(build)
+}
+
+// dropdown is a ui.Select whose highlight matches the menus'.
+func dropdown(c *ui.Context, selected *string, options []string) ui.Element {
+	defer softAccent(c)()
+
+	return ui.Select(c, selected, options)
 }
 
 // notice is a tinted line of status.

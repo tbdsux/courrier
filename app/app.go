@@ -396,7 +396,7 @@ func (a *app) sidebar(c *ui.Context) {
 				}
 
 				if len(a.templates) > 0 {
-					iconButton(c, draftsIcon, "New from template", "New from template").Size(36, 36).Radius(18).Menu(a.templatesMenu)
+					buttonMenu(c, iconButton(c, draftsIcon, "New from template", "New from template").Size(36, 36).Radius(18), a.templatesMenu)
 				}
 			})
 
@@ -492,13 +492,13 @@ func incomingFields(c *ui.Context, f *serverForm, errs map[string]string) {
 	ui.Field(c, "Protocol", func() { segmented(c, &f.protocol, protocolLabels...) })
 	field(c, errs, "inHost", "Host", func() { ui.TextInput(c, &f.inHost).Placeholder("imap.example.com") })
 	field(c, errs, "inPort", "Port", func() { ui.NumberInput(c, &f.inPort, 1, 65535, 1).Width(120) })
-	ui.Field(c.Key("inSec"), "Security", func() { ui.Select(c, &f.inSec, securityLabels).Width(160) }).Description(securityNote(f.inSec))
+	ui.Field(c.Key("inSec"), "Security", func() { dropdown(c, &f.inSec, securityLabels).Width(160) }).Description(securityNote(f.inSec))
 }
 
 func smtpFields(c *ui.Context, f *serverForm, errs map[string]string) {
 	field(c, errs, "smtpHost", "Host", func() { ui.TextInput(c, &f.smtpHost).Placeholder("smtp.example.com") })
 	field(c, errs, "smtpPort", "Port", func() { ui.NumberInput(c, &f.smtpPort, 1, 65535, 1).Width(120) })
-	ui.Field(c.Key("smtpSec"), "Security", func() { ui.Select(c, &f.smtpSec, securityLabels).Width(160) }).Description(securityNote(f.smtpSec))
+	ui.Field(c.Key("smtpSec"), "Security", func() { dropdown(c, &f.smtpSec, securityLabels).Width(160) }).Description(securityNote(f.smtpSec))
 }
 
 func (a *app) accountView(c *ui.Context, f *accountForm) {
@@ -522,7 +522,7 @@ func (a *app) accountView(c *ui.Context, f *accountForm) {
 			a.card(c, "who", "Identity", func() {
 				choices := append(append(a.profileNames(), presetNames()...), custom)
 				if ui.Field(c, "Server", func() {
-					ui.Select(c, &f.choice, choices).Width(240)
+					dropdown(c, &f.choice, choices).Width(240)
 				}).Changed() {
 					f.choiceSet = true
 				}

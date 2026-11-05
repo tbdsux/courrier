@@ -902,7 +902,7 @@ func (cm *compose) form(c *ui.Context, inline bool) {
 		}
 
 		ui.Form(c, func() {
-			if (!inline || len(froms) > 1) && ui.Field(c, "From", func() { ui.Select(c, &cm.from, froms).Label("From") }).Changed() {
+			if (!inline || len(froms) > 1) && ui.Field(c, "From", func() { dropdown(c, &cm.from, froms).Label("From") }).Changed() {
 				cm.syncFields() // swaps the signature at once
 			}
 
@@ -986,7 +986,7 @@ func (cm *compose) form(c *ui.Context, inline bool) {
 					cm.sendAt(time.Time{})
 				}
 
-				ui.Button(c, "▾").Label("More send options").Menu(func(m *ui.Menu) {
+				buttonMenu(c, ui.Button(c, "▾").Label("More send options"), func(m *ui.Menu) {
 					m.Submenu("Send later", func(sub *ui.Menu) { laterMenu(sub, &cm.later, "Send at", cm.sendAt) })
 					m.Separator()
 
@@ -1267,7 +1267,7 @@ func (a *app) outboxView(c *ui.Context) {
 						a.retryOutgoing(o)
 					}
 
-					ui.Button(c, "Change time").Menu(func(m *ui.Menu) {
+					buttonMenu(c, ui.Button(c, "Change time"), func(m *ui.Menu) {
 						laterMenu(m, &a.later, "Send at", func(at time.Time) { a.reschedule(o, at) })
 					})
 				}

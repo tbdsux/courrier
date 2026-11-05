@@ -95,7 +95,7 @@ func (a *app) settingsView(c *ui.Context) {
 
 		a.formIn(c, a.contentWidth(), func() {
 			a.card(c, "look", "Appearance", func() {
-				ui.Field(c, "Theme", func() { ui.Select(c, &s.Appearance, appearances).Width(200) })
+				ui.Field(c, "Theme", func() { dropdown(c, &s.Appearance, appearances).Width(200) })
 				ui.Field(c, "Message list", func() { segmented(c, &list, views...) }).
 					Description("One line shows the list across the window, and messages open over it.")
 				ui.Field(c, "Font size", func() { ui.NumberInput(c, &s.FontSize, 10, 20, 1).Width(120) })

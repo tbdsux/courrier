@@ -102,7 +102,7 @@ func (a *app) storageView(c *ui.Context) {
 			})
 
 			a.card(c, "cache", "Cache", func() {
-				ui.Field(c, "Keep message bodies for", func() { ui.Select(c, &keep, labels).Width(160) }).
+				ui.Field(c, "Keep message bodies for", func() { dropdown(c, &keep, labels).Width(160) }).
 					Description("Older ones are fetched again as you open them. Mail opened in the last 30 days, POP3 mail and local folders stay.")
 
 				ui.Field(c, "Cache", func() {

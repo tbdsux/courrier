@@ -588,7 +588,7 @@ func (a *app) messageList(c *ui.Context) {
 				a.saveSearch(q)
 			}
 
-			iconButton(c, layoutIcon, "List view", "List view").Menu(func(m *ui.Menu) {
+			buttonMenu(c, iconButton(c, layoutIcon, "List view", "List view"), func(m *ui.Menu) {
 				for _, v := range views {
 					if m.Item(v).Checked(a.set.View == v).Chosen() {
 						a.set.View = v
@@ -644,7 +644,7 @@ func (a *app) messageList(c *ui.Context) {
 			m := a.msgs[i]
 			row := a.messageRow(c, m, mixed)
 			row.OnClick(func() { a.clickRow(i, row.ClickModifiers()) }) // once the rows are built: opening reloads them
-			row.ContextMenu(func(menu *ui.Menu) { a.messageMenu(menu, m) })
+			rowMenu(c, row, func(menu *ui.Menu) { a.messageMenu(menu, m) })
 		}).Grow(1)
 		c.SetTheme(t)
 
@@ -890,7 +890,7 @@ func (a *app) accountsView(c *ui.Context) {
 					ui.Text(c, acc.DisplayName).FontSize(12).TextColor(t.TextMuted)
 				})
 
-				if len(a.groups) > 0 && ui.Select(c, a.groupPick[acc.ID], a.groupNames()).Width(160).Label("Group of "+acc.Email).Changed() {
+				if len(a.groups) > 0 && dropdown(c, a.groupPick[acc.ID], a.groupNames()).Width(160).Label("Group of "+acc.Email).Changed() {
 					a.setGroup(acc, *a.groupPick[acc.ID])
 				}
 

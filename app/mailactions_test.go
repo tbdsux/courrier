@@ -230,11 +230,7 @@ func TestContextMenuAndMoveDialog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := tt.ChooseMenuItem("Flag"); err != nil {
-		t.Fatalf("%v: %v", err, tt.Menu())
-	}
-
-	tt.Frame()
+	chooseItem(tt, "Flag")
 
 	if !a.msgs[2].Flagged {
 		t.Error("menu didn't flag it")

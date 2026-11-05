@@ -36,6 +36,7 @@ and keep this page in step.
 | Sidebar / list widths | 230 / 340 DIP default, resizable split views, remembered |
 | List views (`views`) | Comfortable: avatar, sender, subject, snippet. Compact: sender and subject. One line: a row a line across the window, messages open over the list |
 | Sidebar view | a menu under Compose: All accounts, Unified (its mailboxes only), Unread (folders with unread mail, and the open one), Favorites (folders marked from their menu, and the open one), or one account's folders. It widens by itself when the palette or a notification opens a mailbox outside it |
+| Menus and dropdowns | drawn in the window, not the system's (`buttonMenu`, `rowMenu`, `dropdown`): the highlight is the accent at 20 %, its text in the accent |
 | Reply | under the message, in a resizable split (45 % message); pop out to a window. Its From shows with several addresses, its Cc once used |
 | Narrow (`narrowContent`) | under 600 DIP beside the sidebar: one pane, list *or* message, with a back button |
 | Settings | the Settings button, under the folders and above the sync status, opens it beside the sidebar: a menu 240 wide (190 when the window leaves less than 1000 beside the sidebar) (General, Accounts, Groups, Rules, Servers, Storage), then the chosen page |
