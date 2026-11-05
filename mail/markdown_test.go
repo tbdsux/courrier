@@ -79,7 +79,7 @@ func TestBuildEditorHTML(t *testing.T) {
 
 func TestReplyQuotesHTML(t *testing.T) {
 	o := mail.Original{Header: mail.Header{FromName: "A & B", Subject: "s"}, Body: mail.Body{Text: "plain", HTML: "<p><b>rich</b></p>"}}
-	if h := mail.Reply(o, nil, false).HTML; !strings.Contains(h, "A &amp; B wrote:") || !strings.Contains(h, "<blockquote><p><b>rich</b></p></blockquote>") {
+	if h := mail.Reply(o, nil, false).HTML; !strings.Contains(h, "A &amp; B wrote:") || !strings.Contains(h, "<blockquote><p><b>rich</b></p><p><br></p></blockquote>") {
 		t.Errorf("reply %q", h)
 	}
 

@@ -41,6 +41,14 @@ func TestPlainPart(t *testing.T) {
 	}
 }
 
+func TestTidyBlanks(t *testing.T) {
+	text := richtext.ParseHTML(`<p>On x wrote:</p><blockquote><p><br></p><p>one</p><p><br></p><p>&nbsp;</p><p>two</p>` +
+		`<ul><li>a</li><p><br></p><li>b</li></ul><p><br></p></blockquote><p><br></p>`)
+	if got, want := tidyBlanks(text).String(), "On x wrote:\none\n\ntwo\na\nb"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 func TestDraftText(t *testing.T) {
 	rich := richJSON(richtext.ParseHTML("<p><b>saved</b></p>"))
 	for _, tc := range []struct {

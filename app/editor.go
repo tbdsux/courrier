@@ -132,6 +132,49 @@ func draftText(d store.Draft) richtext.Text {
 	return mdText(d.Text)
 }
 
+// tidyBlanks makes an original's blank lines single, and drops those at the
+// start of a quote, inside a list and at the end.
+func tidyBlanks(t richtext.Text) richtext.Text {
+	blank := func(p richtext.Paragraph) bool {
+		text := ""
+		for _, r := range p.Runs {
+			text += r.Text
+		}
+
+		return !p.Style.CodeBlock && strings.TrimSpace(text) == ""
+	}
+
+	var all, out []richtext.Paragraph
+	for _, p := range t.Paragraphs() {
+		all = append(all, p)
+	}
+
+	for i, p := range all {
+		if blank(p) {
+			if len(out) == 0 || blank(out[len(out)-1]) || p.Style.Quote && !out[len(out)-1].Style.Quote {
+				continue
+			}
+
+			next := i + 1
+			for next < len(all) && blank(all[next]) {
+				next++
+			}
+
+			if out[len(out)-1].Style.List != richtext.NoList && next < len(all) && all[next].Style.List != richtext.NoList {
+				continue
+			}
+		}
+
+		out = append(out, p)
+	}
+
+	for len(out) > 0 && blank(out[len(out)-1]) {
+		out = out[:len(out)-1]
+	}
+
+	return richtext.TextOf(out...)
+}
+
 func richJSON(t richtext.Text) string {
 	b, err := json.Marshal(t)
 	if err != nil {
@@ -237,6 +280,7 @@ func (cm *compose) editor(c *ui.Context) {
 	richtext.Editor(c.Key(cm.d.ID), cm.doc, richtext.EditorOptions{
 		Label:         "Message",
 		OnLinkCommand: func() { cm.formatBody("link") },
+		Theme:         &richtext.Theme{QuoteBar: t.TextMuted.Alpha(0.5), QuoteText: t.Text.Alpha(0.75), QuoteBarWidth: 2},
 	}).Grow(1).Basis(0).Margin(6, 14, 10, 14)
 }
 

@@ -339,10 +339,15 @@ func (o Original) text() string {
 	return strings.TrimRight(strings.ReplaceAll(t, "\r\n", "\n"), "\n")
 }
 
-// bodyHTML is o's message as HTML, its text a line at a time when it has none.
+// blockEnd matches the ends of the blocks a message shows apart, which the
+// editor runs together; a div is often only a line.
+var blockEnd = regexp.MustCompile(`(?i)</(p|h[1-6]|ul|ol|blockquote|table|tr)>`)
+
+// bodyHTML is o's message as HTML, with blank lines between its blocks, or
+// its text a line at a time when it has none.
 func (o Original) bodyHTML() string {
 	if strings.TrimSpace(o.HTML) != "" {
-		return o.HTML
+		return blockEnd.ReplaceAllString(o.HTML, "$0<p><br></p>")
 	}
 
 	return strings.ReplaceAll(html.EscapeString(o.text()), "\n", "<br>")

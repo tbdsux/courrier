@@ -1086,7 +1086,7 @@ func (a *app) respond(kind string) {
 			}
 		}
 
-		d.Rich = richJSON(richtext.ParseHTML(d.HTML).Insert(0, mdText(a.sigBlock(d.From)+"\n\n"))) // above the quote
+		d.Rich = richJSON(tidyBlanks(richtext.ParseHTML(d.HTML)).Insert(0, mdText(a.sigBlock(d.From)+"\n\n"))) // above the quote
 		cm := a.newCompose(withFiles(d), true, true)
 		cm.noSigAt(0)
 		a.replyUnder(cm, r.thread[0].ID)
