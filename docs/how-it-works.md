@@ -117,7 +117,9 @@ links of its HTML whose text shows another site than they go to. Signed
 and encrypted mail is fetched whole: an S/MIME signature covers the raw
 parts, and is checked against the system's authorities and the sender's
 address. What they find shows as notes above the message (`app/notes.go`),
-and a mailing list's unsubscribe as a banner above the conversation.
+and a mailing list's unsubscribe as a banner above the conversation. If
+Settings allows it, mail without the header gets a banner too, from a link
+guessed out of its HTML, which only ever opens in the browser.
 
 ## Building and releasing
 

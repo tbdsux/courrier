@@ -168,3 +168,78 @@ func TestUnsubscribeBanner(t *testing.T) {
 		}
 	}
 }
+
+func TestUnsubscribeBannerOff(t *testing.T) {
+	a, tt, _ := listMail(t, courrier.Body{Text: "hi", Meta: courrier.Meta{Unsubscribe: []string{"https://example.com/u"}}})
+	a.set.UnsubscribeBanner = false
+	tt.Frame()
+
+	if tt.HasText("Mailing list from News") {
+		t.Error("banner shown while off")
+	}
+}
+
+func TestUnsubscribeGuess(t *testing.T) {
+	const guess = "Found an unsubscribe link to list.example in this message. It might be wrong: check the page it opens."
+	a, tt, _ := listMail(t, courrier.Body{HTML: `<a href="https://list.example/bye">Opt out</a>`})
+	var opened []string
+	a.openURL = func(u string) { opened = append(opened, u) }
+	tt.Frame()
+
+	if tt.HasText(guess) {
+		t.Error("guessed while off, the default")
+	}
+
+	a.set.UnsubscribeGuess = true
+	tt.Frame()
+
+	if !tt.HasText(guess) {
+		t.Fatalf("no guess: %v", tt.Texts())
+	}
+
+	if err := tt.Click("Unsubscribe"); err != nil {
+		t.Fatal(err)
+	}
+
+	tt.Frame()
+
+	if len(opened) != 1 || opened[0] != "https://list.example/bye" {
+		t.Errorf("opened %v", opened)
+	}
+
+	a.set.UnsubscribeBanner = false
+	tt.Frame()
+
+	if tt.HasText(guess) {
+		t.Error("guessed with the banner off")
+	}
+}
+
+// Mine may quote a list's mail, and its link isn't mine to follow.
+func TestGuessSkipsMine(t *testing.T) {
+	link := `<a href="https://list.example/bye">Unsubscribe</a>`
+	r := &reader{thread: []store.Message{{ID: 1, Special: "sent"}}, bodies: map[int64]courrier.Body{1: {HTML: link}}}
+	if got := r.guessedUnsubscribe(); got != "" {
+		t.Errorf("guessed %q from my own mail", got)
+	}
+
+	r.thread = append(r.thread, store.Message{ID: 2, Special: "inbox"})
+	r.bodies[2] = courrier.Body{HTML: link}
+	if got := r.guessedUnsubscribe(); got != "https://list.example/bye" {
+		t.Errorf("guessed %q", got)
+	}
+}
+
+// Settings saved before these existed keep the banner on, the guess off.
+func TestUnsubscribeSettingsDefaults(t *testing.T) {
+	a, _, _ := listMail(t, courrier.Body{Text: "hi"})
+	if err := a.st.SetPref("ui.settings", `{"FontSize":14}`); err != nil {
+		t.Fatal(err)
+	}
+
+	a.loadSettings()
+
+	if !a.set.UnsubscribeBanner || a.set.UnsubscribeGuess {
+		t.Errorf("settings %+v", a.set)
+	}
+}

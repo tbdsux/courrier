@@ -42,6 +42,7 @@ type reader struct {
 	mine    []string // my addresses, which replies skip
 	// Left the mailing list, or leaving it, with one click.
 	unsubscribed bool
+	guessed      map[int64]string // unsubscribe links found in bodies read so far, "" for none
 	// All the header fields, fetched when shown.
 	fields     []courrier.Field
 	fieldsBusy bool

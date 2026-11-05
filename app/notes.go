@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -187,22 +188,84 @@ func (r *reader) listMessage() (store.Message, bool) {
 	return store.Message{}, false
 }
 
+// guessedUnsubscribe is the unsubscribe link found in the text of the
+// newest message that has one, not counting mine, which may quote one.
+// A build can come many times a second, so each message is read once.
+func (r *reader) guessedUnsubscribe() string {
+	for _, m := range slices.Backward(r.thread) {
+		b, ok := r.bodies[m.ID]
+		if !ok || m.Special == "sent" || m.Special == "drafts" {
+			continue
+		}
+
+		link, read := r.guessed[m.ID]
+		if !read {
+			link = courrier.UnsubscribeLink(b.HTML)
+			if r.guessed == nil {
+				r.guessed = map[int64]string{}
+			}
+
+			r.guessed[m.ID] = link
+		}
+
+		if link != "" {
+			return link
+		}
+	}
+
+	return ""
+}
+
 // unsubscribeBanner offers to leave the mailing list of the conversation
-// shown, above its messages.
+// shown, above its messages: as its header says, else, if Settings allows
+// that guess, by a link found in its text.
 func (a *app) unsubscribeBanner(c *ui.Context, r *reader) {
-	m, ok := r.listMessage()
-	if !ok || r.unsubscribed {
+	if !a.set.UnsubscribeBanner || r.unsubscribed {
 		return
 	}
 
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8, 24).Background(a.pal.sidebar).Children(func() {
-		ui.Text(c, "Mailing list from "+author(m)).Wrap().Grow(1).Shrink(1)
+	m, ok := r.listMessage()
+	text, link := "Mailing list from "+author(m), ""
+	if !ok {
+		if a.set.UnsubscribeGuess {
+			link = r.guessedUnsubscribe()
+		}
 
-		if ui.Button(c, "Unsubscribe").Clicked() {
-			a.unsubscribe(r, m, r.bodies[m.ID])
+		if link == "" {
+			return
+		}
+
+		text = "Found an unsubscribe link to " + linkHost(link) + " in this message. It might be wrong: check the page it opens."
+	}
+
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8, 24).Background(a.pal.sidebar).Children(func() {
+		ui.Text(c, text).Wrap().Grow(1).Shrink(1)
+
+		btn := ui.Button(c, "Unsubscribe")
+		if link != "" {
+			btn = btn.Tooltip(link)
+		}
+
+		if btn.Clicked() {
+			switch {
+			case link == "":
+				a.unsubscribe(r, m, r.bodies[m.ID])
+			case a.openURL != nil:
+				a.openLink(link, linkHost(link))
+			}
 		}
 	})
 	ui.Divider(c)
+}
+
+// linkHost is the host of a link UnsubscribeLink found.
+func linkHost(link string) string {
+	u, err := url.Parse(link)
+	if err != nil {
+		return link
+	}
+
+	return u.Hostname()
 }
 
 // unsubscribe follows m's List-Unsubscribe: one POST when the sender

@@ -100,6 +100,63 @@ func mislinks(src string) []Mislink {
 	return out
 }
 
+// unsubscribeWords are what a link's text or address says when it
+// unsubscribes, in lower case.
+var unsubscribeWords = []string{"unsub", "opt out", "opt-out", "optout"}
+
+// UnsubscribeLink guesses the http(s) link of HTML that unsubscribes: the
+// first whose text says so, else the first whose address does; "" for none.
+// shortcut: English words only, add others when mail in them needs it.
+func UnsubscribeLink(src string) string {
+	says := func(s string) bool {
+		s = strings.ToLower(s)
+
+		return slices.ContainsFunc(unsubscribeWords, func(w string) bool { return strings.Contains(s, w) })
+	}
+
+	z := html.NewTokenizer(strings.NewReader(src))
+	href, byAddress, text, in := "", "", strings.Builder{}, false
+	for {
+		switch z.Next() {
+		case html.ErrorToken:
+			return byAddress
+
+		case html.StartTagToken:
+			if t := z.Token(); t.Data == "a" {
+				href, in = "", true
+				text.Reset()
+				for _, at := range t.Attr {
+					if at.Key == "href" {
+						href = strings.TrimSpace(at.Val)
+					}
+				}
+			}
+
+		case html.TextToken:
+			if in {
+				text.Write(z.Text())
+			}
+
+		case html.EndTagToken:
+			if t := z.Token(); t.Data == "a" && in {
+				in = false
+				u, err := url.Parse(href)
+				if err != nil || u.Scheme != "http" && u.Scheme != "https" || u.Hostname() == "" {
+					continue
+				}
+
+				if says(text.String()) {
+					return href
+				}
+
+				if byAddress == "" && says(href) {
+					byAddress = href
+				}
+			}
+		}
+	}
+}
+
 // mislink tells whether a link's text shows another site than its href.
 func mislink(text, href string) (Mislink, bool) {
 	text = strings.TrimSpace(text)
