@@ -7,6 +7,8 @@ import (
 
 	courrier "courrier/mail"
 	"courrier/store"
+
+	"github.com/egoist/mygo/ui/richtext"
 )
 
 func TestSignature(t *testing.T) {
@@ -31,7 +33,7 @@ func TestSignature(t *testing.T) {
 
 	a.newMessage()
 	cm := windows[0]
-	if cm.d.Text != "\n\n-- \n**Jane Doe**\nAcme" {
+	if cm.d.Text != "\n\n-- \nJane Doe\nAcme" {
 		t.Fatalf("new message %q", cm.d.Text)
 	}
 
@@ -42,7 +44,7 @@ func TestSignature(t *testing.T) {
 		t.Fatalf("not swapped: %q", cm.d.Text)
 	}
 
-	cm.d.Text = "Hi\n\n-- \nJane at Work, edited"
+	cm.doc.SetText(mdText("Hi\n\n-- \nJane at Work, edited"))
 	cm.from = a.fromOf(acc)
 	cm.syncFields()
 
@@ -60,7 +62,7 @@ func TestSignature(t *testing.T) {
 	click(t, tt, 0, "Launch plan")
 	a.respond("reply")
 
-	if r := a.reply.d.Text; !strings.HasPrefix(r, "\n\n-- \n**Jane Doe**\nAcme\n\nOn ") {
+	if r := a.reply.d.Text; !strings.HasPrefix(r, "\n\n-- \nJane Doe\nAcme\n\nOn ") {
 		t.Errorf("reply %q", r)
 	}
 }
@@ -204,7 +206,7 @@ func TestReplyUnder(t *testing.T) {
 
 	a.respond("all")
 	tt.Frame()
-	a.reply.d.Text = "Sounds good." + a.reply.d.Text
+	a.reply.doc.Edit(func(e *richtext.Edit) { e.ReplaceString(0, 0, "Sounds good.", richtext.Attributes{}) })
 	tt.Frame()
 	click(t, tt, 0, "Oldest")
 

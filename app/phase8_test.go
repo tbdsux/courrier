@@ -7,6 +7,8 @@ import (
 
 	courrier "courrier/mail"
 	"courrier/store"
+
+	"github.com/egoist/mygo/ui/richtext"
 )
 
 func TestLaterChoices(t *testing.T) {
@@ -88,7 +90,8 @@ func TestSendLaterAndTemplates(t *testing.T) {
 	a.openWindow = func(cm *compose) { windows = append(windows, cm) }
 	a.newMessage()
 	cm := windows[0]
-	cm.to, cm.d.Subject, cm.d.Text = []string{"pal@example.com"}, "Weekly", "Hello"
+	cm.to, cm.d.Subject = []string{"pal@example.com"}, "Weekly"
+	cm.doc.SetText(richtext.NewText("Hello"))
 	cm.saveTemplate()
 
 	if len(a.templates) != 1 || cm.toast != "Saved as a template" {

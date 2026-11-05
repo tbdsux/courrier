@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS contacts (
 type Draft struct {
 	ID, AccountID int64
 	mail.Draft           // its Files are in Attached
+	Rich          string // the editor's text as JSON; "" for one saved before it
 	ServerUID     uint32 // its copy in the Drafts folder, 0 for none
 	ReplyPath     string // the message it answers
 	ReplyUID      uint32
@@ -98,15 +99,15 @@ func fileStmt(draft string, args []any, f mail.File) sqlite.Statement {
 // fields; files are added and removed with AddDraftFile and DeleteDraftFile.
 func (s *Store) SaveDraft(d *Draft) error {
 	d.Updated = time.Now()
-	args := []any{d.AccountID, d.To, d.Cc, d.Bcc, d.Subject, d.Text, d.InReplyTo, d.References, int64(d.ServerUID), d.ReplyPath, int64(d.ReplyUID), d.Open, d.Updated.Unix(), d.From, d.Template}
+	args := []any{d.AccountID, d.To, d.Cc, d.Bcc, d.Subject, d.Text, d.InReplyTo, d.References, int64(d.ServerUID), d.ReplyPath, int64(d.ReplyUID), d.Open, d.Updated.Unix(), d.From, d.Template, d.Rich}
 	if d.ID != 0 {
 		_, err := s.db.Execute(ctx, `UPDATE drafts SET account_id = ?, to_addrs = ?, cc_addrs = ?, bcc_addrs = ?, subject = ?, body = ?, in_reply_to = ?, refs = ?,
-server_uid = ?, reply_path = ?, reply_uid = ?, open = ?, updated = ?, from_addr = ?, template = ? WHERE id = ?`, append(args, d.ID)...)
+server_uid = ?, reply_path = ?, reply_uid = ?, open = ?, updated = ?, from_addr = ?, template = ?, rich = ? WHERE id = ?`, append(args, d.ID)...)
 		return err
 	}
 
-	stmts := []sqlite.Statement{{SQL: `INSERT INTO drafts (account_id, to_addrs, cc_addrs, bcc_addrs, subject, body, in_reply_to, refs, server_uid, reply_path, reply_uid, open, updated, from_addr, template)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, Args: args}}
+	stmts := []sqlite.Statement{{SQL: `INSERT INTO drafts (account_id, to_addrs, cc_addrs, bcc_addrs, subject, body, in_reply_to, refs, server_uid, reply_path, reply_uid, open, updated, from_addr, template, rich)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, Args: args}}
 	for _, f := range d.Attached {
 		stmts = append(stmts, fileStmt("(SELECT MAX(id) FROM drafts)", nil, f.File)) // the row just inserted
 	}
@@ -153,7 +154,7 @@ func (s *Store) DeleteDraft(id int64) error {
 }
 
 func (s *Store) drafts(where string, args ...any) ([]Draft, error) {
-	rows, err := s.db.Query(ctx, `SELECT id, account_id, to_addrs, cc_addrs, bcc_addrs, subject, body, in_reply_to, refs, server_uid, reply_path, reply_uid, open, updated, from_addr, template
+	rows, err := s.db.Query(ctx, `SELECT id, account_id, to_addrs, cc_addrs, bcc_addrs, subject, body, in_reply_to, refs, server_uid, reply_path, reply_uid, open, updated, from_addr, template, rich
 FROM drafts WHERE `+where+" ORDER BY id", args...)
 	if err != nil {
 		return nil, err
@@ -163,7 +164,7 @@ FROM drafts WHERE `+where+" ORDER BY id", args...)
 	for i, r := range rows.Values {
 		d := Draft{ID: r[0].(int64), AccountID: r[1].(int64), ServerUID: uint32(r[9].(int64)), ReplyPath: r[10].(string), ReplyUID: uint32(r[11].(int64)),
 			Open: r[12].(int64) != 0, Updated: time.Unix(r[13].(int64), 0), Template: r[15].(int64) != 0}
-		d.From = r[14].(string)
+		d.From, d.Rich = r[14].(string), r[16].(string)
 		d.To, d.Cc, d.Bcc, d.Subject, d.Text, d.InReplyTo, d.References = r[2].(string), r[3].(string), r[4].(string), r[5].(string), r[6].(string), r[7].(string), r[8].(string)
 		fs, err := s.db.Query(ctx, "SELECT id, filename, mime_type, data FROM draft_files WHERE draft_id = ? ORDER BY id", d.ID)
 		if err != nil {

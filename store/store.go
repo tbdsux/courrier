@@ -135,6 +135,7 @@ func Open(path string, secrets Secrets) (*Store, error) {
 		"ALTER TABLE groups ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
 		"ALTER TABLE messages ADD COLUMN meta TEXT NOT NULL DEFAULT ''",
 		"ALTER TABLE folders ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0",
+		"ALTER TABLE drafts ADD COLUMN rich TEXT NOT NULL DEFAULT ''",
 	} {
 		if _, err := db.Execute(ctx, stmt); err != nil && !strings.Contains(err.Error(), "duplicate column") {
 			db.Close()

@@ -2,35 +2,67 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
+	courrier "courrier/mail"
 	"courrier/store"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/richtext"
 )
 
-func TestFormat(t *testing.T) {
+func TestMDText(t *testing.T) {
+	got := mdText("\n\n-- \n**Jane Doe**\nAcme\n---\n> said\n- item\n```\n**raw**\n```")
+	if want := "\n\n-- \nJane Doe\nAcme\n---\nsaid\nitem\n**raw**"; got.String() != want {
+		t.Fatalf("text %q, want %q", got.String(), want)
+	}
+
+	if !got.AttributesAt(6).Bold() {
+		t.Error("the signature's markdown isn't bold")
+	}
+
+	if h := got.HTML(); !strings.Contains(h, "<blockquote><p>said</p></blockquote>") || !strings.Contains(h, "<li>item</li>") {
+		t.Errorf("html %s", h)
+	}
+
+	if len(mdText("").String()) != 0 {
+		t.Error("empty text isn't empty")
+	}
+}
+
+func TestPlainPart(t *testing.T) {
+	text := richtext.ParseHTML(`<p>See <a href="https://x.com">this</a></p><ol><li>one</li><li>two</li></ol><ul><li>dot</li></ul>` +
+		`<blockquote><p>said</p></blockquote><p>-- </p><p>Jane</p>`)
+	want := "See this (https://x.com)\n1. one\n2. two\n- dot\n> said\n-- \nJane"
+	if got := plainPart(text); got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestTidyBlanks(t *testing.T) {
+	text := richtext.ParseHTML(`<p>On x wrote:</p><blockquote><p><br></p><p>one</p><p><br></p><p>&nbsp;</p><p>two</p>` +
+		`<ul><li>a</li><p><br></p><li>b</li></ul><p><br></p></blockquote><p><br></p>`)
+	if got, want := tidyBlanks(text).String(), "On x wrote:\none\n\ntwo\na\nb"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestDraftText(t *testing.T) {
+	rich := richJSON(richtext.ParseHTML("<p><b>saved</b></p>"))
 	for _, tc := range []struct {
-		text   string
-		sel    selection
-		action string
-		want   string
-		wsel   selection
+		name string
+		d    store.Draft
+		want string
 	}{
-		{"say hi now", selection{4, 6}, "bold", "say **hi** now", selection{6, 8}},
-		{"say **hi** now", selection{6, 8}, "bold", "say hi now", selection{4, 6}},
-		{"say ", selection{4, 4}, "italic", "say *italic text*", selection{5, 16}},
-		{"go", selection{0, 2}, "link", "[go](https://)", selection{5, 13}},
-		{"a\nb\nc", selection{0, 3}, "bullet", "- a\n- b\nc", selection{0, 7}},
-		{"- a\n- b", selection{0, 7}, "bullet", "a\nb", selection{0, 3}},
-		{"x\na\nb", selection{2, 5}, "ordered", "x\n1. a\n2. b", selection{2, 11}},
-		{"é ok", selection{2, 4}, "quote", "> é ok", selection{0, 6}},
-		{"use x", selection{4, 5}, "code", "use `x`", selection{5, 6}},
-		{"a\nb", selection{0, 3}, "code", "```\na\nb\n```", selection{4, 7}},
+		{"saved by the editor", store.Draft{Rich: rich, Draft: courrier.Draft{Text: "old", HTML: "<p>old</p>"}}, "saved"},
+		{"read back", store.Draft{Draft: courrier.Draft{Text: "old", HTML: "<p>html</p>"}}, "html"},
+		{"saved before the editor", store.Draft{Draft: courrier.Draft{Text: "**mark**\ndown"}}, "mark\ndown"},
+		{"unreadable JSON keeps the text", store.Draft{Rich: "{nope", Draft: courrier.Draft{Text: "kept"}}, "kept"},
 	} {
-		got, sel := format(tc.text, tc.sel, tc.action)
-		if got != tc.want || sel != tc.wsel {
-			t.Errorf("%s %q %v: %q %v, want %q %v", tc.action, tc.text, tc.sel, got, sel, tc.want, tc.wsel)
+		if got := draftText(tc.d).String(); got != tc.want {
+			t.Errorf("%s: %q, want %q", tc.name, got, tc.want)
 		}
 	}
 }
@@ -50,10 +82,25 @@ func TestEditorToolbar(t *testing.T) {
 	a.openWindow = func(c *compose) { cm = c }
 	a.newMessage()
 	ct := ui.NewTester(cm.view, 900, 640)
-	cm.preview = true
-	cm.d.Text = "ship monday"
-	cm.sel, cm.selPending = selection{5, 11}, true // as if "monday" were selected
+	cm.doc.SetText(richtext.NewText("ship monday"))
+	cm.doc.SetSelection(5, 11)
 	ct.Frame()
+	ct.Frame()
+
+	ct.ClickAt(450, 400) // typing: Enter is a new line, ⌘B formats, in the focused editor
+	ct.Frame()
+	ct.Type("!")
+	ct.Key(ui.Cmd, ui.KeyB)
+	ct.Type("b")
+	ct.Key(0, ui.KeyEnter)
+	ct.Frame()
+
+	if got := cm.doc.Text().String(); got != "ship monday!b\n" || !cm.doc.Text().AttributesAt(12).Bold() || cm.done {
+		t.Fatalf("typed %q, done %v", got, cm.done)
+	}
+
+	cm.doc.SetText(richtext.NewText("ship monday"))
+	cm.doc.SetSelection(5, 11)
 	ct.Frame()
 
 	if err := ct.Click("Bold"); err != nil {
@@ -62,56 +109,50 @@ func TestEditorToolbar(t *testing.T) {
 
 	ct.Frame()
 
-	if cm.d.Text != "ship **monday**" {
-		t.Fatalf("text %q", cm.d.Text)
+	if !cm.doc.Text().AttributesAt(5).Bold() || cm.doc.Text().AttributesAt(0).Bold() {
+		t.Fatal("Bold didn't format the selection")
 	}
 
-	if !ct.HasText("monday") || ct.HasText("**monday**") && !ct.HasText("ship **monday**") {
-		t.Errorf("preview: %v", ct.Texts())
+	if !cm.edited {
+		t.Error("formatting isn't an edit")
 	}
 
-	ct.Key(ui.Cmd, ui.KeyB) // the shortcut takes it off again, in the focused text area
+	if err := ct.Click("Link"); err != nil {
+		t.Fatal(err)
+	}
+
 	ct.Frame()
 
-	if cm.d.Text != "ship monday" {
-		t.Errorf("after ⌘B: %q", cm.d.Text)
+	if !cm.linkOpen {
+		t.Fatal("Link didn't ask for the address")
 	}
-}
 
-func TestPreviewRemembered(t *testing.T) {
-	st, err := store.Open(filepath.Join(t.TempDir(), "c.db"), memSecrets{})
+	cm.linkOpen = false
+	cm.to = []string{"bob@example.com"}
+	cm.syncFields()
+	m := cm.d.Mail()
+	m.From = cm.from
+	raw, _, err := courrier.Build(m, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	defer st.Close()
-	acc := store.Account{DisplayName: "Jane", Email: "jane@example.com", InUsername: "j", SMTPUsername: "j"}
-	srv := store.Server{Name: "x", Protocol: "imap", InHost: "h", InPort: 993, InSecurity: "tls", SMTPHost: "h", SMTPPort: 465, SMTPSecurity: "tls", Hidden: true}
-	st.SaveAccount(&acc, &srv, "pw", "pw")
-	a := newApp(st, func(fn func()) { fn() })
-	var cm *compose
-	a.openWindow = func(c *compose) { cm = c }
-	a.newMessage()
-	ct := ui.NewTester(cm.view, 900, 640)
-	ct.Frame()
-
-	if cm.preview {
-		t.Fatal("preview shown by default")
+	_, b, _ := courrier.Parse(raw)
+	if !strings.Contains(b.HTML, "<b>monday</b>") || strings.TrimSpace(b.Text) != "ship monday" {
+		t.Errorf("sent html %q text %q", b.HTML, b.Text)
 	}
 
-	if err := ct.Click("Preview"); err != nil {
+	// A draft reopened from the database keeps its formatting.
+	if err := st.SaveDraft(&cm.d); err != nil {
 		t.Fatal(err)
 	}
 
-	ct.Frame()
-
-	if !cm.preview {
-		t.Fatal("toggle didn't turn the preview on")
+	ds, err := st.OpenDrafts()
+	if err != nil || len(ds) != 1 {
+		t.Fatalf("drafts %v %v", ds, err)
 	}
 
-	a.newMessage()
-
-	if !cm.preview {
-		t.Error("the next message didn't open with the preview")
+	if !draftText(ds[0]).AttributesAt(5).Bold() {
+		t.Error("the saved draft lost its formatting")
 	}
 }
