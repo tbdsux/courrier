@@ -40,6 +40,8 @@ type reader struct {
 	view    int      // 0 plain text, 1 HTML
 	remote  bool     // remote images allowed
 	mine    []string // my addresses, which replies skip
+	// Left the mailing list, or leaving it, with one click.
+	unsubscribed bool
 	// All the header fields, fetched when shown.
 	fields     []courrier.Field
 	fieldsBusy bool

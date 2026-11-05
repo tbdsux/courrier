@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"html"
-	"net/url"
 	"slices"
 	"strings"
 
@@ -18,9 +17,8 @@ import (
 // note is a line above a message's text: a warning, or something the
 // message offers.
 type note struct {
-	warn        bool
-	text        string
-	label, link string // its button, a courrier:// link pageLink follows; "" for none
+	warn bool
+	text string
 }
 
 // notes are the notes of message m, whose body is b.
@@ -45,10 +43,6 @@ func notes(m store.Message, b courrier.Body) []note {
 
 	if b.NoReply {
 		out = append(out, note{text: "This sender doesn't take replies: write to them another way."})
-	}
-
-	if len(b.Unsubscribe) > 0 {
-		out = append(out, note{text: "This message is from a mailing list.", label: "Unsubscribe", link: fmt.Sprintf("courrier://unsubscribe/%d", m.ID)})
 	}
 
 	return out
@@ -125,13 +119,7 @@ func pageNotes(sb *strings.Builder, m store.Message, b courrier.Body) {
 			class += " warn"
 		}
 
-		fmt.Fprintf(sb, `<div class="%s"><span>%s</span>`, class, html.EscapeString(n.text))
-
-		if n.label != "" {
-			fmt.Fprintf(sb, `<a href="%s">%s</a>`, html.EscapeString(n.link), html.EscapeString(n.label))
-		}
-
-		sb.WriteString("</div>")
+		fmt.Fprintf(sb, `<div class="%s"><span>%s</span></div>`, class, html.EscapeString(n.text))
 	}
 }
 
@@ -146,12 +134,6 @@ func (a *app) cardNotes(c *ui.Context, m store.Message, b courrier.Body) {
 
 		ui.Row(c.Key(i)).Gap(10).AlignItems(ui.Center).Padding(6, 12).Radius(8).Background(color.Alpha(0.12)).Children(func() {
 			ui.Text(c, n.text).Wrap().Grow(1)
-
-			if n.label != "" && ui.Button(c, n.label).Clicked() {
-				if u, err := url.Parse(n.link); err == nil {
-					a.pageLink(u)
-				}
-			}
 		})
 	}
 }
@@ -193,17 +175,49 @@ func (a *app) linkDialog(c *ui.Context) {
 	}
 }
 
+// listMessage is the newest message of r's conversation that a mailing
+// list sent, the one to leave the list with.
+func (r *reader) listMessage() (store.Message, bool) {
+	for _, m := range slices.Backward(r.thread) {
+		if len(r.bodies[m.ID].Unsubscribe) > 0 {
+			return m, true
+		}
+	}
+
+	return store.Message{}, false
+}
+
+// unsubscribeBanner offers to leave the mailing list of the conversation
+// shown, above its messages.
+func (a *app) unsubscribeBanner(c *ui.Context, r *reader) {
+	m, ok := r.listMessage()
+	if !ok || r.unsubscribed {
+		return
+	}
+
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8, 24).Background(a.pal.sidebar).Children(func() {
+		ui.Text(c, "Mailing list from "+author(m)).Wrap().Grow(1).Shrink(1)
+
+		if ui.Button(c, "Unsubscribe").Clicked() {
+			a.unsubscribe(r, m, r.bodies[m.ID])
+		}
+	})
+	ui.Divider(c)
+}
+
 // unsubscribe follows m's List-Unsubscribe: one POST when the sender
 // allows it, else a message to write, else the sender's page.
-func (a *app) unsubscribe(m store.Message, b courrier.Body) {
+func (a *app) unsubscribe(r *reader, m store.Message, b courrier.Body) {
 	switch {
 	case b.OneClick:
 		u, update, who := b.UnsubscribeURL(), a.update, author(m)
 		a.toast = "Unsubscribing…"
+		r.unsubscribed = true // no second POST; a failure offers it again
 		go func() {
 			err := courrier.Unsubscribe(context.Background(), u)
 			update(func() {
 				if err != nil {
+					r.unsubscribed = false
 					a.toast = "Couldn't unsubscribe: " + err.Error()
 				} else {
 					a.toast = "Unsubscribed from " + who
