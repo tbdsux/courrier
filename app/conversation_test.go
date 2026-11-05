@@ -90,7 +90,6 @@ func TestConversationPage(t *testing.T) {
 		`<label class="ql" for="q3"`,
 		`<details class="q"><summary title="Show quoted text">•••</summary>`,
 		`courrier://reply/3`,
-		`<a href="courrier://unsubscribe/3">Unsubscribe</a>`,
 		`color-scheme: dark; --bg: rgba(17,17,19,1.000)`,
 		`.html { background: #fff;`, // HTML mail on white in the dark
 	} {

@@ -18,9 +18,8 @@ import (
 // note is a line above a message's text: a warning, or something the
 // message offers.
 type note struct {
-	warn        bool
-	text        string
-	label, link string // its button, a courrier:// link pageLink follows; "" for none
+	warn bool
+	text string
 }
 
 // notes are the notes of message m, whose body is b.
@@ -45,10 +44,6 @@ func notes(m store.Message, b courrier.Body) []note {
 
 	if b.NoReply {
 		out = append(out, note{text: "This sender doesn't take replies: write to them another way."})
-	}
-
-	if len(b.Unsubscribe) > 0 {
-		out = append(out, note{text: "This message is from a mailing list.", label: "Unsubscribe", link: fmt.Sprintf("courrier://unsubscribe/%d", m.ID)})
 	}
 
 	return out
@@ -125,13 +120,7 @@ func pageNotes(sb *strings.Builder, m store.Message, b courrier.Body) {
 			class += " warn"
 		}
 
-		fmt.Fprintf(sb, `<div class="%s"><span>%s</span>`, class, html.EscapeString(n.text))
-
-		if n.label != "" {
-			fmt.Fprintf(sb, `<a href="%s">%s</a>`, html.EscapeString(n.link), html.EscapeString(n.label))
-		}
-
-		sb.WriteString("</div>")
+		fmt.Fprintf(sb, `<div class="%s"><span>%s</span></div>`, class, html.EscapeString(n.text))
 	}
 }
 
@@ -146,12 +135,6 @@ func (a *app) cardNotes(c *ui.Context, m store.Message, b courrier.Body) {
 
 		ui.Row(c.Key(i)).Gap(10).AlignItems(ui.Center).Padding(6, 12).Radius(8).Background(color.Alpha(0.12)).Children(func() {
 			ui.Text(c, n.text).Wrap().Grow(1)
-
-			if n.label != "" && ui.Button(c, n.label).Clicked() {
-				if u, err := url.Parse(n.link); err == nil {
-					a.pageLink(u)
-				}
-			}
 		})
 	}
 }
@@ -193,17 +176,111 @@ func (a *app) linkDialog(c *ui.Context) {
 	}
 }
 
+// listMessage is the newest message of r's conversation that a mailing
+// list sent, the one to leave the list with.
+func (r *reader) listMessage() (store.Message, bool) {
+	for _, m := range slices.Backward(r.thread) {
+		if len(r.bodies[m.ID].Unsubscribe) > 0 {
+			return m, true
+		}
+	}
+
+	return store.Message{}, false
+}
+
+// guessedUnsubscribe is the unsubscribe link found in the text of the
+// newest message that has one, not counting mine, which may quote one.
+// A build can come many times a second, so each message is read once.
+func (r *reader) guessedUnsubscribe() string {
+	for _, m := range slices.Backward(r.thread) {
+		b, ok := r.bodies[m.ID]
+		if !ok || m.Special == "sent" || m.Special == "drafts" {
+			continue
+		}
+
+		link, read := r.guessed[m.ID]
+		if !read {
+			link = courrier.UnsubscribeLink(b.HTML)
+			if r.guessed == nil {
+				r.guessed = map[int64]string{}
+			}
+
+			r.guessed[m.ID] = link
+		}
+
+		if link != "" {
+			return link
+		}
+	}
+
+	return ""
+}
+
+// unsubscribeBanner offers to leave the mailing list of the conversation
+// shown, above its messages: as its header says, else, if Settings allows
+// that guess, by a link found in its text.
+func (a *app) unsubscribeBanner(c *ui.Context, r *reader) {
+	if !a.set.UnsubscribeBanner || r.unsubscribed {
+		return
+	}
+
+	m, ok := r.listMessage()
+	text, link := "Mailing list from "+author(m), ""
+	if !ok {
+		if a.set.UnsubscribeGuess {
+			link = r.guessedUnsubscribe()
+		}
+
+		if link == "" {
+			return
+		}
+
+		text = "Found an unsubscribe link to " + linkHost(link) + " in this message. It might be wrong: check the page it opens."
+	}
+
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8, 24).Background(a.pal.sidebar).Children(func() {
+		ui.Text(c, text).Wrap().Grow(1).Shrink(1)
+
+		btn := ui.Button(c, "Unsubscribe")
+		if link != "" {
+			btn = btn.Tooltip(link)
+		}
+
+		if btn.Clicked() {
+			switch {
+			case link == "":
+				a.unsubscribe(r, m, r.bodies[m.ID])
+			case a.openURL != nil:
+				a.openLink(link, linkHost(link))
+			}
+		}
+	})
+	ui.Divider(c)
+}
+
+// linkHost is the host of a link UnsubscribeLink found.
+func linkHost(link string) string {
+	u, err := url.Parse(link)
+	if err != nil {
+		return link
+	}
+
+	return u.Hostname()
+}
+
 // unsubscribe follows m's List-Unsubscribe: one POST when the sender
 // allows it, else a message to write, else the sender's page.
-func (a *app) unsubscribe(m store.Message, b courrier.Body) {
+func (a *app) unsubscribe(r *reader, m store.Message, b courrier.Body) {
 	switch {
 	case b.OneClick:
 		u, update, who := b.UnsubscribeURL(), a.update, author(m)
 		a.toast = "Unsubscribing…"
+		r.unsubscribed = true // no second POST; a failure offers it again
 		go func() {
 			err := courrier.Unsubscribe(context.Background(), u)
 			update(func() {
 				if err != nil {
+					r.unsubscribed = false
 					a.toast = "Couldn't unsubscribe: " + err.Error()
 				} else {
 					a.toast = "Unsubscribed from " + who

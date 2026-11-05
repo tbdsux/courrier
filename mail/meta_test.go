@@ -33,6 +33,20 @@ func TestMetaUnsubscribe(t *testing.T) {
 	}
 }
 
+func TestUnsubscribeLink(t *testing.T) {
+	for want, src := range map[string]string{
+		"":                        `<p>unsubscribe</p><a href="https://a.example/">Home</a>`,
+		"https://a.example/u":     `<a href="https://b.example/unsub">x</a><a href="https://a.example/u">Click to <b>Unsubscribe</b></a>`,
+		"https://b.example/unsub": `<a href="https://a.example/">Home</a><a href=" https://b.example/unsub ">here</a>`,
+		"http://c.example/o":      `<a href="http://c.example/o">Opt out</a>`,
+		"https://d.example/x":     `<a href="javascript:unsub()">Unsubscribe</a><a href="mailto:unsub@d.example">Unsubscribe</a><a href="https://d.example/x">unsubscribe</a>`,
+	} {
+		if got := UnsubscribeLink(src); got != want {
+			t.Errorf("%s: got %q, want %q", src, got, want)
+		}
+	}
+}
+
 func TestUnsubscribePost(t *testing.T) {
 	var got string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

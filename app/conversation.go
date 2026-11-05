@@ -330,9 +330,6 @@ func (a *app) pageLink(u *url.URL) {
 			a.focusOn(r, m)
 			a.respond(u.Host)
 
-		case "unsubscribe":
-			a.unsubscribe(m, r.bodies[m.ID])
-
 		case "save":
 			for _, at := range r.bodies[m.ID].Attachments {
 				if at.Part == u.Query().Get("part") {
@@ -424,14 +421,12 @@ details.more[open] > summary { display: none; }
 .note { display: flex; gap: 10px; align-items: center; margin: 0 0 10px; padding: 6px 12px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .note span { flex: 1; }
 .note.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); }
-.note a { flex: none; border: 1px solid var(--border); border-radius: 14px; padding: 2px 12px; color: var(--text); text-decoration: none; font-size: 12px; }
-.note a:hover { background: var(--hover); }
 .acts { display: flex; gap: 8px; padding: 16px 0 16px 44px; }
 .acts a { border: 1px solid var(--border); border-radius: 18px; padding: 6px 16px; color: var(--text); text-decoration: none; font-weight: 500; }
 .acts a:hover, .att a:hover { background: var(--hover); }
 @media print {
   body { padding: 0; }
-  .acts, .note a, .ql, details.q > summary { display: none; }
+  .acts, .ql, details.q > summary { display: none; }
 }
 `
 

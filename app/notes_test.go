@@ -1,12 +1,18 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	courrier "courrier/mail"
 	"courrier/store"
+
+	"github.com/egoist/mygo/ui"
 )
 
 func TestInviteText(t *testing.T) {
@@ -83,5 +89,157 @@ func TestCanReply(t *testing.T) {
 	if strings.Contains(page, "courrier://reply/7") || strings.Contains(page, "courrier://all/7") || !strings.Contains(page, "courrier://forward/7") ||
 		!strings.Contains(page, "doesn&#39;t take replies") {
 		t.Errorf("page offers a reply, or no note:\n%s", page)
+	}
+}
+
+// listMail opens in a new app one message with body b.
+func listMail(t *testing.T, b courrier.Body) (*app, *ui.Tester, chan func()) {
+	t.Helper()
+
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"), memSecrets{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { st.Close() })
+
+	must := func(err error) {
+		t.Helper()
+
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	acc := store.Account{DisplayName: "Jane", Email: "jane@example.com", InUsername: "jane", SMTPUsername: "jane"}
+	server := store.Server{Name: "x", Protocol: "imap", InHost: "h", InPort: 993, InSecurity: "tls", SMTPHost: "h", SMTPPort: 465, SMTPSecurity: "tls", Hidden: true}
+	must(st.SaveAccount(&acc, &server, "pw", "pw"))
+	must(st.SetFolders(acc.ID, []courrier.Folder{{Path: "INBOX", Special: "inbox"}, {Path: "Lists", Delim: "/"}}))
+	must(st.AddHeaders(acc.ID, "Lists", []courrier.Header{{UID: 1, FromName: "News", Subject: "Weekly", Date: time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)}}))
+	must(st.SetBody(acc.ID, "Lists", 1, b))
+
+	updates := make(chan func(), 64)
+	a := newApp(st, func(fn func()) { updates <- fn })
+	tt := ui.NewTester(a.view, 1100, 800)
+	for _, name := range []string{"Lists", "Weekly"} {
+		tt.Frame()
+		must(tt.Click(name))
+		tt.Frame()
+	}
+
+	return a, tt, updates
+}
+
+func TestUnsubscribeBanner(t *testing.T) {
+	var status atomic.Int32
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(int(status.Load()))
+	}))
+	defer srv.Close()
+
+	// Only https: URLs unsubscribe with one click: trust the test server's.
+	transport := http.DefaultTransport
+	http.DefaultTransport = srv.Client().Transport
+	defer func() { http.DefaultTransport = transport }()
+
+	a, tt, updates := listMail(t, courrier.Body{Text: "hi", Meta: courrier.Meta{Unsubscribe: []string{srv.URL}, OneClick: true}})
+	if !tt.HasText("Mailing list from News") {
+		t.Fatalf("no banner: %v", tt.Texts())
+	}
+
+	// A failed POST offers it again, a good one takes the banner away.
+	for _, c := range []struct {
+		status int32
+		shown  bool
+	}{{http.StatusBadGateway, true}, {http.StatusOK, false}} {
+		status.Store(c.status)
+		if err := tt.Click("Unsubscribe"); err != nil {
+			t.Fatal(err)
+		}
+
+		// The toast leaves a.toast once shown: wait for the POST's own.
+		for !strings.HasPrefix(a.toast, "Couldn't") && !strings.HasPrefix(a.toast, "Unsubscribed") {
+			(<-updates)()
+		}
+
+		tt.Frame()
+
+		if tt.HasText("Mailing list from News") != c.shown {
+			t.Errorf("status %d: %q, banner shown %v", c.status, a.toast, !c.shown)
+		}
+	}
+}
+
+func TestUnsubscribeBannerOff(t *testing.T) {
+	a, tt, _ := listMail(t, courrier.Body{Text: "hi", Meta: courrier.Meta{Unsubscribe: []string{"https://example.com/u"}}})
+	a.set.UnsubscribeBanner = false
+	tt.Frame()
+
+	if tt.HasText("Mailing list from News") {
+		t.Error("banner shown while off")
+	}
+}
+
+func TestUnsubscribeGuess(t *testing.T) {
+	const guess = "Found an unsubscribe link to list.example in this message. It might be wrong: check the page it opens."
+	a, tt, _ := listMail(t, courrier.Body{HTML: `<a href="https://list.example/bye">Opt out</a>`})
+	var opened []string
+	a.openURL = func(u string) { opened = append(opened, u) }
+	tt.Frame()
+
+	if tt.HasText(guess) {
+		t.Error("guessed while off, the default")
+	}
+
+	a.set.UnsubscribeGuess = true
+	tt.Frame()
+
+	if !tt.HasText(guess) {
+		t.Fatalf("no guess: %v", tt.Texts())
+	}
+
+	if err := tt.Click("Unsubscribe"); err != nil {
+		t.Fatal(err)
+	}
+
+	tt.Frame()
+
+	if len(opened) != 1 || opened[0] != "https://list.example/bye" {
+		t.Errorf("opened %v", opened)
+	}
+
+	a.set.UnsubscribeBanner = false
+	tt.Frame()
+
+	if tt.HasText(guess) {
+		t.Error("guessed with the banner off")
+	}
+}
+
+// Mine may quote a list's mail, and its link isn't mine to follow.
+func TestGuessSkipsMine(t *testing.T) {
+	link := `<a href="https://list.example/bye">Unsubscribe</a>`
+	r := &reader{thread: []store.Message{{ID: 1, Special: "sent"}}, bodies: map[int64]courrier.Body{1: {HTML: link}}}
+	if got := r.guessedUnsubscribe(); got != "" {
+		t.Errorf("guessed %q from my own mail", got)
+	}
+
+	r.thread = append(r.thread, store.Message{ID: 2, Special: "inbox"})
+	r.bodies[2] = courrier.Body{HTML: link}
+	if got := r.guessedUnsubscribe(); got != "https://list.example/bye" {
+		t.Errorf("guessed %q", got)
+	}
+}
+
+// Settings saved before these existed keep the banner on, the guess off.
+func TestUnsubscribeSettingsDefaults(t *testing.T) {
+	a, _, _ := listMail(t, courrier.Body{Text: "hi"})
+	if err := a.st.SetPref("ui.settings", `{"FontSize":14}`); err != nil {
+		t.Fatal(err)
+	}
+
+	a.loadSettings()
+
+	if !a.set.UnsubscribeBanner || a.set.UnsubscribeGuess {
+		t.Errorf("settings %+v", a.set)
 	}
 }

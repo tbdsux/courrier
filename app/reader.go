@@ -160,6 +160,7 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 		}
 
 		ui.Divider(c)
+		a.unsubscribeBanner(c, r)
 
 		if cm := a.reply; cm != nil && a.replyTo == r.thread[0].ID {
 			ui.SplitVerticalPercent(c, &a.replyPct, func() {

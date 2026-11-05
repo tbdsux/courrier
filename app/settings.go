@@ -10,19 +10,21 @@ import (
 
 // settings are the user's choices on the General page, kept between launches.
 type settings struct {
-	FontSize     float64
-	View         string  // the message list's, one of views
-	Appearance   string  // one of appearances
-	HTMLFirst    bool    // messages open as HTML when they have it
-	RemoteImages bool    // load remote images in every message
-	ShowHeaders  bool    // messages open with every header field shown
-	Sound        bool    // new-mail notifications play a sound
-	Badge        bool    // the Dock or taskbar shows the Inbox's unread count
-	MenuBar      bool    // courrier sits in the menu bar (tray), and keeps running without its window
-	Threads      bool    // the list shows a row a conversation
-	KeepBodies   int     // days the bodies of IMAP mail stay cached; 0 keeps every one
-	GroupGap     float64 // DIPs above each account in a sidebar group
-	Zoom         float64 // the message's text, 1 its size; 0 reads as 1
+	FontSize          float64
+	View              string  // the message list's, one of views
+	Appearance        string  // one of appearances
+	HTMLFirst         bool    // messages open as HTML when they have it
+	RemoteImages      bool    // load remote images in every message
+	ShowHeaders       bool    // messages open with every header field shown
+	Sound             bool    // new-mail notifications play a sound
+	Badge             bool    // the Dock or taskbar shows the Inbox's unread count
+	MenuBar           bool    // courrier sits in the menu bar (tray), and keeps running without its window
+	Threads           bool    // the list shows a row a conversation
+	UnsubscribeBanner bool    // mailing lists' mail offers to unsubscribe above it
+	UnsubscribeGuess  bool    // without the header, that offer guesses a link from the text
+	KeepBodies        int     // days the bodies of IMAP mail stay cached; 0 keeps every one
+	GroupGap          float64 // DIPs above each account in a sidebar group
+	Zoom              float64 // the message's text, 1 its size; 0 reads as 1
 }
 
 // system is what Settings shows of courrier's place in the system, read
@@ -40,7 +42,7 @@ type system struct {
 }
 
 func defaultSettings() settings {
-	return settings{FontSize: 13, View: "Comfortable", Appearance: "System", Sound: true, Badge: true, MenuBar: true, Threads: true, KeepBodies: 90, GroupGap: 4}
+	return settings{FontSize: 13, View: "Comfortable", Appearance: "System", Sound: true, Badge: true, MenuBar: true, Threads: true, UnsubscribeBanner: true, KeepBodies: 90, GroupGap: 4}
 }
 
 // zooms are the reading pane's zoom steps.
@@ -112,6 +114,13 @@ func (a *app) settingsView(c *ui.Context) {
 					Description("Show every header field when a message opens.")
 				ui.Field(c, "Group by conversation", func() { ui.Switch(c, &s.Threads) }).
 					Description("A reply shows with the message it answers, yours included, in one row.")
+				ui.Field(c, "Unsubscribe banner", func() { ui.Switch(c, &s.UnsubscribeBanner) }).
+					Description("Offer to unsubscribe above mail from a mailing list.")
+
+				if s.UnsubscribeBanner {
+					ui.Field(c, "Find unsubscribe links in messages", func() { ui.Switch(c, &s.UnsubscribeGuess) }).
+						Description("For mail without an unsubscribe header, look for a link in its HTML. This is a guess and might be wrong, so check the page it opens.")
+				}
 			})
 
 			a.card(c, "notify", "Notifications", func() {
