@@ -85,7 +85,7 @@ func (a *app) storageView(c *ui.Context) {
 	before := keep
 
 	a.page(c, 16, func() {
-		header(c, "Settings", "Storage", "What courrier keeps of your mail on this computer.")
+		header(c, "Settings", "Storage", "What Courrier keeps of your mail on this computer.")
 
 		a.formIn(c, a.contentWidth(), func() {
 			a.card(c, "space", "Space used", func() {

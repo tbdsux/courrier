@@ -246,7 +246,7 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 			case !has && r.pending > 0:
 				ui.Spinner(c).Label("Loading message").AlignSelf(ui.Start)
 			case !has:
-				ui.Text(c, "This message isn't downloaded yet. It will be once courrier is online.").TextColor(t.TextMuted).Wrap()
+				ui.Text(c, "This message isn't downloaded yet. It will be once Courrier is online.").TextColor(t.TextMuted).Wrap()
 
 			default:
 				a.cardNotes(c, m, body)

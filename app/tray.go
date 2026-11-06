@@ -31,7 +31,7 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 	}
 
 	if mb.tray == nil {
-		t, err := mygo.NewTray(mygo.TrayOptions{ID: "inbox", Icon: trayIcon, ToolTip: "courrier"})
+		t, err := mygo.NewTray(mygo.TrayOptions{ID: "inbox", Icon: trayIcon, ToolTip: "Courrier"})
 		if err != nil {
 			log.Println("tray:", err)
 			return
@@ -40,9 +40,9 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 		mb.tray = t
 	}
 
-	title, tip := "", "courrier"
+	title, tip := "", "Courrier"
 	if unread > 0 {
-		title, tip = strconv.Itoa(unread), fmt.Sprintf("courrier · %d unread", unread)
+		title, tip = strconv.Itoa(unread), fmt.Sprintf("Courrier · %d unread", unread)
 	}
 
 	mb.tray.SetTitle(title)
@@ -52,7 +52,7 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 		return func(*mygo.MenuItem, *mygo.Window) { a.update(fn) }
 	}
 	items := []*mygo.MenuItem{
-		{Label: "Open courrier", Click: do(a.showWindow)},
+		{Label: "Open Courrier", Click: do(a.showWindow)},
 		{Label: "New message", Accelerator: "CmdOrCtrl+N", Click: do(func() { a.showWindow(); a.newMessage() })},
 		{Label: "Check mail now", Click: do(a.checkAll)},
 	}
@@ -65,7 +65,7 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 		items = append(items, &mygo.MenuItem{Label: clip(sender(m)+" — "+subject(m.Subject), 60), Click: do(func() { a.openNotification(id) })})
 	}
 
-	mb.tray.SetMenu(mygo.NewMenu(append(items, mygo.Separator(), &mygo.MenuItem{Label: "Quit courrier", Role: mygo.RoleQuit})))
+	mb.tray.SetMenu(mygo.NewMenu(append(items, mygo.Separator(), &mygo.MenuItem{Label: "Quit Courrier", Role: mygo.RoleQuit})))
 }
 
 // clip shortens s to n characters at most.

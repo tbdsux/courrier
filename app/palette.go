@@ -232,7 +232,7 @@ func (a *app) paletteDialog(c *ui.Context) {
 		ui.Divider(c)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 14).Radius(0, 0, 13, 13).Background(a.pal.sidebar).Children(func() {
 			ui.Image(c, appLogo).Size(16, 16)
-			ui.Text(c, "courrier").FontSize(12).TextColor(t.TextMuted).Grow(1)
+			ui.Text(c, "Courrier").FontSize(12).TextColor(t.TextMuted).Grow(1)
 			ui.Text(c, "Run").FontSize(12).TextColor(t.Text)
 			keycap(c, "↩")
 			ui.Column(c).Size(1, 14).Background(t.Border).Margin(0, 4)

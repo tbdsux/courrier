@@ -171,7 +171,7 @@ func (a *app) rulesView(c *ui.Context) {
 	e := &a.ruleEd
 
 	a.page(c, 12, func() {
-		header(c, "Settings", "Rules", "Sort new mail as it comes to an Inbox, while courrier runs. Rules run from the top; one that moves a message is its last.")
+		header(c, "Settings", "Rules", "Sort new mail as it comes to an Inbox, while Courrier runs. Rules run from the top; one that moves a message is its last.")
 
 		if ui.PrimaryButton(c, "New rule…").AlignSelf(ui.Start).Clicked() {
 			a.editRule(store.Rule{})

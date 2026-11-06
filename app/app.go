@@ -190,7 +190,7 @@ func (a *app) view(c *ui.Context) {
 	}
 
 	ui.Column(c).Fill().Children(func() {
-		titleBar(c, "courrier", a.pal.sidebar, a.paletteButton)
+		titleBar(c, "Courrier", a.pal.sidebar, a.paletteButton)
 		a.panes(c)
 	})
 
@@ -361,7 +361,7 @@ func (a *app) sidebar(c *ui.Context) {
 	ui.Column(c).Fill().Padding(0, 0, 8, 0).Background(a.pal.sidebar).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(16, 12, 12, 16).Children(func() {
 			ui.Image(c, appLogo).Size(26, 26)
-			ui.Text(c, "courrier").FontSize(15).Bold().LetterSpacing(-0.3).Grow(1)
+			ui.Text(c, "Courrier").FontSize(15).Bold().LetterSpacing(-0.3).Grow(1)
 
 			add := ui.Button(c, "").Label("Add account").Tooltip("Add account").
 				Size(30, 30).Padding(0).Radius(8).Justify(ui.Center).AlignItems(ui.Center).

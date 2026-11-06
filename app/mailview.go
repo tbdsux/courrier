@@ -876,7 +876,7 @@ func (a *app) messageRow(c *ui.Context, m store.Message, folder bool) ui.Element
 func (a *app) accountsView(c *ui.Context) {
 	t := c.Theme()
 	a.page(c, 12, func() {
-		header(c, "Settings", "Accounts", "The mailboxes courrier reads. Removing one removes its cached mail.")
+		header(c, "Settings", "Accounts", "The mailboxes Courrier reads. Removing one removes its cached mail.")
 
 		if ui.PrimaryButton(c, "New account…").AlignSelf(ui.Start).Clicked() {
 			a.sel, a.shown = "new", ""

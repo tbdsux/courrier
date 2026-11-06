@@ -72,7 +72,7 @@ func main() {
 		hidden := na.set.MenuBar && mygo.App.WasOpenedAtLogin()
 		win = mygo.NewWindow(mygo.WindowOptions{
 			Hidden:    hidden,
-			Title:     "courrier",
+			Title:     "Courrier",
 			Width:     960,
 			Height:    680,
 			MinWidth:  560,

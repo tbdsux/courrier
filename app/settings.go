@@ -93,7 +93,7 @@ func (a *app) settingsView(c *ui.Context) {
 	}
 
 	a.page(c, 16, func() {
-		header(c, "Settings", "General", "How courrier looks and opens your mail.")
+		header(c, "Settings", "General", "How Courrier looks and opens your mail.")
 
 		a.formIn(c, a.contentWidth(), func() {
 			a.card(c, "look", "Appearance", func() {
@@ -137,7 +137,7 @@ func (a *app) settingsView(c *ui.Context) {
 			a.card(c, "dock", "Dock and menu bar", func() {
 				ui.Field(c, "Badge", func() { segmented(c, &badge, "Inbox unread", "Off") })
 				ui.Field(c, "Show in menu bar", func() { ui.Switch(c, &s.MenuBar) }).
-					Description("The Inbox's unread count and newest mail. Closing the window keeps courrier running there.")
+					Description("The Inbox's unread count and newest mail. Closing the window keeps Courrier running there.")
 			})
 
 			a.shortcutsCard(c)
@@ -176,10 +176,10 @@ func (a *app) systemCards(c *ui.Context) {
 	a.card(c, "system", "System", func() {
 		ui.Field(c, "Default mail app", func() {
 			if sys.isDefault {
-				ui.Text(c, "courrier is the default")
-			} else if ui.Button(c, "Make courrier the default").Clicked() {
+				ui.Text(c, "Courrier is the default")
+			} else if ui.Button(c, "Make Courrier the default").Clicked() {
 				if err := sys.makeDefault(); err != nil {
-					a.toast = "Couldn't make courrier the default: " + err.Error()
+					a.toast = "Couldn't make Courrier the default: " + err.Error()
 				}
 
 				sys.read(sys)
@@ -187,7 +187,7 @@ func (a *app) systemCards(c *ui.Context) {
 		}).Description("mailto: links open a new message.")
 
 		if ui.Field(c, "Open at login", func() { ui.Switch(c, &sys.login) }).
-			Description("With the menu bar item on, courrier starts without its window.").Changed() {
+			Description("With the menu bar item on, Courrier starts without its window.").Changed() {
 			if err := sys.setLogin(sys.login); err != nil {
 				a.toast = "Couldn't change it: " + err.Error()
 			}

@@ -56,9 +56,9 @@ func notes(m store.Message, b courrier.Body) []note {
 func signatureNote(s courrier.Security) (note, bool) {
 	switch {
 	case s.Encrypted:
-		return note{warn: true, text: "This message is encrypted with " + s.Kind + ". courrier can't decrypt it yet: open it in an app that has your key."}, true
+		return note{warn: true, text: "This message is encrypted with " + s.Kind + ". Courrier can't decrypt it yet: open it in an app that has your key."}, true
 	case s.Signed && s.Kind == "PGP":
-		return note{text: "Signed with PGP. courrier can't check PGP signatures yet."}, true
+		return note{text: "Signed with PGP. Courrier can't check PGP signatures yet."}, true
 	case s.Signed && s.Problem != "":
 		return note{warn: true, text: "Don't trust this message's S/MIME signature: " + s.Problem + "."}, true
 	case s.Signed:

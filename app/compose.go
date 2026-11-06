@@ -1235,7 +1235,7 @@ func (a *app) dropOutgoing(id int64) {
 func (a *app) outboxView(c *ui.Context) {
 	t := c.Theme()
 	a.page(c, 12, func() {
-		header(c, "Unified", "Outbox", "Messages waiting to be sent, and those scheduled. They go out by themselves once courrier is online.")
+		header(c, "Unified", "Outbox", "Messages waiting to be sent, and those scheduled. They go out by themselves once Courrier is online.")
 
 		if len(a.outbox) == 0 {
 			ui.Text(c, "The outbox is empty.").TextColor(t.TextMuted)
