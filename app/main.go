@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"courrier/store"
@@ -38,6 +39,14 @@ func main() {
 	mygo.App.OnSecondInstance(func(args []string, _ string) { later(func() { a.secondInstance(args) }) })
 
 	mygo.App.WhenReady(func() {
+		// The data folder keeps the lowercase name the app had before
+		// "Courrier": case-sensitive file systems would otherwise lose it.
+		appData, err := mygo.App.Path(mygo.PathAppData)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		mygo.App.SetPath(mygo.PathUserData, filepath.Join(appData, strings.Replace(mygo.App.Name(), "Courrier", "courrier", 1)))
 		dir, err := mygo.App.Path(mygo.PathUserData)
 		if err != nil {
 			log.Fatal(err)
