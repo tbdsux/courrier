@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Courrier">
+  <!-- Colors: set the CSS variables courrier-bg, courrier-fg and courrier-dot on a parent of the inline SVG. -->
+  <style>
+    .bg { fill: var(--courrier-bg, #6e56cf); }
+    .fg { stroke: var(--courrier-fg, #ffffff); }
+    .dot { fill: var(--courrier-dot, #3ddc97); }
+  </style>
+  <defs>
+    <clipPath id="courrier-cut">
+      <path clip-rule="evenodd" d="M0 0H512V512H0ZM396 88a76 76 0 1 0 0 152a76 76 0 1 0 0-152Z"/>
+    </clipPath>
+  </defs>
+  <rect class="bg" width="512" height="512" rx="112" fill="#6e56cf"/>
+  <g class="fg" clip-path="url(#courrier-cut)" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="104" y="168" width="304" height="216" rx="40"/>
+    <path d="M136 208 256 296 376 208"/>
+  </g>
+  <circle class="dot" cx="396" cy="164" r="50" fill="#3ddc97"/>
+</svg>

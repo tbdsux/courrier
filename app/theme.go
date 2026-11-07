@@ -43,9 +43,14 @@ var (
 	logos        = map[string]*ui.SVG{"google": ui.MustParseSVG(googleSVG), "microsoft": ui.MustParseSVG(microsoftSVG)}
 )
 
-// appLogo is courrier's own logo, the same image as the tray icon.
+// logoPNG is courrier's logo in color, drawn from assets/logo.svg.
+//
+//go:embed assets/logo.png
+var logoPNG []byte
+
+// appLogo is courrier's own logo, shown in the sidebar.
 var appLogo = func() *ui.Bitmap {
-	b, err := ui.DecodeBitmap(trayIcon)
+	b, err := ui.DecodeBitmap(logoPNG)
 	if err != nil {
 		panic(err)
 	}
