@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
+	"runtime"
 	"strconv"
 
 	"courrier/store"
@@ -11,8 +12,15 @@ import (
 	"github.com/egoist/mygo"
 )
 
+// trayIcon is black on transparent for macOS to tint to the menu bar (and
+// MyGo to whiten on a dark Windows taskbar). Linux panels don't tint, so
+// they get the logo in color.
+//
 //go:embed assets/tray.png
 var trayIcon []byte
+
+// trayTemplate reports whether the tray shows trayIcon as a template.
+var trayTemplate = runtime.GOOS != "linux"
 
 // menuBar is the menu bar (tray) item: the Inbox's unread count, and a
 // menu with the newest unread mail.
@@ -31,7 +39,7 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 	}
 
 	if mb.tray == nil {
-		t, err := mygo.NewTray(mygo.TrayOptions{ID: "inbox", Icon: trayIcon, ToolTip: "Courrier"})
+		t, err := mygo.NewTray(mygo.TrayOptions{ID: "inbox", Icon: trayImage(), IconIsTemplate: trayTemplate, ToolTip: "Courrier"})
 		if err != nil {
 			log.Println("tray:", err)
 			return
@@ -66,6 +74,15 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 	}
 
 	mb.tray.SetMenu(mygo.NewMenu(append(items, mygo.Separator(), &mygo.MenuItem{Label: "Quit Courrier", Role: mygo.RoleQuit})))
+}
+
+// trayImage is the tray's icon on this system.
+func trayImage() []byte {
+	if trayTemplate {
+		return trayIcon
+	}
+
+	return logoPNG
 }
 
 // clip shortens s to n characters at most.

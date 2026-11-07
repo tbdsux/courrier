@@ -24,8 +24,9 @@ built on [MyGo](https://mygo.egoist.dev)'s native UI (no web frontend).
   `folders.go` the folder tree, `reader.go` the message, `sync.go` the
   syncers, `compose.go`,
   `settings.go`, `tray.go`, `theme.go` (icons, palette, shared widgets).
-  `app/assets/` and `app/fonts/` are embedded: `tray.png` is the tray icon
-  and sidebar logo.
+  `app/assets/` and `app/fonts/` are embedded: `tray.png` is the black
+  template tray icon (from `tray.svg`), `logo.png` the color logo for the
+  sidebar and Linux tray (from `logo.svg`).
 - `mail/`: IMAP, POP3, SMTP, OAuth2, MIME, and the per-account `Syncer`.
 - `store/`: all persistent state, in one SQLite database.
 - `resources/`: files `go tool mygo build` ships next to the executable.
