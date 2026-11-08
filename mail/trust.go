@@ -17,16 +17,30 @@ type Auth struct {
 	DKIM, SPF, DMARC string `json:",omitempty"`
 }
 
-var authResult = regexp.MustCompile(`(?i)\b(dkim|spf|dmarc)\s*=\s*([a-z]+)`)
+var (
+	authResult = regexp.MustCompile(`(?i)^\s*(dkim|spf|dmarc)\s*=\s*([a-z]+)`)
+	authQuoted = regexp.MustCompile(`"(?:[^"\\]|\\.)*"|\((?:[^()\\]|\\.)*\)`)
+)
 
 // authOf reads the topmost Authentication-Results, which the receiving
-// server added: ones below it came with the message, and anyone can write them.
+// server added: ones below it came with the message, and anyone can write
+// them. Only what starts a ";" clause is a result: the rest of a clause
+// repeats what the sender chose, as an address "dmarc=pass@evil.example".
 func authOf(v string) Auth {
+	for s := ""; s != v; { // comments nest
+		s, v = v, authQuoted.ReplaceAllString(v, "")
+	}
+
 	var a Auth
-	for _, m := range authResult.FindAllStringSubmatch(v, -1) {
-		res := strings.ToLower(m[2])
-		p := map[string]*string{"dkim": &a.DKIM, "spf": &a.SPF, "dmarc": &a.DMARC}[strings.ToLower(m[1])]
-		if *p == "" || res == "pass" { // of several signatures, one passing is enough
+	for _, clause := range strings.Split(v, ";") {
+		m := authResult.FindStringSubmatch(clause)
+		if m == nil {
+			continue
+		}
+
+		method, res := strings.ToLower(m[1]), strings.ToLower(m[2])
+		p := map[string]*string{"dkim": &a.DKIM, "spf": &a.SPF, "dmarc": &a.DMARC}[method]
+		if *p == "" || method == "dkim" && res == "pass" { // of several signatures, one passing is enough
 			*p = res
 		}
 	}

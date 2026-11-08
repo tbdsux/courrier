@@ -10,6 +10,11 @@ func TestAuth(t *testing.T) {
 		"mx.example.net; dkim=pass header.d=a.com; spf=pass smtp.mailfrom=a.com; dmarc=pass (p=REJECT)": {DKIM: "pass", SPF: "pass", DMARC: "pass"},
 		"mx; dkim=fail; dkim=pass header.d=b.com; spf=softfail":                                         {DKIM: "pass", SPF: "softfail"},
 		"": {},
+		// What the sender chose can't pass as a result.
+		"mx; spf=fail smtp.mailfrom=dmarc=pass@evil.example; dmarc=fail (p=REJECT) header.from=bank.example": {SPF: "fail", DMARC: "fail"},
+		`mx; spf=fail smtp.mailfrom="a;dmarc=pass@evil.example"; dmarc=fail`:                                 {SPF: "fail", DMARC: "fail"},
+		"mx; dmarc=fail (one; dmarc=pass (two; dmarc=pass))":                                                 {DMARC: "fail"},
+		"mx; dmarc=fail; dmarc=pass":                                                                         {DMARC: "fail"},
 	} {
 		if got := authOf(v); got != want {
 			t.Errorf("%q: got %+v, want %+v", v, got, want)
