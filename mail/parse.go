@@ -47,6 +47,10 @@ func Parse(raw []byte) (Header, Body, error) {
 	if mt, _, _ := e.Header.ContentType(); isSecure(mt) {
 		var signed []byte
 		b.Security, signed = readSecurity(e.Header, raw, ps.smime, h.FromAddr)
+		if mt == "multipart/signed" && b.Security.Kind == "S/MIME" && b.Security.Problem == "" && (ps.stray || ps.smimePart != "2") {
+			b.Security.Problem = "it has parts its signature doesn't cover"
+		}
+
 		if signed != nil {
 			// shortcut: attachments signed inside stay in smime.p7m, as their parts can't be saved by number; unwrap them if users ask.
 			if _, in, err := Parse(signed); err == nil {
@@ -71,12 +75,20 @@ type parts struct {
 	b      Body
 	inline map[string]string // cid → data: URL
 	smime  []byte            // the S/MIME signature, or signed-data
+	// smimePart numbers the part smime came from, and stray tells of a part
+	// that a multipart/signed has neither signed nor as its signature.
+	smimePart string
+	stray     bool
 }
 
 func newParts() *parts { return &parts{inline: map[string]string{}} }
 
 // add adds a part that is not multipart, numbered as walk numbers it.
 func (ps *parts) add(part string, p *message.Entity) {
+	if first, _, _ := strings.Cut(part, "."); first != "1" && part != "2" {
+		ps.stray = true
+	}
+
 	mt, params, _ := p.Header.ContentType()
 	disp, dparams, _ := p.Header.ContentDisposition()
 	name := dparams["filename"]
@@ -101,12 +113,12 @@ func (ps *parts) add(part string, p *message.Entity) {
 
 	switch mt {
 	case "application/pkcs7-signature", "application/x-pkcs7-signature":
-		ps.smime = data
+		ps.smime, ps.smimePart = data, part
 		return // a signature is no attachment
 	case "application/pgp-signature", "application/pgp-encrypted":
 		return
 	case "application/pkcs7-mime", "application/x-pkcs7-mime":
-		ps.smime = data
+		ps.smime, ps.smimePart = data, part
 	}
 
 	if isCalendar(mt) {

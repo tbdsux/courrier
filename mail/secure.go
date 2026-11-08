@@ -92,27 +92,38 @@ func inlinePGP(text string) Security {
 }
 
 // signedContent is the first part of a multipart/signed message as sent,
-// its lines ending in CRLF: the bytes its signature covers (RFC 1847).
+// its lines ending in CRLF: the bytes its signature covers (RFC 1847). It
+// must find the delimiters the parser does, or a signature would vouch for
+// other bytes than the ones shown: the first is a whole line, and a line
+// that only starts with the boundary ends the part only as the parser's
+// does, followed by a space or "-".
 func signedContent(raw []byte, boundary string) []byte {
 	raw = bytes.ReplaceAll(raw, []byte("\r\n"), []byte("\n"))
-	delim := []byte("\n--" + boundary)
-	i := bytes.Index(raw, delim)
-	if boundary == "" || i < 0 {
+	_, body, ok := bytes.Cut(raw, []byte("\n\n"))
+	if boundary == "" || !ok {
 		return nil
 	}
 
-	start := bytes.IndexByte(raw[i+1:], '\n')
-	if start < 0 {
-		return nil
+	dash := []byte("--" + boundary)
+	start, at := -1, 0
+	for _, l := range bytes.SplitAfter(body, []byte("\n")) {
+		rest, ok := bytes.CutPrefix(l, dash)
+
+		switch {
+		case !ok:
+		case start < 0:
+			if len(bytes.TrimRight(rest, " \t\n")) == 0 {
+				start = at + len(l)
+			}
+
+		case len(rest) == 0 || bytes.IndexByte([]byte(" \t\n-"), rest[0]) >= 0:
+			return bytes.ReplaceAll(body[start:max(start, at-1)], []byte("\n"), []byte("\r\n"))
+		}
+
+		at += len(l)
 	}
 
-	start += i + 2
-	end := bytes.Index(raw[start:], delim)
-	if end < 0 {
-		return nil
-	}
-
-	return bytes.ReplaceAll(raw[start:start+end], []byte("\n"), []byte("\r\n"))
+	return nil
 }
 
 // verifySMIME checks a detached S/MIME signature of content.

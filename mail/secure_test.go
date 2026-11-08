@@ -109,6 +109,28 @@ func TestSMIMESigned(t *testing.T) {
 		t.Errorf("untrusted: %+v", b.Security)
 	}
 
+	// Unsigned parts don't get to borrow the signature.
+	smimeRoots = roots
+	sigPart := "--sig\r\nContent-Type: application/pkcs7-signature; name=smime.p7s\r\nContent-Transfer-Encoding: base64\r\n\r\n" + sig + "\r\n"
+	head := "From: ann@example.com\r\nContent-Type: multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=sha-256; boundary=\"sig\"\r\n\r\n"
+	const notCovered = "it has parts its signature doesn't cover"
+	extra := head + "--sig\r\n" + content + "\r\n" + sigPart + "--sig\r\nContent-Type: text/html\r\n\r\n<b>wire money</b>\r\n--sig--\r\n"
+	if _, b, _ := Parse([]byte(extra)); b.Security.Problem != notCovered {
+		t.Errorf("extra part: %+v", b.Security)
+	}
+
+	nested := head + "--sig\r\n" + content + "\r\n--sig\r\nContent-Type: multipart/mixed; boundary=in\r\n\r\n--in\r\nContent-Type: application/pkcs7-signature\r\nContent-Transfer-Encoding: base64\r\n\r\n" + sig +
+		"\r\n--in\r\nContent-Type: text/html\r\n\r\n<b>wire money</b>\r\n--in--\r\n\r\n--sig--\r\n"
+	if _, b, _ := Parse([]byte(nested)); b.Security.Problem != notCovered {
+		t.Errorf("nested beside the signature: %+v", b.Security)
+	}
+
+	// The signed bytes hidden in the preamble, behind a longer boundary.
+	hidden := head + "preamble\r\n--sigX\r\n" + content + "\r\n--sigY\r\n--sig\r\nContent-Type: text/plain\r\n\r\nwire money\r\n\r\n" + sigPart + "--sig--\r\n"
+	if _, b, _ := Parse([]byte(hidden)); b.Security.Problem != "the message doesn't match its signature" {
+		t.Errorf("preamble: %+v", b.Security)
+	}
+
 	// Signed in one piece: the content shows.
 	smimeRoots = roots
 	opaque := "From: ann@example.com\r\nContent-Type: application/pkcs7-mime; smime-type=signed-data; name=smime.p7m\r\nContent-Transfer-Encoding: base64\r\n\r\n" + sign(content, false) + "\r\n"
