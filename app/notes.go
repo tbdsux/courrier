@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"net"
 	"net/url"
 	"slices"
 	"strings"
@@ -161,6 +162,11 @@ func (a *app) openLink(raw, host string) {
 		}
 	}
 
+	if net.ParseIP(host) != nil { // browsers write any numeric form of an address this way
+		a.link = linkAsk{open: true, url: raw, mis: courrier.Mislink{Target: host}}
+		return
+	}
+
 	a.openURL(raw)
 }
 
@@ -171,6 +177,10 @@ func (a *app) linkDialog(c *ui.Context) {
 
 	l := a.link
 	msg := "The link shows " + l.mis.Shown + " but goes to " + l.mis.Target + ". Phishing mail often hides where a link goes."
+	if l.mis.Shown == "" {
+		msg = "The link goes to the bare address " + l.mis.Target + ", not a named site. Phishing mail often hides where a link goes."
+	}
+
 	if ui.AlertDialog(c, &a.link.open, "Open "+l.mis.Target+"?", msg, "Cancel", "Open") == 1 {
 		a.openURL(l.url)
 	}

@@ -52,4 +52,24 @@ func TestMislinks(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
+
+	// Hrefs that browsers mend go to the same host as a clean one, and
+	// Target is what a click on them reports.
+	for href, target := range map[string]string{
+		"https:/evil.example/":      "evil.example",
+		"https:evil.example/":       "evil.example",
+		`https://evil.example\x`:    "evil.example",
+		"ht\ntps://evil.example/":   "evil.example",
+		" https://evil.example/":    "evil.example",
+		"https://evil%2Eexample/":   "evil.example",
+		"https://x@EVIL.example/":   "evil.example",
+		"https://exämple.example/":  "xn--exmple-cua.example",
+		"https://evil.example:8/":   "evil.example",
+		"HTTP://evil.example?a=b/c": "evil.example",
+	} {
+		ms := mislinks(`<a href="` + href + `">paypal.com</a>`)
+		if len(ms) != 1 || ms[0].Target != target {
+			t.Errorf("%q: %+v, want target %s", href, ms, target)
+		}
+	}
 }

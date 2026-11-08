@@ -57,14 +57,29 @@ func (a *app) guardNavigation(e *mygo.NavigateEvent) {
 	}
 
 	e.PreventDefault()
-	u, err := url.Parse(e.URL)
-	if err == nil && e.UserInitiated && u.Scheme == "courrier" {
+	a.followLink(e.URL, e.UserInitiated)
+}
+
+// guardWindowOpen takes the target="_blank" links, which guardNavigation
+// doesn't see, the same way; no window opens.
+func (a *app) guardWindowOpen(r mygo.WindowOpenRequest) *mygo.WindowOptions {
+	a.followLink(r.URL, r.UserInitiated)
+	return nil
+}
+
+// followLink acts on a link of the message's page, if the user clicked it.
+func (a *app) followLink(raw string, clicked bool) {
+	u, err := url.Parse(raw)
+	if err != nil || !clicked {
+		return
+	}
+
+	if u.Scheme == "courrier" {
 		a.update(func() { a.pageLink(u) })
 		return
 	}
 
-	if err == nil && e.UserInitiated && a.openURL != nil && (u.Scheme == "http" || u.Scheme == "https" || u.Scheme == "mailto") {
-		raw := e.URL
+	if a.openURL != nil && (u.Scheme == "http" || u.Scheme == "https" || u.Scheme == "mailto") {
 		a.update(func() { a.openLink(raw, u.Hostname()) })
 	}
 }

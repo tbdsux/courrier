@@ -40,6 +40,13 @@ func TestOpenLinkAsksOnMislink(t *testing.T) {
 	if len(opened) != 1 || opened[0] != "https://ok.example/" || !a.link.open || a.link.url != "https://EVIL.example/login" {
 		t.Errorf("opened %v, asking %+v", opened, a.link)
 	}
+
+	a.link = linkAsk{}
+	a.openLink("http://127.0.0.1/", "127.0.0.1")
+
+	if len(opened) != 1 || !a.link.open || a.link.mis.Target != "127.0.0.1" {
+		t.Errorf("bare address: opened %v, asking %+v", opened, a.link)
+	}
 }
 
 func TestAuthNote(t *testing.T) {

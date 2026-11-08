@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"golang.org/x/net/html"
+	"golang.org/x/net/idna"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -187,17 +188,47 @@ func mislink(text, href string) (Mislink, bool) {
 		return Mislink{}, false
 	}
 
-	to, err := url.Parse(strings.TrimSpace(href))
-	if err != nil || to.Scheme != "http" && to.Scheme != "https" || to.Hostname() == "" {
+	target := browserHost(href)
+	if target == "" {
 		return Mislink{}, false
 	}
 
-	s, t := site(shown.Hostname()), site(to.Hostname())
+	s, t := site(shown.Hostname()), site(target)
 	if s == t {
 		return Mislink{}, false
 	}
 
-	return Mislink{Shown: s, Target: strings.ToLower(to.Hostname())}, true
+	return Mislink{Shown: s, Target: target}, true
+}
+
+// browserHost is the host a browser goes to for an http(s) href, "" for
+// any other. url.Parse refuses or misreads what browsers mend (tabs and
+// newlines, "\" for "/", missing slashes, a %-encoded host), and browsers
+// report a host in punycode, which a click is matched against.
+func browserHost(href string) string {
+	s := strings.TrimFunc(href, func(r rune) bool { return r <= ' ' })
+	s = strings.NewReplacer("\t", "", "\n", "", "\r", "").Replace(s)
+	scheme, rest, ok := strings.Cut(s, ":")
+	if !ok || !strings.EqualFold(scheme, "http") && !strings.EqualFold(scheme, "https") {
+		return ""
+	}
+
+	rest = strings.TrimLeft(rest, `/\`)
+	if i := strings.IndexAny(rest, `/\?#`); i >= 0 {
+		rest = rest[:i]
+	}
+
+	rest = rest[strings.LastIndex(rest, "@")+1:] // what's before is a user name
+	if u, err := url.PathUnescape(rest); err == nil {
+		rest = u
+	}
+
+	host := (&url.URL{Host: rest}).Hostname()
+	if a, err := idna.Lookup.ToASCII(host); err == nil {
+		host = a
+	}
+
+	return strings.ToLower(host)
 }
 
 // site is the domain a host belongs to: "mail.example.co.uk" is "example.co.uk".

@@ -358,6 +358,18 @@ func TestSandbox(t *testing.T) {
 	if len(opened) != 1 || opened[0] != "https://example.com" {
 		t.Errorf("opened %v", opened)
 	}
+
+	// target="_blank" links take the same road, and open no window.
+	opened = nil
+	for _, r := range []mygo.WindowOpenRequest{{URL: "https://evil.example"}, {URL: "https://example.com/new", UserInitiated: true}, {URL: "file:///etc/passwd", UserInitiated: true}} {
+		if a.guardWindowOpen(r) != nil {
+			t.Errorf("%s opened a window", r.URL)
+		}
+	}
+
+	if len(opened) != 1 || opened[0] != "https://example.com/new" {
+		t.Errorf("opened %v", opened)
+	}
 }
 
 func TestShortDate(t *testing.T) {

@@ -103,6 +103,7 @@ func main() {
 			log.Println("web view:", err) // HTML mail shows as text
 		} else {
 			wv.Page().OnWillNavigate(a.guardNavigation)
+			wv.Page().SetWindowOpenHandler(a.guardWindowOpen)
 			a.web = wv
 		}
 
