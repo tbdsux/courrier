@@ -17,11 +17,12 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The web view's guard: no script-src means no script runs, and images
-// come only from the message unless the user allows remote ones.
+// The web view's guard: no script-src means no script runs, images come
+// only from the message unless the user allows remote ones, and forms go
+// nowhere.
 const (
-	csp       = "default-src 'none'; img-src data: cid:; style-src 'unsafe-inline'; font-src data:"
-	cspRemote = "default-src 'none'; img-src data: cid: https: http:; style-src 'unsafe-inline'; font-src data:"
+	csp       = "default-src 'none'; img-src data: cid:; style-src 'unsafe-inline'; font-src data:; form-action 'none'; base-uri 'none'"
+	cspRemote = "default-src 'none'; img-src data: cid: https: http:; style-src 'unsafe-inline'; font-src data:; form-action 'none'; base-uri 'none'"
 )
 
 // sandbox puts the CSP at the very top of a message's HTML, where the
@@ -229,6 +230,8 @@ func (a *app) messageBody(c *ui.Context, r *reader) {
 		ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c).Label("Loading conversation") })
 
 	case a.web != nil:
+		a.trustNotes(c, r)
+
 		if !r.remote && r.view == 1 {
 			var blocked []string
 			for _, x := range r.thread {

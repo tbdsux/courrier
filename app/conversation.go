@@ -412,7 +412,8 @@ details[open] .snip, details:not([open]) .to { display: none; }
 details.q > summary, .ql { display: inline-block; margin: 6px 0; padding: 0 8px; border-radius: 8px; background: var(--chip); color: var(--muted); font-size: 11px; line-height: 16px; letter-spacing: 1px; }
 .qt { display: none; }
 .html .gmail_quote, .html blockquote[type=cite] { display: none; }
-.qt:checked ~ .html .gmail_quote, .qt:checked ~ .html blockquote[type=cite] { display: block; }
+.qt:checked ~ .mail .gmail_quote, .qt:checked ~ .mail blockquote[type=cite] { display: block; }
+.mail { contain: layout; overflow: auto; }
 details.more > summary { display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: 12px; padding: 8px 0; }
 details.more > summary::before, details.more > summary::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
 details.more[open] > summary { display: none; }
@@ -438,8 +439,98 @@ func textHTML(s string) string {
 	return link.ReplaceAllStringFunc(s, func(u string) string { return `<a href="` + u + `">` + u + `</a>` })
 }
 
+// cssSealed tells whether css can't close the @scope block it goes in. It
+// reads comments, strings and url() as a browser does, and refuses what a
+// browser might read differently from it.
+func cssSealed(css string) bool {
+	depth := 0
+	for i := 0; i < len(css); i++ {
+		c := css[i]
+
+		switch {
+		case c == '\\':
+			i++ // an escaped character is no brace
+
+		case strings.HasPrefix(css[i:], "/*"):
+			n := strings.Index(css[i+2:], "*/")
+			if n < 0 {
+				return false
+			}
+
+			i += n + 3
+
+		case c == '"' || c == '\'':
+			for i++; i < len(css) && css[i] != c; i++ {
+				if css[i] == '\\' {
+					i++
+				} else if strings.IndexByte("\n\r\f", css[i]) >= 0 {
+					return false // a browser ends the string here
+				}
+			}
+
+			if i >= len(css) {
+				return false
+			}
+
+		case c == '(':
+			n, ok := cssURL(css, i)
+			if !ok {
+				return false
+			}
+
+			i += n
+
+		case c == '{':
+			depth++
+
+		case c == '}':
+			if depth--; depth < 0 {
+				return false
+			}
+		}
+	}
+
+	return depth == 0
+}
+
+// cssURL measures the unquoted url( whose parenthesis is css[i]: how far
+// its closing one is, 0 when it's another function or a quoted url. ok is
+// false for what can't be told: comments and quotes mean nothing in an
+// unquoted url, so one misread would hide a brace.
+func cssURL(css string, i int) (n int, ok bool) {
+	start := i
+	for start > 0 && (css[start-1] == '-' || css[start-1] == '_' || css[start-1] == '\\' || css[start-1] >= 0x80 ||
+		'0' <= css[start-1] && css[start-1] <= '9' || 'a' <= css[start-1]|0x20 && css[start-1]|0x20 <= 'z') {
+		start--
+	}
+
+	name := css[start:i]
+	if strings.Contains(name, `\`) { // "u\72l(" is a url too
+		return 0, false
+	}
+
+	rest := strings.TrimLeft(css[i+1:], " \t\r\n\f")
+	if !strings.EqualFold(name, "url") || rest == "" || rest[0] == '"' || rest[0] == '\'' {
+		return 0, true
+	}
+
+	for k := 0; k < len(rest); k++ {
+		switch b := rest[k]; {
+		case b == ')':
+			return len(css) - len(rest) + k - i, true
+		case b == '\\':
+			k++
+		case b <= ' ' || strings.IndexByte(`"'(`, b) >= 0:
+			return 0, false
+		}
+	}
+
+	return 0, false
+}
+
 // scopedHTML is a message's HTML for a page of several: its body's
-// content, and its styles kept to the element whose id is scope.
+// content in a box it can't draw outside of, and its styles kept to the
+// element whose id is scope. Styles that could leave it are dropped.
 func scopedHTML(src, scope string) string {
 	doc, err := xhtml.Parse(strings.NewReader(src))
 	if err != nil {
@@ -477,8 +568,8 @@ func scopedHTML(src, scope string) string {
 	}
 	walk(doc)
 
-	if css.Len() > 0 {
-		fmt.Fprintf(&out, "<style>@scope (#%s) {%s}</style>", scope, strings.ReplaceAll(css.String(), "</", "<\\/"))
+	if sheet := strings.ReplaceAll(css.String(), "</", "<\\/"); sheet != "" && cssSealed(sheet) {
+		fmt.Fprintf(&out, "<style>@scope (#%s) {%s}</style>", scope, sheet)
 	}
 
 	if body == nil {
@@ -492,13 +583,15 @@ func scopedHTML(src, scope string) string {
 		}
 	}
 
-	fmt.Fprintf(&out, `<div id="%s" class="html" style="%s">`, scope, html.EscapeString(style))
+	// The outer box has no id or style of the message's, so nothing in the
+	// message can undo its containment.
+	fmt.Fprintf(&out, `<div class="mail"><div id="%s" class="html" style="%s">`, scope, html.EscapeString(style))
 
 	for k := body.FirstChild; k != nil; k = k.NextSibling {
 		xhtml.Render(&out, k)
 	}
 
-	out.WriteString("</div>")
+	out.WriteString("</div></div>")
 
 	return out.String()
 }

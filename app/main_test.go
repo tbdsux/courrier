@@ -370,6 +370,52 @@ func TestSandbox(t *testing.T) {
 	if len(opened) != 1 || opened[0] != "https://example.com/new" {
 		t.Errorf("opened %v", opened)
 	}
+
+	if !strings.Contains(sandbox(evil, false), "form-action 'none'") || !strings.Contains(sandbox(evil, true), "form-action 'none'") {
+		t.Error("forms can post")
+	}
+}
+
+func TestCSSSealed(t *testing.T) {
+	for css, sealed := range map[string]bool{
+		"":                                    true,
+		"p{color:red}":                        true,
+		"@media print{a{b:c}}":                true,
+		"/* } */ a{b:c}":                      true,
+		`a{content:"}"}`:                      true,
+		`.a\}b{c:d}`:                          true,
+		"a{b:url(x.png)}":                     true,
+		`a{b:url("}")}`:                       true,
+		"a{b:url(}.png)}":                     true,
+		"a{b:calc(1px + 2px)}":                true,
+		"p{}} .n{display:none} @scope (#z) {": false,
+		"/*{*/ } .x{} @media all {/*}*/":      false,
+		"a{":                                  false,
+		"/* open":                             false,
+		`a{b:"x`:                              false,
+		"a{b:\"x\n\"}":                        false,
+		`a{b:url(x")} .y{c:d} /*"*/`:          false,
+		`a{b:u\72l(/*)} .y{}/**/`:             false,
+		`a{b:url(/*)} } /**/`:                 false,
+	} {
+		if cssSealed(css) != sealed {
+			t.Errorf("%q: sealed %v", css, !sealed)
+		}
+	}
+
+	escape := "<style>p{color:red}} .note.warn{display:none} @scope (#z) {</style><p>hi</p>"
+	if h := scopedHTML(escape, "m1"); strings.Contains(h, "display:none") || !strings.Contains(h, "<p>hi</p>") {
+		t.Errorf("escaping styles kept: %q", h)
+	}
+
+	h := scopedHTML(`<style>p{color:red}</style><body style="contain:none"><p>hi</p>`, "m1")
+	if !strings.Contains(h, "@scope (#m1) {p{color:red}}") {
+		t.Errorf("ordinary styles dropped: %q", h)
+	}
+
+	if !strings.Contains(h, `<div class="mail"><div id="m1" class="html" style="contain:none">`) || !strings.HasSuffix(h, "</div></div>") {
+		t.Errorf("the message's style reaches its box: %q", h)
+	}
 }
 
 func TestShortDate(t *testing.T) {

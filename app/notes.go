@@ -19,8 +19,9 @@ import (
 // note is a line above a message's text: a warning, or something the
 // message offers.
 type note struct {
-	warn bool
-	text string
+	warn  bool
+	trust bool // what the sender checks found: never drawn among a message's HTML
+	text  string
 }
 
 // notes are the notes of message m, whose body is b.
@@ -32,10 +33,11 @@ func notes(m store.Message, b courrier.Body) []note {
 			who = domain
 		}
 
-		out = append(out, note{warn: true, text: "This message failed its sender checks: it may not be from " + who + ". Be careful with its links and attachments."})
+		out = append(out, note{warn: true, trust: true, text: "This message failed its sender checks: it may not be from " + who + ". Be careful with its links and attachments."})
 	}
 
 	if n, ok := signatureNote(b.Security); ok {
+		n.trust = true
 		out = append(out, n)
 	}
 
@@ -113,9 +115,56 @@ func inviteText(inv courrier.Invite) string {
 	return strings.Join(parts, " · ")
 }
 
-// pageNotes writes m's notes for the conversation's page.
+// trustNotes draws the sender checks of r's messages above the web view,
+// where a message's HTML can neither hide nor imitate them.
+func (a *app) trustNotes(c *ui.Context, r *reader) {
+	var lines []note
+	for _, m := range r.thread {
+		b, ok := r.bodies[m.ID]
+		if !ok {
+			continue
+		}
+
+		for _, n := range notes(m, b) {
+			if len(r.thread) > 1 {
+				n.text = cmp.Or(m.FromAddr, author(m)) + ": " + n.text
+			}
+
+			if n.trust && !slices.ContainsFunc(lines, func(l note) bool { return l.text == n.text }) {
+				lines = append(lines, n)
+			}
+		}
+	}
+
+	if len(lines) == 0 {
+		return
+	}
+
+	t := c.Theme()
+	ui.Scroll(c).MaxHeight(96).Children(func() {
+		ui.Column(c).Children(func() {
+			for i, n := range lines {
+				color := t.Accent
+				if n.warn {
+					color = t.Warning
+				}
+
+				ui.Row(c.Key(i)).Gap(10).AlignItems(ui.Center).Padding(8, 24).Background(color.Alpha(0.12)).Children(func() {
+					ui.Text(c, n.text).Wrap().Grow(1).Shrink(1)
+				})
+			}
+		})
+	})
+}
+
+// pageNotes writes m's notes for the conversation's page, but for the
+// sender checks, which trustNotes draws.
 func pageNotes(sb *strings.Builder, m store.Message, b courrier.Body) {
 	for _, n := range notes(m, b) {
+		if n.trust {
+			continue
+		}
+
 		class := "note"
 		if n.warn {
 			class += " warn"

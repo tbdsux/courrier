@@ -49,6 +49,53 @@ func TestOpenLinkAsksOnMislink(t *testing.T) {
 	}
 }
 
+func TestSenderChecksStayOffThePage(t *testing.T) {
+	m := store.Message{ID: 1, Header: courrier.Header{FromAddr: "ceo@bank.example"}}
+	b := courrier.Body{Meta: courrier.Meta{Auth: courrier.Auth{DMARC: "fail"}, Security: courrier.Security{Kind: "S/MIME", Signed: true, Signer: "a@b.c"}, NoReply: true}}
+
+	ns := notes(m, b)
+	if len(ns) != 3 || !ns[0].trust || !ns[1].trust || ns[2].trust {
+		t.Fatalf("notes %+v", ns)
+	}
+
+	var sb strings.Builder
+	pageNotes(&sb, m, b)
+
+	if s := sb.String(); strings.Contains(s, "sender checks") || strings.Contains(s, "S/MIME") || !strings.Contains(s, "take replies") {
+		t.Errorf("page notes %q", s)
+	}
+}
+
+func TestTrustNotesDrawn(t *testing.T) {
+	failed := courrier.Body{Meta: courrier.Meta{Auth: courrier.Auth{DMARC: "fail"}}}
+	m := store.Message{ID: 1, Header: courrier.Header{FromAddr: "ceo@bank.example"}}
+	r := &reader{thread: []store.Message{m}, bodies: map[int64]courrier.Body{1: failed}}
+	a := &app{}
+	tt := ui.NewTester(func(c *ui.Context) { a.trustNotes(c, r) }, 800, 300)
+	tt.Frame()
+
+	const warning = "This message failed its sender checks: it may not be from bank.example. Be careful with its links and attachments."
+	if !tt.HasText(warning) {
+		t.Errorf("no warning: %v", tt.Texts())
+	}
+
+	// In a conversation it says whose message, once a sender.
+	m2 := store.Message{ID: 2, Header: m.Header}
+	r.thread, r.bodies[2] = []store.Message{m, m2}, failed
+	tt.Frame()
+
+	if !tt.HasText("ceo@bank.example: "+warning) || len(tt.Texts()) != 1 {
+		t.Errorf("conversation: %v", tt.Texts())
+	}
+
+	r.bodies = map[int64]courrier.Body{1: {Text: "fine"}}
+	tt.Frame()
+
+	if len(tt.Texts()) != 0 {
+		t.Errorf("notes without a finding: %v", tt.Texts())
+	}
+}
+
 func TestAuthNote(t *testing.T) {
 	m := store.Message{ID: 1, Header: courrier.Header{FromAddr: "ceo@bank.example"}}
 	ns := notes(m, courrier.Body{Meta: courrier.Meta{Auth: courrier.Auth{DMARC: "fail"}}})

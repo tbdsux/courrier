@@ -118,8 +118,9 @@ dark themes too.
 - **Selection**: click, ⇧-click for a range, ⌘/Ctrl-click to add; actions
   and shortcuts apply to every selected message.
 - **Drafts** save as you type; nothing typed is ever lost to a crash.
-- **HTML mail**: no scripts; remote images blocked unless allowed in
-  Settings or for that message.
+- **HTML mail**: no scripts, forms or downloads; remote images blocked
+  unless allowed in Settings or for that message. Each message stays in
+  its own box, and what vouches for a sender is drawn outside the web view.
 - **Motion**: brief and quiet. Hover fills fade in 120 ms (`hoverFade`);
   an opened message's header rises 6 px into place (`openFade`). With the
   system's reduce motion on, only the fades remain.

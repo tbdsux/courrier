@@ -99,7 +99,8 @@ func main() {
 		}
 
 		// One web view for HTML mail, shown by the message pane.
-		if wv, err := win.NewWebView(mygo.WebViewOptions{BackgroundColor: "#ffffff"}); err != nil {
+		// Untrusted, as what it shows is anyone's: no bridge to Go, no downloads.
+		if wv, err := win.NewWebView(mygo.WebViewOptions{BackgroundColor: "#ffffff", Page: mygo.PageOptions{Untrusted: true}}); err != nil {
 			log.Println("web view:", err) // HTML mail shows as text
 		} else {
 			wv.Page().OnWillNavigate(a.guardNavigation)
