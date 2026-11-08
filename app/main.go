@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -40,6 +41,15 @@ func main() {
 		dir, err := mygo.App.Path(mygo.PathUserData)
 		if err != nil {
 			log.Fatal(err)
+		}
+
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			log.Fatal(err)
+		}
+
+		// It holds all the cached mail. Folders made by older versions were open to other users.
+		if err := os.Chmod(dir, 0o700); err != nil {
+			log.Println("data folder:", err)
 		}
 
 		st, err := store.Open(filepath.Join(dir, "courrier.db"), mygo.Secrets)
