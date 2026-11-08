@@ -129,6 +129,25 @@ func TestQuarantine(t *testing.T) {
 	}
 }
 
+func TestRemoteImagesNeedAPassedCheck(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"), memSecrets{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	st.SetPref("images:news@example.com", "1")
+	a := &app{st: st}
+	m := store.Message{Header: courrier.Header{FromAddr: "news@example.com"}}
+
+	if !a.imagesTrusted(m, courrier.Body{}) {
+		t.Error("allowed sender refused")
+	}
+
+	if a.imagesTrusted(m, courrier.Body{Meta: courrier.Meta{Auth: courrier.Auth{DMARC: "fail"}}}) {
+		t.Error("forged sender allowed")
+	}
+}
+
 func TestAuthNote(t *testing.T) {
 	m := store.Message{ID: 1, Header: courrier.Header{FromAddr: "ceo@bank.example"}}
 	ns := notes(m, courrier.Body{Meta: courrier.Meta{Auth: courrier.Auth{DMARC: "fail"}}})

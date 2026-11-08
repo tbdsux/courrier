@@ -476,7 +476,7 @@ func (a *app) loadBodies(r *reader) {
 		if m.HasBody {
 			r.bodies[m.ID] = b
 
-			if hasRemote(b.HTML) && a.st.Pref("images:"+m.FromAddr) != "1" {
+			if hasRemote(b.HTML) && !a.imagesTrusted(m, b) {
 				allowed = false
 			}
 

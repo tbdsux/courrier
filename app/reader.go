@@ -88,6 +88,12 @@ func (a *app) followLink(raw string, clicked bool) {
 	}
 }
 
+// imagesTrusted tells whether m's sender was allowed remote images. After
+// a failed sender check, anyone could have written that address.
+func (a *app) imagesTrusted(m store.Message, b courrier.Body) bool {
+	return !b.Auth.Failed() && a.st.Pref("images:"+m.FromAddr) == "1"
+}
+
 func (a *app) messageView(c *ui.Context, narrow bool) {
 	t := c.Theme()
 	r := a.cur
@@ -236,10 +242,10 @@ func (a *app) messageBody(c *ui.Context, r *reader) {
 		a.trustNotes(c, r)
 
 		if !r.remote && r.view == 1 {
-			var blocked []string
+			var blocked []store.Message
 			for _, x := range r.thread {
-				if hasRemote(r.bodies[x.ID].HTML) && a.st.Pref("images:"+x.FromAddr) != "1" {
-					blocked = append(blocked, x.FromAddr)
+				if b := r.bodies[x.ID]; hasRemote(b.HTML) && !a.imagesTrusted(x, b) {
+					blocked = append(blocked, x)
 				}
 			}
 
@@ -250,8 +256,10 @@ func (a *app) messageBody(c *ui.Context, r *reader) {
 					if ui.Button(c, "Load remote images").Clicked() {
 						r.remote = true
 
-						for _, from := range blocked {
-							a.st.SetPref("images:"+from, "1")
+						for _, x := range blocked {
+							if !r.bodies[x.ID].Auth.Failed() {
+								a.st.SetPref("images:"+x.FromAddr, "1")
+							}
 						}
 					}
 				})
