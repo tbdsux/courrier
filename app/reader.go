@@ -348,7 +348,8 @@ func humanSize(n int64) string {
 // saveAttachment asks where to save a part, and fetches it unless the
 // message is stored whole (POP3).
 func (a *app) saveAttachment(m store.Message, at courrier.Attachment) {
-	a.saveMessage(m, "Save attachment", at.Filename, func(raw []byte) ([]byte, error) { return courrier.Part(raw, at.Part) })
+	// The name is the sender's: as a path it would choose the folder too.
+	a.saveMessage(m, "Save attachment", fileName(at.Filename), func(raw []byte) ([]byte, error) { return courrier.Part(raw, at.Part) })
 }
 
 // saveEML saves a message whole, as a .eml file.

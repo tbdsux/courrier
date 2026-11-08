@@ -96,6 +96,19 @@ func TestTrustNotesDrawn(t *testing.T) {
 	}
 }
 
+func TestSaveAttachmentNameIsNoPath(t *testing.T) {
+	asked := make(chan string, 1)
+	a := &app{saveFile: func(_, name string) (string, error) {
+		asked <- name
+		return "", nil
+	}}
+	a.saveAttachment(store.Message{}, courrier.Attachment{Filename: "../../Library/LaunchAgents/evil.plist"})
+
+	if got := <-asked; strings.ContainsAny(got, `/\`) {
+		t.Errorf("save dialog got the path %q", got)
+	}
+}
+
 func TestAuthNote(t *testing.T) {
 	m := store.Message{ID: 1, Header: courrier.Header{FromAddr: "ceo@bank.example"}}
 	ns := notes(m, courrier.Body{Meta: courrier.Meta{Auth: courrier.Auth{DMARC: "fail"}}})
