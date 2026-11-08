@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	courrier "courrier/mail"
 	"courrier/store"
@@ -352,6 +355,18 @@ func (a *app) saveAttachment(m store.Message, at courrier.Attachment) {
 	a.saveMessage(m, "Save attachment", fileName(at.Filename), func(raw []byte) ([]byte, error) { return courrier.Part(raw, at.Part) })
 }
 
+// quarantine marks a file saved from mail as downloaded, so the system
+// checks it before it runs. It's best effort: a file system may not keep
+// the mark.
+func quarantine(path string) {
+	switch runtime.GOOS {
+	case "darwin":
+		exec.Command("/usr/bin/xattr", "-w", "com.apple.quarantine", fmt.Sprintf("0081;%x;Courrier;", time.Now().Unix()), path).Run()
+	case "windows":
+		os.WriteFile(path+":Zone.Identifier", []byte("[ZoneTransfer]\r\nZoneId=3\r\n"), 0o644)
+	}
+}
+
 // saveEML saves a message whole, as a .eml file.
 func (a *app) saveEML(m store.Message) {
 	a.saveMessage(m, "Save message", fileName(cmp.Or(m.Subject, "message"))+".eml", func(raw []byte) ([]byte, error) { return raw, nil })
@@ -394,6 +409,10 @@ func (a *app) saveMessage(m store.Message, title, name string, part func(raw []b
 				if data, err = part(raw); err == nil {
 					err = os.WriteFile(path, data, 0o644)
 				}
+			}
+
+			if err == nil {
+				quarantine(path)
 			}
 
 			if err != nil {

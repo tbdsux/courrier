@@ -3,7 +3,10 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -106,6 +109,23 @@ func TestSaveAttachmentNameIsNoPath(t *testing.T) {
 
 	if got := <-asked; strings.ContainsAny(got, `/\`) {
 		t.Errorf("save dialog got the path %q", got)
+	}
+}
+
+func TestQuarantine(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the mark is macOS's; Windows' needs NTFS")
+	}
+
+	path := filepath.Join(t.TempDir(), "x.bin")
+	if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	quarantine(path)
+
+	if out, err := exec.Command("/usr/bin/xattr", "-p", "com.apple.quarantine", path).Output(); err != nil || !strings.Contains(string(out), "Courrier") {
+		t.Errorf("mark %q: %v", out, err)
 	}
 }
 
