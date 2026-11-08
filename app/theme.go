@@ -43,7 +43,7 @@ var (
 	logos        = map[string]*ui.SVG{"google": ui.MustParseSVG(googleSVG), "microsoft": ui.MustParseSVG(microsoftSVG)}
 )
 
-// logoPNG is courrier's logo in color, drawn from assets/logo.svg.
+// logoPNG is courrier's logo in color.
 //
 //go:embed assets/logo.png
 var logoPNG []byte
