@@ -221,7 +221,7 @@ func (a *app) panes(c *ui.Context) {
 }
 
 // settingsPages are the pages in Settings' menu.
-var settingsPages = []string{"general", "accounts", "groups", "rules", "servers", "storage"}
+var settingsPages = []string{"general", "accounts", "groups", "rules", "servers", "storage", "about"}
 
 // inSettings reports whether the main view shows Settings rather than mail.
 func (a *app) inSettings() bool { return slices.Contains(settingsPages, a.sel) || a.form != nil }
@@ -239,6 +239,7 @@ func (a *app) settingsPage(c *ui.Context) {
 				a.sideItem(c, "rules", filterIcon, "Rules")
 				a.sideItem(c, "servers", serverIcon, "Servers")
 				a.sideItem(c, "storage", driveIcon, "Storage")
+				a.sideItem(c, "about", infoIcon, "About")
 			}).Grow(1).Background(a.pal.sidebar)
 
 			// Only one of this and the main sidebar holds the chosen item.
@@ -262,6 +263,8 @@ func (a *app) settingsPage(c *ui.Context) {
 				a.rulesView(c)
 			case "storage":
 				a.storageView(c)
+			case "about":
+				a.aboutView(c)
 			case "accounts":
 				a.accountsView(c)
 			default:
@@ -294,7 +297,7 @@ func (a *app) load() {
 
 	case "storage":
 		a.readStorage()
-	case "", "servers", "accounts", "groups", "rules", "u:outbox":
+	case "", "servers", "accounts", "groups", "rules", "about", "u:outbox":
 	case "new":
 		a.form = newAccountForm()
 

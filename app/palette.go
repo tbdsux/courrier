@@ -72,7 +72,7 @@ func (a *app) commands() []command {
 		}
 	}
 
-	pages := []*ui.SVG{settingsIcon, userIcon, folderIcon, filterIcon, serverIcon, driveIcon}
+	pages := []*ui.SVG{settingsIcon, userIcon, folderIcon, filterIcon, serverIcon, driveIcon, infoIcon}
 	for i, p := range settingsPages {
 		keys := ""
 		if i == 0 {

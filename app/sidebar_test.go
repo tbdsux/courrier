@@ -332,7 +332,7 @@ func TestSoftAccentKeepsTintInInactiveWindow(t *testing.T) {
 	}
 }
 
-func TestUpdateButton(t *testing.T) {
+func TestUpdateButtonAndAbout(t *testing.T) {
 	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"), memSecrets{})
 	if err != nil {
 		t.Fatal(err)
@@ -342,14 +342,15 @@ func TestUpdateButton(t *testing.T) {
 	checks := 0
 	a := newApp(st, func(fn func()) { fn() })
 	a.sys = &system{version: "1.0.0", read: func(*system) {}, checkNow: func() { checks++ }}
+	a.sel = "about"
 	tt := ui.NewTester(a.view, 1100, 800)
 	tt.Frame()
 
-	if tt.HasText("Update to") {
-		t.Fatalf("button while up to date: %v", tt.Texts())
+	if !tt.HasText("1.0.0") || !tt.HasText("Check now") || tt.HasText("Update to") {
+		t.Fatalf("about, up to date: %v", tt.Texts())
 	}
 
-	a.sys.available = "2.0.0"
+	a.sel, a.sys.available = "", "2.0.0"
 	tt.Frame()
 	tt.Click("Update to 2.0.0")
 	tt.Frame()

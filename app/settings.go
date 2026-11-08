@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"encoding/json"
+	"runtime"
 	"slices"
 
 	"github.com/egoist/mygo/ui"
@@ -198,16 +199,6 @@ func (a *app) systemCards(c *ui.Context) {
 	})
 
 	a.card(c, "updates", "Updates", func() {
-		ui.Field(c, "Version", func() {
-			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, sys.version)
-
-				if ui.Button(c, "Check now").Clicked() {
-					sys.checkNow()
-				}
-			})
-		})
-
 		if ui.Field(c, "Check automatically", func() { ui.Switch(c, &sys.autoCheck) }).Changed() {
 			sys.setAutoCheck(sys.autoCheck)
 		}
@@ -220,3 +211,41 @@ func (a *app) systemCards(c *ui.Context) {
 }
 
 func updateLabel(version string) string { return "Update to " + version }
+
+const repoURL = "https://github.com/tbdsux/courrier"
+
+// aboutView is the version running and where it comes from.
+func (a *app) aboutView(c *ui.Context) {
+	a.page(c, 16, func() {
+		header(c, "Settings", "About", "The version you're running and where it comes from.")
+
+		if a.sys == nil {
+			return
+		}
+
+		sys := a.sys
+		a.formIn(c, a.contentWidth(), func() {
+			a.card(c, "about", "Courrier", func() {
+				ui.Field(c, "Version", func() {
+					ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, sys.version)
+
+						label := "Check now"
+						if sys.available != "" {
+							label = updateLabel(sys.available)
+						}
+
+						if ui.Button(c, label).Clicked() {
+							sys.checkNow()
+						}
+					})
+				})
+
+				ui.Field(c, "Platform", func() { ui.Text(c, runtime.GOOS+" "+runtime.GOARCH) })
+				ui.Field(c, "Release notes", func() { ui.Link(c, "Releases on GitHub", repoURL+"/releases") })
+				ui.Field(c, "Source code", func() { ui.Link(c, "tbdsux/courrier", repoURL) })
+				ui.Field(c, "License", func() { ui.Link(c, "MIT", repoURL+"/blob/main/LICENSE") })
+			})
+		})
+	})
+}
