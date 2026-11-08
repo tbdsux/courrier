@@ -16,13 +16,30 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0 # the notes need the commits since the previous tag
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          previous="$(git describe --tags --abbrev=0 "$GITHUB_REF_NAME^" 2>/dev/null || true)"
+          range="${previous:+$previous..}$GITHUB_REF_NAME"
+
+          # Prints one section of the notes, from the commits of one Conventional Commits type.
+          section() {
+            entries="$(git log --no-merges --format=%s "$range" |
+              sed -nE "s/^$2(\(([^)]*)\))?!?: (.*)/- \2: \3/p" | sed 's/^- : /- /')"
+
+            if [ -n "$entries" ]; then
+              printf '## %s\n\n%s\n\n' "$1" "$entries"
+            fi
+          }
+
           if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-              --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+              --verify-tag --title "$GITHUB_REF_NAME" \
+              --notes "$(section Features feat; section Fixes fix; section Performance perf)"
           fi
 
   build:
