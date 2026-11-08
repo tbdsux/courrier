@@ -17,6 +17,21 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
+      # MyGo's SQLite plugin downloads this library without a token on first
+      # use, and one failed download fails every test that opens a database.
+      - name: Fetch the SQLite library
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          go mod download github.com/egoist/mygo
+          manifest="$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)/plugins/sqlite/mygo-plugin.json"
+          file=$(jq -c --arg p "$(go env GOOS)-$(go env GOARCH)" '.libraries[] | select(.name == "mygo-sqlite3").files[$p]' "$manifest")
+          url=$(jq -r .url <<< "$file")
+          sha=$(jq -r .sha256 <<< "$file")
+          path="${XDG_CACHE_HOME:-$HOME/.cache}/mygo/natives/$sha/$(jq -r .name <<< "$file")"
+          mkdir -p "$(dirname "$path")"
+          gh release download "$(cut -d/ -f8 <<< "$url")" --repo "$(cut -d/ -f4-5 <<< "$url")" --pattern "$(cut -d/ -f9 <<< "$url")" --output "$path"
+          echo "$sha  $path" | sha256sum -c
       - name: Test
         run: go test ./...
       - name: Vet
