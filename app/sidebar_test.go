@@ -315,3 +315,19 @@ func TestSideViewFavorites(t *testing.T) {
 		t.Errorf("after a rename: %v", tt.Texts())
 	}
 }
+
+func TestSoftAccentKeepsTintInInactiveWindow(t *testing.T) {
+	var got ui.Theme
+
+	tt := ui.NewTester(func(c *ui.Context) {
+		defer softAccent(c)()
+
+		got = *c.Theme()
+	}, 100, 100)
+	tt.SetWindowActive(false)
+	tt.Frame()
+
+	if got.InactiveAccent != got.Accent {
+		t.Fatalf("InactiveAccent = %v, want the tint %v", got.InactiveAccent, got.Accent)
+	}
+}

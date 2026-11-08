@@ -639,6 +639,8 @@ func (a *app) messageList(c *ui.Context) {
 		// fill: the list draws them in its theme, the rows build in the app's.
 		soft := *t
 		soft.Accent, soft.AccentText, soft.Radius = t.Accent.Alpha(0.2), t.Text, 0
+		// Otherwise an inactive window swaps the tint for an opaque fill.
+		soft.InactiveAccent = soft.Accent
 		c.SetTheme(&soft)
 		list := ui.List(c, &a.msgList, len(a.msgs), func(i int) {
 			c.SetTheme(t)

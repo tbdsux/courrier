@@ -227,6 +227,8 @@ func softAccent(c *ui.Context) func() {
 	t := c.Theme()
 	soft := *t
 	soft.Accent, soft.AccentText = t.Accent.Alpha(0.2), t.Accent
+	// Otherwise an inactive window swaps the tint for an opaque fill.
+	soft.InactiveAccent = soft.Accent
 	c.SetTheme(&soft)
 
 	return func() { c.SetTheme(t) }
