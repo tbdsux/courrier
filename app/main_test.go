@@ -165,7 +165,10 @@ func TestAddAccountsOnSavedProfile(t *testing.T) {
 	}
 
 	// The second account only needs the profile, an email and a password.
-	if err := tt.Click("Add account"); err != nil {
+	a.sel = "accounts"
+	tt.Frame()
+
+	if err := tt.Click("New account…"); err != nil {
 		t.Fatal(err)
 	}
 
