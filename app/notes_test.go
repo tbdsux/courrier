@@ -190,10 +190,10 @@ func TestUnsubscribeBanner(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Only https: URLs unsubscribe with one click: trust the test server's.
-	transport := http.DefaultTransport
-	http.DefaultTransport = srv.Client().Transport
-	defer func() { http.DefaultTransport = transport }()
+	// Only https: URLs on public addresses unsubscribe: use the test server's.
+	client := courrier.UnsubscribeClient
+	courrier.UnsubscribeClient = srv.Client()
+	defer func() { courrier.UnsubscribeClient = client }()
 
 	a, tt, updates := listMail(t, courrier.Body{Text: "hi", Meta: courrier.Meta{Unsubscribe: []string{srv.URL}, OneClick: true}})
 	if !tt.HasText("Mailing list from News") {

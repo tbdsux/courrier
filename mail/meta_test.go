@@ -55,6 +55,10 @@ func TestUnsubscribePost(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	client := UnsubscribeClient
+	UnsubscribeClient = srv.Client() // the real one refuses a test server's address
+	defer func() { UnsubscribeClient = client }()
+
 	if err := Unsubscribe(context.Background(), srv.URL); err != nil {
 		t.Fatal(err)
 	}
@@ -68,6 +72,32 @@ func TestUnsubscribePost(t *testing.T) {
 
 	if err := Unsubscribe(context.Background(), gone.URL); err == nil || !strings.Contains(err.Error(), "404") {
 		t.Errorf("404: %v", err)
+	}
+}
+
+func TestUnsubscribeStaysPublic(t *testing.T) {
+	hit := false
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hit = true }))
+	defer srv.Close()
+
+	if err := Unsubscribe(context.Background(), srv.URL); err == nil || hit {
+		t.Errorf("reached a local server: err %v, hit %v", err, hit)
+	}
+
+	for addr, public := range map[string]bool{
+		"93.184.216.34:443": true, "127.0.0.1:443": false, "192.168.1.1:443": false, "10.0.0.8:443": false,
+		"169.254.169.254:80": false, "[::1]:443": false, "[fe80::1]:443": false, "0.0.0.0:443": false,
+	} {
+		if err := publicOnly("tcp", addr, nil); (err == nil) != public {
+			t.Errorf("%s: %v", addr, err)
+		}
+	}
+
+	for u, ok := range map[string]bool{"https://example.com/": true, "http://example.com/": false} {
+		req, _ := http.NewRequest(http.MethodPost, u, nil)
+		if err := UnsubscribeClient.CheckRedirect(req, nil); (err == nil) != ok {
+			t.Errorf("redirect to %s: %v", u, err)
+		}
 	}
 }
 

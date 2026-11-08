@@ -2,10 +2,13 @@ package mail
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/emersion/go-message"
@@ -79,6 +82,39 @@ func (m Meta) UnsubscribeMailto() string {
 	return ""
 }
 
+// UnsubscribeClient makes Unsubscribe's POST. The URL comes from the
+// message, so it reaches only public addresses, however it redirects: a
+// sender mustn't get to poke the user's router or machine.
+var UnsubscribeClient = &http.Client{
+	Transport: &http.Transport{
+		DialContext:       (&net.Dialer{Control: publicOnly}).DialContext,
+		DisableKeepAlives: true,
+	},
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if req.URL.Scheme != "https" || len(via) >= 5 {
+			return errors.New("the sender's server redirected somewhere unsafe")
+		}
+
+		return nil
+	},
+}
+
+// publicOnly refuses to connect to an address that isn't on the internet.
+// It runs after the name is resolved, so a name can't hide such an address.
+func publicOnly(_, address string, _ syscall.RawConn) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return err
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+		return fmt.Errorf("%s isn't a public address", host)
+	}
+
+	return nil
+}
+
 // Unsubscribe unsubscribes with one POST to u, as RFC 8058 says.
 func Unsubscribe(ctx context.Context, u string) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -90,7 +126,7 @@ func Unsubscribe(ctx context.Context, u string) error {
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := UnsubscribeClient.Do(req)
 	if err != nil {
 		return err
 	}
