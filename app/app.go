@@ -394,6 +394,7 @@ func (a *app) sidebar(c *ui.Context) {
 		ui.SplitVerticalPercent(c, &a.treePct, func() {
 			ui.Column(c).Fill().Children(func() {
 				ui.Column(c).Grow(1).Children(func() { a.sidebarTree(c) })
+				a.updateButton(c)
 				a.settingsButton(c)
 			})
 		}, func() {
@@ -408,6 +409,31 @@ func (a *app) sidebar(c *ui.Context) {
 			})
 		}).Grow(1)
 	})
+}
+
+// updateButton shows while a newer version is out, and opens the update
+// window, which offers to install it.
+func (a *app) updateButton(c *ui.Context) {
+	if a.sys == nil || a.sys.available == "" {
+		return
+	}
+
+	t := c.Theme()
+	label := updateLabel(a.sys.available)
+	b := ui.Button(c.Key("update"), "").Label(label).Justify(ui.Start).Padding(8, 12).Margin(4, 8, 0, 8).Radius(8).Background(a.pal.accentSoft).Border(0, ui.Transparent)
+	if b.Hovered() {
+		b.Background(t.Accent.Alpha(0.22))
+	}
+
+	b.Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, downloadIcon).FontSize(15).TextColor(t.Accent)
+			ui.Text(c, label).FontWeight(600).TextColor(t.Accent)
+		})
+	})
+	if b.Clicked() {
+		a.sys.checkNow()
+	}
 }
 
 // settingsButton opens Settings, from under the folders.

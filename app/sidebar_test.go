@@ -331,3 +331,37 @@ func TestSoftAccentKeepsTintInInactiveWindow(t *testing.T) {
 		t.Fatalf("InactiveAccent = %v, want the tint %v", got.InactiveAccent, got.Accent)
 	}
 }
+
+func TestUpdateButton(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"), memSecrets{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer st.Close()
+	checks := 0
+	a := newApp(st, func(fn func()) { fn() })
+	a.sys = &system{version: "1.0.0", read: func(*system) {}, checkNow: func() { checks++ }}
+	tt := ui.NewTester(a.view, 1100, 800)
+	tt.Frame()
+
+	if tt.HasText("Update to") {
+		t.Fatalf("button while up to date: %v", tt.Texts())
+	}
+
+	a.sys.available = "2.0.0"
+	tt.Frame()
+	tt.Click("Update to 2.0.0")
+	tt.Frame()
+
+	if checks != 1 {
+		t.Fatalf("checks = %d, want 1: %v", checks, tt.Texts())
+	}
+
+	a.sys.available = ""
+	tt.Frame()
+
+	if tt.HasText("Update to") {
+		t.Fatalf("button stayed after the update went away: %v", tt.Texts())
+	}
+}

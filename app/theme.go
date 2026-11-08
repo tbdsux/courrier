@@ -121,6 +121,7 @@ var (
 	printerIcon   = lucide(`<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>`)
 	zoomInIcon    = lucide(`<circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/>`)
 	zoomOutIcon   = lucide(`<circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/>`)
+	downloadIcon  = lucide(`<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>`)
 	outboxIcon    = lucide(`<path d="M12 13V2"/><path d="m8 6 4-4 4 4"/><path d="M2 13h4l2 3h8l2-3h4v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/>`)
 )
 

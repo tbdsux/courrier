@@ -40,6 +40,7 @@ and keep this page in step.
 | Reply | under the message, in a resizable split (45 % message); pop out to a window. Its From shows with several addresses, its Cc once used |
 | Narrow (`narrowContent`) | under 600 DIP beside the sidebar: one pane, list *or* message, with a back button |
 | Settings | the Settings button, under the folders and above the sync status, opens it beside the sidebar: a menu 240 wide (190 when the window leaves less than 1000 beside the sidebar) (General, Accounts, Groups, Rules, Servers, Storage), then the chosen page |
+| Update button | above Settings in the sidebar, only while a newer version is out: "Update to X" on soft accent, opening the update window |
 | Pages (settings, accounts) | centered, max 880 wide; padding 32, 18 when narrow; 40 at the bottom |
 | Forms | labels beside fields; above them under 520 DIP |
 

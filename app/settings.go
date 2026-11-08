@@ -31,8 +31,9 @@ type settings struct {
 // as the page opens; nil in tests, which have no app.
 type system struct {
 	version              string
-	login, isDefault     bool // opens at login; the default mail app
-	autoCheck, autoFetch bool // for updates
+	available            string // the newer version out, "" for none
+	login, isDefault     bool   // opens at login; the default mail app
+	autoCheck, autoFetch bool   // for updates
 	read                 func(*system)
 	setLogin             func(bool) error
 	makeDefault          func() error
@@ -217,3 +218,5 @@ func (a *app) systemCards(c *ui.Context) {
 		}
 	})
 }
+
+func updateLabel(version string) string { return "Update to " + version }

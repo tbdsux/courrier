@@ -185,6 +185,8 @@ func main() {
 			a.sys.read(a.sys)
 		}
 
+		updater.OnChange(func() { a.update(func() { a.sys.available = updater.AvailableVersion() }) })
+
 		a.showCounts()
 
 		if hidden && mb.tray == nil { // no menu bar item to come back from
