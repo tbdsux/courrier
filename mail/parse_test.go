@@ -1,9 +1,12 @@
 package mail
 
 import (
+	"encoding/base64"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/emersion/go-imap/v2"
 )
@@ -21,6 +24,49 @@ func parseFile(t *testing.T, name string) ([]byte, Header, Body) {
 	}
 
 	return raw, h, b
+}
+
+func TestParseInlineBomb(t *testing.T) {
+	img := base64.StdEncoding.EncodeToString(make([]byte, 100<<10))
+	related := func(refs int) []byte {
+		return []byte("From: a@b.c\r\nContent-Type: multipart/related; boundary=x\r\n\r\n--x\r\nContent-Type: text/html\r\n\r\n" + strings.Repeat("cid:a ", refs) +
+			"\r\n--x\r\nContent-Type: image/png\r\nContent-Id: <a>\r\nContent-Transfer-Encoding: base64\r\n\r\n" + img + "\r\n--x--\r\n")
+	}
+
+	if _, b, _ := Parse(related(4000)); len(b.HTML) > 1<<20 {
+		t.Errorf("a small message grew to %d MB of HTML", len(b.HTML)>>20)
+	}
+
+	if _, b, _ := Parse(related(2)); strings.Contains(b.HTML, "cid:a") {
+		t.Errorf("an ordinary inline image wasn't put in: %.40q", b.HTML)
+	}
+}
+
+func TestParseDeepNesting(t *testing.T) {
+	nested := func(depth int) []byte {
+		var sb strings.Builder
+		sb.WriteString("From: a@b.c\r\n")
+		for i := range depth {
+			fmt.Fprintf(&sb, "Content-Type: multipart/mixed; boundary=b%d\r\n\r\n--b%d\r\n", i, i)
+		}
+
+		sb.WriteString("Content-Type: text/plain\r\n\r\nend\r\n")
+
+		return []byte(sb.String())
+	}
+
+	start := time.Now()
+	if _, b, _ := Parse(nested(32000)); b.Text != "" {
+		t.Errorf("read a part %q below the depth limit", b.Text)
+	}
+
+	if d := time.Since(start); d > 5*time.Second {
+		t.Errorf("took %v", d)
+	}
+
+	if _, b, _ := Parse(nested(5)); strings.TrimSpace(b.Text) != "end" {
+		t.Errorf("ordinary nesting: %q", b.Text)
+	}
 }
 
 func TestParseAlternative(t *testing.T) {

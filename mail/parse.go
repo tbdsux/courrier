@@ -17,8 +17,16 @@ import (
 	"golang.org/x/net/html"
 )
 
-// maxInline caps the cid: images put into the HTML as data: URLs.
-const maxInline = 2 << 20
+const (
+	// maxInline caps the cid: images put into the HTML as data: URLs.
+	maxInline = 2 << 20
+	// maxExpanded caps what those images add to the HTML: a short "cid:a"
+	// repeated would otherwise turn a small message into terabytes.
+	maxExpanded = 64 << 20
+	// maxDepth caps the nesting of multiparts read: each level slows every
+	// read below it, so a deep message would hang the parser.
+	maxDepth = 32
+)
 
 // Parse reads a whole message: its headers, text, HTML and attachments.
 // Inline cid: images are put into the HTML as data: URLs, so it shows
@@ -135,7 +143,14 @@ func (ps *parts) attach(a Attachment) {
 
 // body returns the body gathered, its inline images put into the HTML.
 func (ps *parts) body() Body {
+	room := maxExpanded
 	for cid, url := range ps.inline {
+		grows := strings.Count(ps.b.HTML, "cid:"+cid) * len(url)
+		if grows > room {
+			continue
+		}
+
+		room -= grows
 		ps.b.HTML = strings.ReplaceAll(ps.b.HTML, "cid:"+cid, url)
 	}
 
@@ -148,6 +163,10 @@ func (ps *parts) body() Body {
 // walk calls leaf for each part that is not multipart, numbered as IMAP
 // numbers sections: "1", "2.1", …
 func walk(e *message.Entity, part string, leaf func(part string, e *message.Entity)) {
+	if strings.Count(part, ".") >= maxDepth {
+		return
+	}
+
 	mr := e.MultipartReader()
 	if mr == nil {
 		if part == "" {
