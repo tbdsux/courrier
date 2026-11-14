@@ -323,6 +323,7 @@ func (a *app) reloadMail() {
 		lead = a.msgs[a.msgRow].ID
 	}
 
+	old := idsOf(a.msgs)
 	f, isFolder := a.folder(id)
 	switch {
 	case strings.TrimSpace(a.query) != "":
@@ -335,6 +336,10 @@ func (a *app) reloadMail() {
 
 	if err != nil {
 		a.mailErr = err.Error()
+	}
+
+	if len(a.msgs) > 0 && !slices.Contains(old, a.msgs[0].ID) { // new mail on top
+		a.msgList.ScrollTo(0, ui.Start)
 	}
 
 	a.msgRow = -1
