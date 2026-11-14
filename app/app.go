@@ -393,14 +393,21 @@ func (a *app) sidebar(c *ui.Context) {
 			a.sideViewButton(c)
 		}
 
-		// The split's line, which drags, falls between Settings and the sync status.
-		ui.SplitVerticalPercent(c, &a.treePct, func() {
+		tree := func() {
 			ui.Column(c).Fill().Children(func() {
 				ui.Column(c).Grow(1).Children(func() { a.sidebarTree(c) })
 				a.updateButton(c)
 				a.settingsButton(c)
 			})
-		}, func() {
+		}
+
+		if !a.set.SyncStatus && !a.syncFailing() {
+			ui.Column(c).Grow(1).Children(tree)
+			return
+		}
+
+		// The split's line, which drags, falls between Settings and the sync status.
+		ui.SplitVerticalPercent(c, &a.treePct, tree, func() {
 			ui.Scroll(c).Fill().Children(func() {
 				ui.Column(c).Gap(2).Padding(10, 16, 20, 16).Children(func() {
 					if len(a.accounts) == 0 {

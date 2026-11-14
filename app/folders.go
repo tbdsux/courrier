@@ -780,6 +780,8 @@ func (a *app) syncStatus(c *ui.Context) {
 				a.sel = strconv.FormatInt(acc.ID, 10)
 			}
 
+		case !a.set.SyncStatus && st.Err == nil:
+			// Hidden in Settings: only errors show.
 		case st.Syncing:
 			ui.Text(c.Key(acc.ID), prefix+"Syncing…").FontSize(11).TextColor(t.TextMuted)
 		case st.Err != nil:
@@ -788,6 +790,17 @@ func (a *app) syncStatus(c *ui.Context) {
 			ui.Text(c.Key(acc.ID), prefix+"Updated "+st.Updated.Format("15:04")).FontSize(11).TextColor(t.TextMuted).SingleLine()
 		}
 	}
+}
+
+// syncFailing reports whether syncStatus has an error to show.
+func (a *app) syncFailing() bool {
+	for _, acc := range a.accounts {
+		if sy := a.syncers[acc.ID]; sy != nil && (sy.status.Err != nil || errors.Is(sy.status.SendErr, courrier.ErrAuth)) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // errSummary says in a few words what failed.

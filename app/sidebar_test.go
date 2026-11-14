@@ -366,3 +366,21 @@ func TestUpdateButtonAndAbout(t *testing.T) {
 		t.Fatalf("button stayed after the update went away: %v", tt.Texts())
 	}
 }
+
+// With the sync status hidden, the sidebar still shows a failed sync.
+func TestSyncFailing(t *testing.T) {
+	a, _, _, acc := actionsApp(t)
+	if !a.set.SyncStatus {
+		t.Error("sync status hidden by default")
+	}
+
+	a.syncers = map[int64]*accountSync{acc: {status: courrier.Status{Updated: time.Now()}}}
+	if a.syncFailing() {
+		t.Error("an updated account reads as failing")
+	}
+
+	a.syncers[acc].status.SendErr = fmt.Errorf("x: %w", courrier.ErrAuth)
+	if !a.syncFailing() {
+		t.Error("a send sign-in error doesn't read as failing")
+	}
+}

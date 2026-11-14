@@ -20,6 +20,7 @@ type settings struct {
 	Sound             bool    // new-mail notifications play a sound
 	Badge             bool    // the Dock or taskbar shows the Inbox's unread count
 	MenuBar           bool    // courrier sits in the menu bar (tray), and keeps running without its window
+	SyncStatus        bool    // the sidebar shows each account's sync status; errors show either way
 	Threads           bool    // the list shows a row a conversation
 	UnsubscribeBanner bool    // mailing lists' mail offers to unsubscribe above it
 	UnsubscribeGuess  bool    // without the header, that offer guesses a link from the text
@@ -44,7 +45,7 @@ type system struct {
 }
 
 func defaultSettings() settings {
-	return settings{FontSize: 13, View: "Comfortable", Appearance: "System", Sound: true, Badge: true, MenuBar: true, Threads: true, UnsubscribeBanner: true, KeepBodies: 90, GroupGap: 4}
+	return settings{FontSize: 13, View: "Comfortable", Appearance: "System", Sound: true, Badge: true, MenuBar: true, SyncStatus: true, Threads: true, UnsubscribeBanner: true, KeepBodies: 90, GroupGap: 4}
 }
 
 // zooms are the reading pane's zoom steps.
@@ -105,6 +106,8 @@ func (a *app) settingsView(c *ui.Context) {
 				ui.Field(c, "Font size", func() { ui.NumberInput(c, &s.FontSize, 10, 20, 1).Width(120) })
 				ui.Field(c, "Group spacing", func() { ui.NumberInput(c, &s.GroupGap, 0, 16, 1).Width(120) }).
 					Description("Room above each account in a sidebar group.")
+				ui.Field(c, "Sync status", func() { ui.Switch(c, &s.SyncStatus) }).
+					Description("When each account last updated, under the sidebar. Sync errors show either way.")
 			})
 
 			a.card(c, "read", "Reading", func() {
