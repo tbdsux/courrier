@@ -95,7 +95,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           go mod download github.com/egoist/mygo
-          manifest="$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)/plugins/sqlite/mygo-plugin.json"
+          manifest="$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)/plugins/sqlite/internal/sqlitecore/mygo-plugin.json"
           cache="${XDG_CACHE_HOME:-$HOME/.cache}"
 
           if [ "$RUNNER_OS" = macOS ]; then
@@ -103,7 +103,7 @@ jobs:
           fi
 
           for platform in $(tr , ' ' <<< "${{ matrix.platform }}"); do
-            file=$(jq -c --arg p "${platform/\//-}" '.libraries[] | select(.name == "mygo-sqlite3").files[$p]' "$manifest")
+            file=$(jq -c --arg p "${platform/\//-}" '.libraries[] | select(.name == "Sqlitecore").files[$p]' "$manifest")
             url=$(jq -r .url <<< "$file")
             sha=$(jq -r .sha256 <<< "$file")
             path="$cache/mygo/natives/$sha/$(jq -r .name <<< "$file")"

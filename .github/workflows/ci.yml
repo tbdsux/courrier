@@ -24,8 +24,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           go mod download github.com/egoist/mygo
-          manifest="$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)/plugins/sqlite/mygo-plugin.json"
-          file=$(jq -c --arg p "$(go env GOOS)-$(go env GOARCH)" '.libraries[] | select(.name == "mygo-sqlite3").files[$p]' "$manifest")
+          manifest="$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)/plugins/sqlite/internal/sqlitecore/mygo-plugin.json"
+          file=$(jq -c --arg p "$(go env GOOS)-$(go env GOARCH)" '.libraries[] | select(.name == "Sqlitecore").files[$p]' "$manifest")
           url=$(jq -r .url <<< "$file")
           sha=$(jq -r .sha256 <<< "$file")
           path="${XDG_CACHE_HOME:-$HOME/.cache}/mygo/natives/$sha/$(jq -r .name <<< "$file")"
