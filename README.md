@@ -127,7 +127,11 @@ plain source build works fine with password accounts.
 
 ```sh
 go build -ldflags "-X courrier/mail.GoogleClientID=… -X courrier/mail.GoogleClientSecret=… -X courrier/mail.MicrosoftClientID=…" ./app
+MYGO_LDFLAGS="-X courrier/mail.GoogleClientID=… …" go tool mygo build   # same flags
 ```
+
+The release workflow links them in from the repository secrets
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `MICROSOFT_CLIENT_ID`.
 
 To register the clients:
 
