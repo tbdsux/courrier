@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 
@@ -173,7 +174,7 @@ func (a *app) newCompose(d store.Draft, fresh, inline bool) *compose {
 	setBody(&d, text)
 
 	if err := a.st.SaveDraft(&d); err != nil {
-		a.toast = "Couldn't save the draft: " + err.Error()
+		a.toast = locales.ToastSaveDraftFailed(err.Error())
 		return nil
 	}
 
@@ -251,7 +252,7 @@ func (cm *compose) noSigAt(pos int) {
 func (a *app) reopenDrafts() {
 	ds, err := a.st.OpenDrafts()
 	if err != nil {
-		a.toast = "Couldn't read the drafts: " + err.Error()
+		a.toast = locales.ToastReadDraftsFailed(err.Error())
 	}
 
 	for _, d := range ds {
@@ -304,7 +305,7 @@ func (cm *compose) title() string {
 	if s := strings.TrimSpace(cm.d.Subject); s != "" {
 		return s
 	}
-	return "New message"
+	return locales.ComposeNewMessage()
 }
 
 func (cm *compose) snapshot() string {
@@ -383,7 +384,7 @@ func (cm *compose) saveLocal() {
 	}
 
 	if err != nil {
-		cm.saveErr = "Couldn't save the draft: " + err.Error()
+		cm.saveErr = locales.ToastSaveDraftFailed(err.Error())
 		return
 	}
 
@@ -564,12 +565,12 @@ func invalid(tokens []string) []string {
 func (cm *compose) validate() map[string]string {
 	errs := map[string]string{}
 	if len(cm.to)+len(cm.cc)+len(cm.bcc) == 0 {
-		errs["to"] = "Add at least one recipient."
+		errs["to"] = locales.ComposeAddRecipient()
 	}
 
 	for key, list := range map[string][]string{"to": cm.to, "cc": cm.cc, "bcc": cm.bcc} {
 		if bad := invalid(list); len(bad) > 0 {
-			errs[key] = "Not an address: " + strings.Join(bad, ", ")
+			errs[key] = locales.ComposeNotAnAddress(strings.Join(bad, ", "))
 		}
 	}
 
@@ -597,7 +598,7 @@ func (cm *compose) send(force bool) {
 	}
 
 	if err := cm.a.send(cm); err != nil {
-		cm.errs["send"] = "Couldn't send: " + err.Error()
+		cm.errs["send"] = locales.ComposeSendFailed(err.Error())
 	}
 }
 
@@ -632,7 +633,7 @@ func (a *app) send(cm *compose) error {
 	if cm.at.IsZero() {
 		a.undoID = id
 	} else {
-		a.toast = "Scheduled for " + laterLabel(cm.at, time.Now())
+		a.toast = locales.ToastScheduledFor(laterLabel(cm.at, time.Now()))
 	}
 
 	a.reloadMail()
@@ -651,12 +652,12 @@ func (cm *compose) saveTemplate() {
 	}
 
 	if err := cm.a.st.SaveDraft(&d); err != nil {
-		cm.toast = "Couldn't save the template: " + err.Error()
+		cm.toast = locales.ComposeSaveTemplateFailed(err.Error())
 		return
 	}
 
 	cm.a.templates = append(cm.a.templates, d)
-	cm.toast = "Saved as a template"
+	cm.toast = locales.ComposeSavedTemplate()
 }
 
 // templatesMenu starts a new message from a template, or deletes one.
@@ -669,11 +670,11 @@ func (a *app) templatesMenu(m *ui.Menu) {
 
 	m.Separator()
 
-	m.Submenu("Delete template", func(sub *ui.Menu) {
+	m.Submenu(locales.ComposeDeleteTemplate(), func(sub *ui.Menu) {
 		for _, t := range a.templates {
 			if sub.Item(subject(t.Subject)).Chosen() {
 				if err := a.st.DeleteDraft(t.ID); err != nil {
-					a.toast = "Couldn't delete it: " + err.Error()
+					a.toast = locales.ToastDeleteItFailed(err.Error())
 				}
 
 				a.reload()
@@ -698,18 +699,18 @@ func (a *app) takeBack(id int64) {
 	o, ok, err := a.st.TakeOutgoing(id)
 	switch {
 	case err != nil:
-		a.toast = "Couldn't take it back: " + err.Error()
+		a.toast = locales.ToastTakeBackFailed(err.Error())
 		return
 
 	case !ok:
-		a.toast = "It's sent already."
+		a.toast = locales.ToastSentAlready()
 		return
 	}
 
 	a.reloadMail()
 	md, err := courrier.DraftFrom(o.Raw)
 	if err != nil {
-		a.toast = "Couldn't read it back: " + err.Error()
+		a.toast = locales.ToastReadBackFailed(err.Error())
 		return
 	}
 
@@ -781,7 +782,7 @@ func (cm *compose) attach(paths []string) {
 			}
 
 			if len(failed) > 0 {
-				cm.toast = "Couldn't attach " + strings.Join(failed, ", ")
+				cm.toast = locales.ComposeAttachFailed(strings.Join(failed, ", "))
 			}
 		})
 	}()
@@ -796,7 +797,7 @@ func (cm *compose) pick() {
 	go func() {
 		paths, err := pickFiles()
 		if err != nil {
-			cm.update(func() { cm.toast = "Couldn't open the files: " + err.Error() })
+			cm.update(func() { cm.toast = locales.ComposeOpenFilesFailed(err.Error()) })
 			return
 		}
 
@@ -808,7 +809,7 @@ func (cm *compose) pick() {
 
 func (cm *compose) unattach(id int64) {
 	if err := cm.a.st.DeleteDraftFile(id); err != nil {
-		cm.toast = "Couldn't remove it: " + err.Error()
+		cm.toast = locales.ComposeRemoveFailed(err.Error())
 		return
 	}
 
@@ -887,7 +888,7 @@ func (cm *compose) form(c *ui.Context, inline bool) {
 	live := map[string]string{} // invalid tokens show as they are typed
 	for key, list := range map[string][]string{"to": cm.to, "cc": cm.cc, "bcc": cm.bcc} {
 		if bad := invalid(list); len(bad) > 0 {
-			live[key] = "Not an address: " + strings.Join(bad, ", ")
+			live[key] = locales.ComposeNotAnAddress(strings.Join(bad, ", "))
 		} else if errs[key] != "" && len(list) == 0 {
 			live[key] = errs[key]
 		}
@@ -901,46 +902,46 @@ func (cm *compose) form(c *ui.Context, inline bool) {
 				ui.Icon(c, replyIcon).FontSize(14).TextColor(t.TextMuted)
 				ui.Text(c, cm.title()).FontWeight(600).SingleLine().Grow(1).Shrink(1).Margin(0, 0, 0, 6)
 
-				if a.openWindow != nil && iconButton(c, popOutIcon, "Pop out", "Open in a window").Clicked() {
+				if a.openWindow != nil && iconButton(c, popOutIcon, locales.ComposePopOut(), locales.ComposePopOutTip()).Clicked() {
 					a.popOut()
 				}
 
-				if iconButton(c, closeIcon, "Discard", "Discard this reply").Clicked() {
+				if iconButton(c, closeIcon, locales.ComposeDiscard(), locales.ComposeDiscardTip()).Clicked() {
 					cm.discard()
 				}
 			})
 		}
 
 		ui.Form(c, func() {
-			if (!inline || len(froms) > 1) && ui.Field(c, "From", func() { dropdown(c, &cm.from, froms).Label("From") }).Changed() {
+			if (!inline || len(froms) > 1) && ui.Field(c, locales.ComposeFrom(), func() { dropdown(c, &cm.from, froms).Label(locales.ComposeFrom()) }).Changed() {
 				cm.syncFields() // swaps the signature at once
 			}
 
-			ui.Field(c.Key("to"), "To", func() {
+			ui.Field(c.Key("to"), locales.ComposeTo(), func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.TokenField(c, &cm.to, cm.suggest).Label("To").Grow(1)
+					ui.TokenField(c, &cm.to, cm.suggest).Label(locales.ComposeTo()).Grow(1)
 
-					bcc := "Bcc"
+					bcc := locales.ComposeBcc()
 					if inline && len(cm.cc) == 0 {
-						bcc = "Cc Bcc"
+						bcc = locales.ComposeCcBcc()
 					}
 
-					if !cm.showBcc && ui.Button(c, bcc).Label("Show "+bcc).Clicked() {
+					if !cm.showBcc && ui.Button(c, bcc).Label(locales.ComposeShow(bcc)).Clicked() {
 						cm.showBcc = true
 					}
 				})
 			}).Error(live["to"])
 
 			if !inline || cm.showBcc || len(cm.cc) > 0 { // inline, Bcc shows it
-				ui.Field(c.Key("cc"), "Cc", func() { ui.TokenField(c, &cm.cc, cm.suggest).Label("Cc") }).Error(live["cc"])
+				ui.Field(c.Key("cc"), locales.ComposeCc(), func() { ui.TokenField(c, &cm.cc, cm.suggest).Label(locales.ComposeCc()) }).Error(live["cc"])
 			}
 
 			if cm.showBcc {
-				ui.Field(c.Key("bcc"), "Bcc", func() { ui.TokenField(c, &cm.bcc, cm.suggest).Label("Bcc") }).Error(live["bcc"])
+				ui.Field(c.Key("bcc"), locales.ComposeBcc(), func() { ui.TokenField(c, &cm.bcc, cm.suggest).Label(locales.ComposeBcc()) }).Error(live["bcc"])
 			}
 
 			if !inline {
-				ui.Field(c, "Subject", func() { ui.TextInput(c, &cm.d.Subject).Label("Subject") })
+				ui.Field(c, locales.ComposeSubject(), func() { ui.TextInput(c, &cm.d.Subject).Label(locales.ComposeSubject()) })
 			}
 		}).Gap(8).Padding(14, 18, 12, 18)
 
@@ -960,7 +961,7 @@ func (cm *compose) form(c *ui.Context, inline bool) {
 						ui.Icon(c, paperclipIcon).FontSize(12).TextColor(t.TextMuted)
 						ui.Text(c, f.Name+" · "+humanSize(int64(len(f.Data)))).FontSize(12).SingleLine()
 
-						if ui.Button(c, "✕").Label("Remove "+f.Name).Padding(0, 4).Clicked() {
+						if ui.Button(c, "✕").Label(locales.ComposeRemoveNamed(f.Name)).Padding(0, 4).Clicked() {
 							cm.unattach(f.ID)
 						}
 					})
@@ -970,7 +971,7 @@ func (cm *compose) form(c *ui.Context, inline bool) {
 
 		ui.Column(c).Gap(8).Padding(10, 18, 14, 18).Children(func() {
 			if total > sizeWarning {
-				notice(c, "Over 25 MB: most servers refuse messages this large.", t.Warning)
+				notice(c, locales.ComposeTooLarge(), t.Warning)
 			}
 
 			if errs["send"] != "" {
@@ -983,24 +984,24 @@ func (cm *compose) form(c *ui.Context, inline bool) {
 				case cm.saveErr != "":
 					status = cm.saveErr
 				case !cm.savedAt.IsZero():
-					status = "Draft saved " + cm.savedAt.Format("15:04")
+					status = locales.ComposeDraftSaved(localDate(cm.savedAt, "Hm"))
 				}
 
 				ui.Text(c, status).FontSize(11).TextColor(t.TextMuted).SingleLine().Grow(1)
 
-				if ui.Button(c, "Attach…").Clicked() {
+				if ui.Button(c, locales.ComposeAttach()).Clicked() {
 					cm.pick()
 				}
 
-				if ui.PrimaryButton(c, "Send").Tooltip("Send (⌘↩)").Padding(8, 22).Clicked() {
+				if ui.PrimaryButton(c, locales.ComposeSend()).Tooltip(locales.ComposeSendTip()).Padding(8, 22).Clicked() {
 					cm.sendAt(time.Time{})
 				}
 
-				buttonMenu(c, ui.Button(c, "▾").Label("More send options"), func(m *ui.Menu) {
-					m.Submenu("Send later", func(sub *ui.Menu) { laterMenu(sub, &cm.later, "Send at", cm.sendAt) })
+				buttonMenu(c, ui.Button(c, "▾").Label(locales.ComposeMoreOptions()), func(m *ui.Menu) {
+					m.Submenu(locales.ComposeSendLater(), func(sub *ui.Menu) { laterMenu(sub, &cm.later, locales.ComposeSendAt(), cm.sendAt) })
 					m.Separator()
 
-					if m.Item("Save as template").Chosen() {
+					if m.Item(locales.ComposeSaveAsTemplate()).Chosen() {
 						cm.saveTemplate()
 					}
 				})
@@ -1013,11 +1014,11 @@ func (cm *compose) form(c *ui.Context, inline bool) {
 
 	laterDialog(c, &cm.later, 360)
 
-	if ui.AlertDialog(c, &cm.askSubject, "Send without a subject?", "", "Cancel", "Send") == 1 {
+	if ui.AlertDialog(c, &cm.askSubject, locales.ComposeNoSubjectTitle(), "", locales.CommonCancel(), locales.ComposeSend()) == 1 {
 		cm.send(true)
 	}
 
-	switch ui.AlertDialog(c, &cm.askClose, "Keep this draft?", "", "Cancel", "Discard", "Save draft") {
+	switch ui.AlertDialog(c, &cm.askClose, locales.ComposeKeepDraft(), "", locales.CommonCancel(), locales.ComposeDiscard(), locales.ComposeSaveDraft()) {
 	case 1:
 		cm.discard()
 	case 2:
@@ -1071,9 +1072,9 @@ func (a *app) respond(kind string) {
 		} else {
 			d.Draft = courrier.Reply(o, a.myAddrs(), kind == "all")
 			if d.To == "" && d.Cc == "" { // no From, Reply-To or other recipient with an address
-				a.toast = "Can't reply: the message has no address to reply to."
+				a.toast = locales.ToastNoReplyAddress()
 				if body.NoReply {
-					a.toast = "Can't reply: the sender doesn't take replies."
+					a.toast = locales.ToastNoReplies()
 				}
 
 				return
@@ -1105,7 +1106,7 @@ func (a *app) respond(kind string) {
 
 	if sy == nil || sy.s == nil || sy.status.Err != nil {
 		if whole {
-			a.toast = "Offline: the attachments aren't forwarded."
+			a.toast = locales.ToastOfflineAttachments()
 		}
 
 		open(nil)
@@ -1115,7 +1116,7 @@ func (a *app) respond(kind string) {
 	done := func(raw []byte, err error) {
 		a.update(func() {
 			if err != nil {
-				a.toast = "Couldn't fetch the original: " + err.Error()
+				a.toast = locales.ToastFetchOriginalFailed(err.Error())
 				raw = nil
 			}
 
@@ -1148,7 +1149,7 @@ func (a *app) editDraft(m store.Message) {
 		}
 
 		if err != nil {
-			a.toast = "Couldn't open the draft: " + err.Error()
+			a.toast = locales.ToastOpenDraftFailed(err.Error())
 			return
 		}
 
@@ -1169,7 +1170,7 @@ func (a *app) editDraft(m store.Message) {
 
 	s := a.syncer(m.AccountID)
 	if s == nil {
-		a.toast = "Couldn't open the draft: not connected to the server."
+		a.toast = locales.ToastOpenDraftOffline()
 		return
 	}
 
@@ -1193,7 +1194,7 @@ func outgoingSummary(raw []byte) (subj, to string) {
 
 func (a *app) retryOutgoing(o store.Outgoing) {
 	if err := a.st.RetryOutgoing(o.ID); err != nil {
-		a.toast = "Couldn't retry: " + err.Error()
+		a.toast = locales.ToastRetryFailed(err.Error())
 	}
 
 	if s := a.syncer(o.AccountID); s != nil {
@@ -1205,7 +1206,7 @@ func (a *app) retryOutgoing(o store.Outgoing) {
 
 func (a *app) reschedule(o store.Outgoing, at time.Time) {
 	if err := a.st.Reschedule(o.ID, at); err != nil {
-		a.toast = "Couldn't change the time: " + err.Error()
+		a.toast = locales.ToastChangeTimeFailed(err.Error())
 	}
 
 	if s := a.syncer(o.AccountID); s != nil {
@@ -1219,9 +1220,9 @@ func (a *app) dropOutgoing(id int64) {
 	o, ok, err := a.st.TakeOutgoing(id)
 	switch {
 	case err != nil:
-		a.toast = "Couldn't delete: " + err.Error()
+		a.toast = locales.CommonDeleteFailed(err.Error())
 	case !ok:
-		a.toast = "It's sent already."
+		a.toast = locales.ToastSentAlready()
 
 	case o.DraftUID != 0:
 		if s := a.syncer(o.AccountID); s != nil {
@@ -1235,10 +1236,10 @@ func (a *app) dropOutgoing(id int64) {
 func (a *app) outboxView(c *ui.Context) {
 	t := c.Theme()
 	a.page(c, 12, func() {
-		header(c, "Unified", "Outbox", "Messages waiting to be sent, and those scheduled. They go out by themselves once Courrier is online.")
+		header(c, locales.SideUnified(), locales.MailboxOutbox(), locales.OutboxSub())
 
 		if len(a.outbox) == 0 {
-			ui.Text(c, "The outbox is empty.").TextColor(t.TextMuted)
+			ui.Text(c, locales.OutboxEmpty()).TextColor(t.TextMuted)
 		}
 
 		now := time.Now()
@@ -1248,19 +1249,19 @@ func (a *app) outboxView(c *ui.Context) {
 			ui.Row(c.Key(o.ID)).Gap(12).AlignItems(ui.Center).Padding(12, 14).Radius(12).Background(a.pal.card).Border(1, t.Border).Children(func() {
 				ui.Column(c).Grow(1).Gap(3).Children(func() {
 					ui.Text(c, subject(subj)).FontWeight(500).SingleLine()
-					ui.Text(c, "To "+to+" · from "+a.fromOf(o.AccountID)).FontSize(12).TextColor(t.TextMuted).SingleLine()
+					ui.Text(c, locales.OutboxToFrom(to, a.fromOf(o.AccountID))).FontSize(12).TextColor(t.TextMuted).SingleLine()
 
 					switch {
 					case o.Sent:
-						ui.Text(c, "Sent. Saving it to Sent…").FontSize(12).TextColor(t.TextMuted)
+						ui.Text(c, locales.OutboxSaving()).FontSize(12).TextColor(t.TextMuted)
 					case o.LastError != "":
 						ui.Text(c, o.LastError).FontSize(12).TextColor(t.Danger).Wrap()
 					case scheduled:
-						ui.Text(c, "Sends "+laterLabel(o.SendAfter, now)).FontSize(12).TextColor(t.Accent)
+						ui.Text(c, locales.OutboxSends(laterLabel(o.SendAfter, now))).FontSize(12).TextColor(t.Accent)
 					case o.SendAfter.After(now):
-						ui.Text(c, "Sending…").FontSize(12).TextColor(t.TextMuted)
+						ui.Text(c, locales.OutboxSending()).FontSize(12).TextColor(t.TextMuted)
 					default:
-						ui.Text(c, "Waiting to send").FontSize(12).TextColor(t.TextMuted)
+						ui.Text(c, locales.OutboxWaiting()).FontSize(12).TextColor(t.TextMuted)
 					}
 				})
 
@@ -1268,32 +1269,32 @@ func (a *app) outboxView(c *ui.Context) {
 					return
 				}
 
-				if o.LastError != "" && ui.Button(c, "Retry").Clicked() {
+				if o.LastError != "" && ui.Button(c, locales.ListRetry()).Clicked() {
 					a.retryOutgoing(o)
 				}
 
 				if scheduled {
-					if ui.Button(c, "Send now").Clicked() {
+					if ui.Button(c, locales.OutboxSendNow()).Clicked() {
 						a.retryOutgoing(o)
 					}
 
-					buttonMenu(c, ui.Button(c, "Change time"), func(m *ui.Menu) {
-						laterMenu(m, &a.later, "Send at", func(at time.Time) { a.reschedule(o, at) })
+					buttonMenu(c, ui.Button(c, locales.OutboxChangeTime()), func(m *ui.Menu) {
+						laterMenu(m, &a.later, locales.ComposeSendAt(), func(at time.Time) { a.reschedule(o, at) })
 					})
 				}
 
-				if ui.Button(c, "Edit").Clicked() {
+				if ui.Button(c, locales.CommonEdit()).Clicked() {
 					a.takeBack(o.ID)
 				}
 
-				if ui.Button(c, "Delete").TextColor(t.Danger).Clicked() {
+				if ui.Button(c, locales.CommonDelete()).TextColor(t.Danger).Clicked() {
 					a.dropAsk, a.dropID = true, o.ID
 				}
 			})
 		}
 	})
 
-	if ui.AlertDialog(c, &a.dropAsk, "Delete this message?", "It won't be sent.", "Cancel", "Delete") == 1 {
+	if ui.AlertDialog(c, &a.dropAsk, locales.OutboxDeleteTitle(), locales.OutboxDeleteBody(), locales.CommonCancel(), locales.CommonDelete()) == 1 {
 		a.dropOutgoing(a.dropID)
 	}
 }

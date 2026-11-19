@@ -3,6 +3,7 @@ package main
 import (
 	"runtime"
 
+	"courrier/app/locales"
 	"courrier/store"
 
 	"github.com/egoist/mygo"
@@ -22,12 +23,12 @@ func (a *app) appMenu() *mygo.Menu {
 	on := func(fn func([]store.Message)) func() { return func() { fn(a.targets()) } }
 
 	settings := func() *mygo.MenuItem {
-		return &mygo.MenuItem{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: do(func() { a.showWindow(); a.sel = "general" })}
+		return &mygo.MenuItem{Label: locales.MenuSettings(), Accelerator: "CmdOrCtrl+,", Click: do(func() { a.showWindow(); a.sel = "general" })}
 	}
 
 	file := []*mygo.MenuItem{
-		{Label: "New Message", Accelerator: accel("⌘N"), Click: do(func() { a.showWindow(); a.newMessage() })},
-		{Label: "Check Mail", Accelerator: "Shift+CmdOrCtrl+N", Click: do(a.checkAll)},
+		{Label: locales.MenuNewMessage(), Accelerator: accel("⌘N"), Click: do(func() { a.showWindow(); a.newMessage() })},
+		{Label: locales.MenuCheckMail(), Accelerator: "Shift+CmdOrCtrl+N", Click: do(a.checkAll)},
 		mygo.Separator(),
 		{Role: mygo.RoleClose},
 	}
@@ -43,33 +44,33 @@ func (a *app) appMenu() *mygo.Menu {
 			{Role: mygo.RoleHide}, {Role: mygo.RoleHideOthers}, {Role: mygo.RoleUnhide}, mygo.Separator(),
 			{Role: mygo.RoleQuit},
 		}},
-		{Label: "File", Submenu: file},
+		{Label: locales.MenuFile(), Submenu: file},
 		{Role: mygo.RoleEditMenu},
-		{Label: "View", Submenu: []*mygo.MenuItem{
-			{Label: "Search", Accelerator: accel("⌘F"), Click: do(func() { a.showWindow(); a.focus = "search" })},
-			{Label: "Command Palette…", Accelerator: accel("⌘K"), Click: do(func() { a.showWindow(); a.palette = true })},
+		{Label: locales.MenuView(), Submenu: []*mygo.MenuItem{
+			{Label: locales.MenuSearch(), Accelerator: accel("⌘F"), Click: do(func() { a.showWindow(); a.focus = "search" })},
+			{Label: locales.MenuCommandPalette(), Accelerator: accel("⌘K"), Click: do(func() { a.showWindow(); a.palette = true })},
 			mygo.Separator(),
-			{Label: "Zoom In", Accelerator: accel("⌘="), Click: do(func() { a.zoomBy(1) })},
-			{Label: "Zoom Out", Accelerator: accel("⌘-"), Click: do(func() { a.zoomBy(-1) })},
-			{Label: "Actual Size", Accelerator: accel("⌘0"), Click: do(func() { a.zoomBy(0) })},
+			{Label: locales.MenuZoomIn(), Accelerator: accel("⌘="), Click: do(func() { a.zoomBy(1) })},
+			{Label: locales.MenuZoomOut(), Accelerator: accel("⌘-"), Click: do(func() { a.zoomBy(-1) })},
+			{Label: locales.MenuActualSize(), Accelerator: accel("⌘0"), Click: do(func() { a.zoomBy(0) })},
 			mygo.Separator(),
 			{Role: mygo.RoleToggleFullScreen},
 		}},
 		// The list's one-key shortcuts stay off these items, which would take
 		// the keys from text fields.
-		{Label: "Message", Submenu: []*mygo.MenuItem{
-			{Label: "Reply", Click: do(func() { a.respond("reply") })},
-			{Label: "Reply All", Click: do(func() { a.respond("all") })},
-			{Label: "Forward", Click: do(func() { a.respond("forward") })},
-			{Label: "Print…", Accelerator: accel("⌘P"), Click: do(a.print)},
+		{Label: locales.MenuMessage(), Submenu: []*mygo.MenuItem{
+			{Label: locales.MenuReply(), Click: do(func() { a.respond("reply") })},
+			{Label: locales.MenuReplyAll(), Click: do(func() { a.respond("all") })},
+			{Label: locales.MenuForward(), Click: do(func() { a.respond("forward") })},
+			{Label: locales.MenuPrint(), Accelerator: accel("⌘P"), Click: do(a.print)},
 			mygo.Separator(),
-			{Label: "Mark as Read or Unread", Click: do(on(a.toggleRead))},
-			{Label: "Flag or Unflag", Click: do(on(a.toggleFlag))},
-			{Label: "Snooze…", Click: do(on(a.askSnooze))},
+			{Label: locales.MenuToggleRead(), Click: do(on(a.toggleRead))},
+			{Label: locales.MenuToggleFlag(), Click: do(on(a.toggleFlag))},
+			{Label: locales.MenuSnooze(), Click: do(on(a.askSnooze))},
 			mygo.Separator(),
-			{Label: "Move to…", Click: do(func() { a.movePick = len(a.targets()) > 0 })},
-			{Label: "Archive", Click: do(on(a.archive))},
-			{Label: "Delete", Click: do(on(a.deleteMessages))},
+			{Label: locales.MenuMoveTo(), Click: do(func() { a.movePick = len(a.targets()) > 0 })},
+			{Label: locales.MenuArchive(), Click: do(on(a.archive))},
+			{Label: locales.MenuDelete(), Click: do(on(a.deleteMessages))},
 		}},
 		{Role: mygo.RoleWindowMenu},
 	})

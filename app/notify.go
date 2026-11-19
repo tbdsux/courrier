@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 
@@ -32,7 +33,7 @@ func (a *app) saveNotifyOn(account int64) {
 	}
 
 	if err := a.st.SetPref(notifyPref(account), v); err != nil {
-		a.toast = "Couldn't save settings: " + err.Error()
+		a.toast = locales.ToastSaveSettingsFailed(err.Error())
 	}
 }
 
@@ -63,7 +64,7 @@ func (a *app) notifyNew(account int64, news []store.Message) {
 
 	if len(ms) > 3 {
 		a.notify(mygo.NotificationOptions{ID: "inbox:" + strconv.FormatInt(account, 10), Group: email, Silent: !a.set.Sound,
-			Title: fmt.Sprintf("%d new messages", len(ms)), Subtitle: email, Body: senders(ms)})
+			Title: locales.NotifyNewMessages(len(ms)), Subtitle: email, Body: senders(ms)})
 		return
 	}
 
@@ -85,7 +86,7 @@ func senders(ms []store.Message) string {
 	}
 
 	if len(names) > 3 {
-		return strings.Join(names[:3], ", ") + " and others"
+		return locales.NotifySendersAndOthers(strings.Join(names[:3], ", "))
 	}
 
 	return strings.Join(names, ", ")

@@ -123,6 +123,42 @@ above the conversation. If
 Settings allows it, mail without the header gets a banner too, from a link
 guessed out of its HTML, which only ever opens in the browser.
 
+## Languages
+
+Every string the UI shows comes from the catalogs in `app/locales/`, MyGo's
+i18n: a JSON file of ICU messages per language, `en.json` the source. MyGo
+writes `catalog_gen.go` from them (`go tool mygo generate`, also run by
+`mygo dev` and `mygo build`), a typed function per key, which says the
+message in the language the app shows: `locales.SettingsUpdateTo(v)`.
+Plurals (`{count, plural, one {…} other {…}}`) follow CLDR's rules for each
+language, and dates are written with `localDate` and a CLDR skeleton
+(`"MMMd"`), in the language's order.
+
+The language is the system's first one courrier has, else English, or the
+one picked in Settings → General (`mygo.App.SetLocale`, which MyGo keeps,
+on macOS where the system's own texts read it too). Views follow a change
+on their next frame; the menus and the tray are made again
+(`OnLocaleChanged`). Values kept in settings ("Dark", "One line") stay
+English and are named for the UI (`selectLabeled`).
+
+To add a language:
+
+1. Copy `app/locales/en.json` to `app/locales/<tag>.json`, named by its
+   BCP 47 tag (`de`, `pt-BR`, `zh-Hant`), set `@@locale` to the tag and
+   translate every message. Keep the `{placeholders}`, and give the plural
+   cases the language has (`one`, `few`, `many`, `other`…).
+2. If MyGo has no translation of its own strings for the language (it has
+   `ja`, `zh-Hans` and `zh-Hant`), add its menus as `mygo.menu…` keys, as
+   `fr.json` does.
+3. Run `go tool mygo generate` and commit `catalog_gen.go` with the
+   catalog, then `go tool mygo i18n check` and
+   `CGO_ENABLED=0 go test ./app/...`, which fails on a key missing from
+   either side. `go tool mygo dev -lang <tag>` runs the app in it.
+
+To add a string, add its key to `en.json` and every other catalog, and
+call its function; never build a sentence from pieces, which a language
+may need in another order.
+
 ## Building and releasing
 
 `go tool mygo build` compiles, bundles and packages the app as `mygo.json`

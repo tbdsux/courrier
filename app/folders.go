@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 
@@ -43,7 +44,7 @@ func leaf(f store.Folder) (string, int) {
 	name := f.Path
 
 	if f.Special == "inbox" {
-		return "Inbox", 0
+		return locales.FolderInbox(), 0
 	}
 
 	if f.Delim == "" {
@@ -79,8 +80,8 @@ const (
 
 var sideViews = []struct {
 	id    int64
-	label string
-}{{sideAll, "All accounts"}, {sideUnified, "Unified"}, {sideUnread, "Unread"}, {sideFavorites, "Favorites"}}
+	label func() string
+}{{sideAll, locales.SideAllAccounts}, {sideUnified, locales.SideUnified}, {sideUnread, locales.SideUnread}, {sideFavorites, locales.SideFavorites}}
 
 // sideViewButton picks what the sidebar lists.
 func (a *app) sideViewButton(c *ui.Context) {
@@ -88,7 +89,7 @@ func (a *app) sideViewButton(c *ui.Context) {
 	label := ""
 	for _, v := range sideViews {
 		if v.id == a.sideView {
-			label = v.label
+			label = v.label()
 		}
 	}
 
@@ -98,7 +99,7 @@ func (a *app) sideViewButton(c *ui.Context) {
 		}
 	}
 
-	b := ui.Button(c, "").Label("Sidebar view").Tooltip("Sidebar view").Justify(ui.Start).Padding(6, 10).Margin(0, 8, 6, 8).Radius(8).Background(a.pal.sidebar).Border(0, ui.Transparent).Transition(hoverFade)
+	b := ui.Button(c, "").Label(locales.SideViewLabel()).Tooltip(locales.SideViewLabel()).Justify(ui.Start).Padding(6, 10).Margin(0, 8, 6, 8).Radius(8).Background(a.pal.sidebar).Border(0, ui.Transparent).Transition(hoverFade)
 	if b.Hovered() {
 		b.Background(t.SurfaceHover)
 	}
@@ -112,7 +113,7 @@ func (a *app) sideViewButton(c *ui.Context) {
 	})
 	buttonMenu(c, b, func(m *ui.Menu) {
 		for _, v := range sideViews {
-			if m.Item(v.label).Radio(a.sideView == v.id).Chosen() {
+			if m.Item(v.label()).Radio(a.sideView == v.id).Chosen() {
 				a.setSideView(v.id)
 			}
 		}
@@ -200,13 +201,13 @@ func (a *app) sideShows(f store.Folder) bool {
 
 func (a *app) setFavorite(account int64, path string, on bool) {
 	if err := a.st.SetFavorite(account, path, on); err != nil {
-		a.toast = "Couldn't change favorites: " + err.Error()
+		a.toast = locales.ToastFavoritesFailed(err.Error())
 	}
 }
 
 func (a *app) outboxItem(c *ui.Context) {
 	if len(a.outbox) > 0 {
-		badge(c, a.sideItem(c, "u:outbox", outboxIcon, "Outbox"), len(a.outbox))
+		badge(c, a.sideItem(c, "u:outbox", outboxIcon, locales.MailboxOutbox()), len(a.outbox))
 	}
 }
 
@@ -216,14 +217,14 @@ func (a *app) unifiedItems(c *ui.Context) {
 		total += a.unread(acc.ID)
 	}
 
-	badge(c, a.sideItem(c, "u:inbox", inboxIcon, "Inbox"), total)
-	a.sideItem(c, "u:flagged", flagIcon, "Flagged")
-	a.sideItem(c, "u:snoozed", clockIcon, "Snoozed")
+	badge(c, a.sideItem(c, "u:inbox", inboxIcon, locales.FolderInbox()), total)
+	a.sideItem(c, "u:flagged", flagIcon, locales.MailboxFlagged())
+	a.sideItem(c, "u:snoozed", clockIcon, locales.MailboxSnoozed())
 	a.outboxItem(c)
 
 	for i, q := range a.searches {
 		rowMenu(c, a.sideItem(c, "s:"+strconv.Itoa(i), searchIcon, q), func(m *ui.Menu) {
-			if m.Item("Remove saved search").Chosen() {
+			if m.Item(locales.SideRemoveSearch()).Chosen() {
 				a.unsaveSearch(i)
 			}
 		})
@@ -249,15 +250,15 @@ func (a *app) folderTree(c *ui.Context) {
 	}
 
 	if len(a.accounts) > 0 {
-		ui.SidebarSection(c, "Unified", &a.unifiedOpen, func() { a.unifiedItems(c) })
+		ui.SidebarSection(c, locales.SideUnified(), &a.unifiedOpen, func() { a.unifiedItems(c) })
 		sideDivider(c)
 	}
 
 	filtered := a.sideView == sideUnread || a.sideView == sideFavorites
 	if filtered && !slices.ContainsFunc(a.folders, a.sideShows) {
-		empty := "No unread mail"
+		empty := locales.SideNoUnread()
 		if a.sideView == sideFavorites {
-			empty = "No favorites yet. Right-click a folder under All accounts to add it."
+			empty = locales.SideNoFavorites()
 		}
 
 		ui.Text(c, empty).FontSize(12).TextColor(c.Theme().TextMuted).Padding(4, 12).Wrap()
@@ -320,7 +321,7 @@ func (a *app) folderTree(c *ui.Context) {
 	if a.sideDragging || wasDragging { // somewhere to take accounts out of their groups
 		t := c.Theme()
 		zone := ui.Row(c).Margin(t.Space(3), 0, 0, 0).Padding(t.Space(2)).Radius(t.Radius).Border(1, t.Border).BorderStyle(ui.BorderDashed).Center()
-		zone.Children(func() { ui.Text(c, "Move here, out of any group").FontSize(12).TextColor(t.TextMuted) })
+		zone.Children(func() { ui.Text(c, locales.SideMoveOutOfGroup()).FontSize(12).TextColor(t.TextMuted) })
 		a.sideDrop(c, zone, 0, 0)
 	}
 }
@@ -412,7 +413,7 @@ func (a *app) sideDrop(c *ui.Context, sec ui.Element, group, before int64) {
 	}
 
 	if err != nil {
-		a.toast = "Couldn't move it: " + err.Error()
+		a.toast = locales.ToastMoveItFailed(err.Error())
 	}
 
 	a.reload()
@@ -508,7 +509,7 @@ func (a *app) folderItems(c *ui.Context, acc store.Account) {
 	}
 
 	if len(fs) == 0 {
-		ui.Text(c, "Not synced yet").FontSize(12).TextColor(t.TextMuted).Padding(4, 12)
+		ui.Text(c, locales.SideNotSynced()).FontSize(12).TextColor(t.TextMuted).Padding(4, 12)
 	}
 
 	for _, f := range treeOf(fs) {
@@ -541,19 +542,19 @@ func (a *app) folderItems(c *ui.Context, acc store.Account) {
 func (a *app) folderMenu(m *ui.Menu, f store.Folder, name string) {
 	pop3 := a.isPOP3(f.AccountID)
 
-	if m.Item("New folder…").Chosen() {
+	if m.Item(locales.FolderNew()).Chosen() {
 		a.fe = &folderEdit{open: true, account: f.AccountID, delim: f.Delim}
 	}
 
-	if m.Item("New folder in “" + name + "”…").Chosen() {
+	if m.Item(locales.FolderNewIn(name)).Chosen() {
 		a.fe = &folderEdit{open: true, account: f.AccountID, parent: f.Path, delim: f.Delim}
 	}
 
 	m.Separator()
 
-	favorite := "Add to favorites"
+	favorite := locales.FolderAddFavorite()
 	if f.Favorite {
-		favorite = "Remove from favorites"
+		favorite = locales.FolderRemoveFavorite()
 	}
 
 	if m.Item(favorite).Chosen() {
@@ -563,31 +564,31 @@ func (a *app) folderMenu(m *ui.Menu, f store.Folder, name string) {
 
 	// POP3 servers only have an Inbox: the folders made here are local.
 	editable := f.Special != "inbox" && (!pop3 || f.Local)
-	if m.Item("Rename…").Disabled(!editable).Chosen() {
+	if m.Item(locales.FolderRename()).Disabled(!editable).Chosen() {
 		a.fe = &folderEdit{open: true, account: f.AccountID, target: f, delim: f.Delim, name: name}
 	}
 
-	if m.Item("Delete…").Disabled(!editable).Chosen() {
+	if m.Item(locales.FolderDelete()).Disabled(!editable).Chosen() {
 		a.fe = &folderEdit{account: f.AccountID, target: f, askDelete: true}
 	}
 
 	m.Separator()
 
-	if m.Item("Apply rules").Disabled(len(a.rules) == 0).Chosen() {
+	if m.Item(locales.FolderApplyRules()).Disabled(len(a.rules) == 0).Chosen() {
 		a.applyRules(f)
 	}
 
 	m.Separator()
 
-	if m.Item("Export as mbox…").Chosen() {
+	if m.Item(locales.FolderExport()).Chosen() {
 		a.askExport(f, name)
 	}
 
-	if m.Item("Export every folder as mbox…").Chosen() {
+	if m.Item(locales.FolderExportAll()).Chosen() {
 		a.askExportAccount(f.AccountID)
 	}
 
-	if m.Item("Import mbox…").Chosen() {
+	if m.Item(locales.FolderImport()).Chosen() {
 		a.askImport(f)
 	}
 }
@@ -600,33 +601,33 @@ func (a *app) folderDialogs(c *ui.Context) {
 
 	ui.Modal(c, &fe.open, func() {
 		ui.Column(c).Gap(14).Width(min(380, a.width-80)).Children(func() {
-			title := "New folder"
+			title := locales.FolderNewTitle()
 			if fe.target.ID != 0 {
-				title = "Rename folder"
+				title = locales.FolderRenameTitle()
 			} else if fe.parent != "" {
-				title = "New folder in " + fe.parent
+				title = locales.FolderNewInTitle(fe.parent)
 			}
 
 			ui.Text(c, title).FontSize(18).Bold().LetterSpacing(-0.3)
 
-			field(c, map[string]string{"name": fe.err}, "name", "Name", func() {
-				if ui.TextInput(c, &fe.name).Placeholder("Projects").AutoFocus().Submitted() {
+			field(c, map[string]string{"name": fe.err}, "name", locales.CommonName(), func() {
+				if ui.TextInput(c, &fe.name).Placeholder(locales.PlaceholderFolder()).AutoFocus().Submitted() {
 					a.applyFolderEdit(fe)
 				}
 			})
 
 			ui.Row(c).Gap(8).Children(func() {
 				if fe.busy {
-					ui.Spinner(c).Label("Saving")
+					ui.Spinner(c).Label(locales.CommonSaving())
 				}
 
 				ui.Spacer(c)
 
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					fe.open = false
 				}
 
-				if ui.PrimaryButton(c, "Save").Disabled(fe.busy).Clicked() {
+				if ui.PrimaryButton(c, locales.CommonSave()).Disabled(fe.busy).Clicked() {
 					a.applyFolderEdit(fe)
 				}
 			})
@@ -635,12 +636,12 @@ func (a *app) folderDialogs(c *ui.Context) {
 
 	if fe.askDelete {
 		name, _ := leaf(fe.target)
-		msg := "Its messages are deleted from the server too."
+		msg := locales.FolderDeleteServer()
 		if fe.target.Local {
-			msg = "Its messages are deleted."
+			msg = locales.FolderDeleteLocal()
 		}
 
-		if ui.AlertDialog(c, &fe.askDelete, "Delete “"+name+"”?", msg, "Cancel", "Delete") == 1 {
+		if ui.AlertDialog(c, &fe.askDelete, locales.FolderDeleteTitle(name), msg, locales.CommonCancel(), locales.CommonDelete()) == 1 {
 			a.deleteFolder(fe.target)
 		}
 	}
@@ -670,12 +671,12 @@ func (a *app) folderDone(fe *folderEdit) func(error) {
 func (a *app) applyFolderEdit(fe *folderEdit) {
 	name := strings.TrimSpace(fe.name)
 	if name == "" {
-		fe.err = "Enter a name."
+		fe.err = locales.FormEnterName()
 		return
 	}
 
 	if fe.delim != "" && strings.Contains(name, fe.delim) {
-		fe.err = "A name can't hold “" + fe.delim + "”."
+		fe.err = locales.FolderNameDelim(fe.delim)
 		return
 	}
 
@@ -707,7 +708,7 @@ func (a *app) applyFolderEdit(fe *folderEdit) {
 
 	s := a.syncer(fe.account)
 	if s == nil {
-		fe.err = "Not connected to the server."
+		fe.err = locales.FolderNotConnected()
 		return
 	}
 
@@ -730,7 +731,7 @@ func (a *app) deleteFolder(f store.Folder) {
 
 	if f.Local {
 		if err := a.st.DeleteFolder(f.ID); err != nil {
-			a.toast = "Couldn't delete: " + err.Error()
+			a.toast = locales.CommonDeleteFailed(err.Error())
 		}
 
 		a.reloadMail()
@@ -739,14 +740,14 @@ func (a *app) deleteFolder(f store.Folder) {
 
 	s := a.syncer(f.AccountID)
 	if s == nil {
-		a.toast = "Couldn't delete: not connected"
+		a.toast = locales.ToastDeleteNotConnected()
 		return
 	}
 
 	s.DeleteFolder(f.Path, func(err error) {
 		a.update(func() {
 			if err != nil {
-				a.toast = "Couldn't delete: " + err.Error()
+				a.toast = locales.CommonDeleteFailed(err.Error())
 			}
 
 			a.reloadMail()
@@ -771,9 +772,9 @@ func (a *app) syncStatus(c *ui.Context) {
 		st := sy.status
 		switch {
 		case errors.Is(st.Err, courrier.ErrAuth) || errors.Is(st.SendErr, courrier.ErrAuth):
-			label := "Wrong password: edit account"
+			label := locales.SyncWrongPassword()
 			if acc.Auth != "password" {
-				label = "Sign in again"
+				label = locales.SyncSignInAgain()
 			}
 
 			if ui.Button(c.Key(acc.ID), prefix+label).FontSize(11).TextColor(t.Danger).Padding(2, 4).Clicked() {
@@ -783,11 +784,11 @@ func (a *app) syncStatus(c *ui.Context) {
 		case !a.set.SyncStatus && st.Err == nil:
 			// Hidden in Settings: only errors show.
 		case st.Syncing:
-			ui.Text(c.Key(acc.ID), prefix+"Syncing…").FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c.Key(acc.ID), prefix+locales.SyncSyncing()).FontSize(11).TextColor(t.TextMuted)
 		case st.Err != nil:
 			ui.Text(c.Key(acc.ID), prefix+errSummary(st.Err)).FontSize(11).TextColor(t.Danger).SingleLine()
 		case !st.Updated.IsZero():
-			ui.Text(c.Key(acc.ID), prefix+"Updated "+st.Updated.Format("15:04")).FontSize(11).TextColor(t.TextMuted).SingleLine()
+			ui.Text(c.Key(acc.ID), prefix+locales.SyncUpdated(localDate(st.Updated, "Hm"))).FontSize(11).TextColor(t.TextMuted).SingleLine()
 		}
 	}
 }
@@ -805,11 +806,11 @@ func (a *app) syncFailing() bool {
 
 // errSummary says in a few words what failed.
 func errSummary(err error) string {
-	for _, k := range []error{courrier.ErrAuth, courrier.ErrUnreachable, courrier.ErrTLS, courrier.ErrProtocol} {
-		if errors.Is(err, k) {
-			s := k.Error()
-			return strings.ToUpper(s[:1]) + s[1:]
+	for _, k := range errKinds {
+		if errors.Is(err, k.err) {
+			return upperFirst(k.say())
 		}
 	}
+
 	return err.Error()
 }

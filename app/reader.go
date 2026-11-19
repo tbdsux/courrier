@@ -13,10 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -104,7 +106,7 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 
 	if r == nil {
 		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "No message selected").TextColor(t.TextMuted)
+			ui.Text(c, locales.ReaderNoneSelected()).TextColor(t.TextMuted)
 		})
 		return
 	}
@@ -119,7 +121,7 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 		// Keyed by the message, so each one opened enters anew.
 		ui.Column(c.Key(m.ID)).Gap(6).Padding(18, 24, 10, 24).Transition(openFade).Children(func() {
 			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-				if narrow && ui.Button(c, "").Label("Back").Padding(4).Children(func() { ui.Icon(c, backIcon).FontSize(16) }).Clicked() {
+				if narrow && ui.Button(c, "").Label(locales.ReaderBack()).Padding(4).Children(func() { ui.Icon(c, backIcon).FontSize(16) }).Clicked() {
 					a.cur, a.msgRow = nil, -1
 					a.chosen.Clear()
 				}
@@ -127,21 +129,21 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 				ui.Spacer(c)
 
 				if m.Special == "drafts" {
-					if ui.Button(c, "Edit draft").Clicked() {
+					if ui.Button(c, locales.ReaderEditDraft()).Clicked() {
 						a.editDraft(m)
 					}
 					return
 				}
 
-				if iconButton(c, replyIcon, "Reply", "Reply (r)").Disabled(!canReply(m, r.body, false, r.mine)).Clicked() {
+				if iconButton(c, replyIcon, locales.ActionReply(), locales.ReaderReplyTip()).Disabled(!canReply(m, r.body, false, r.mine)).Clicked() {
 					a.respond("reply")
 				}
 
-				if iconButton(c, replyAllIcon, "Reply all", "Reply all (a)").Disabled(!canReply(m, r.body, true, r.mine)).Clicked() {
+				if iconButton(c, replyAllIcon, locales.ActionReplyAll(), locales.ReaderReplyAllTip()).Disabled(!canReply(m, r.body, true, r.mine)).Clicked() {
 					a.respond("all")
 				}
 
-				if iconButton(c, forwardIcon, "Forward", "Forward (f)").Clicked() {
+				if iconButton(c, forwardIcon, locales.ActionForward(), locales.ReaderForwardTip()).Clicked() {
 					a.respond("forward")
 				}
 
@@ -153,21 +155,21 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 				ui.Text(c, subject(r.thread[0].Subject)).FontSize(18).Bold().LetterSpacing(-0.3).Wrap().Selectable().Shrink(1)
 
 				if n := len(r.thread); n > 1 {
-					ui.Text(c, strconv.Itoa(n)).FontSize(11).TextColor(t.TextMuted).Padding(1, 6).Radius(4).Background(a.pal.sidebar).Label(fmt.Sprint(n, " messages"))
+					ui.Text(c, strconv.Itoa(n)).FontSize(11).TextColor(t.TextMuted).Padding(1, 6).Radius(4).Background(a.pal.sidebar).Label(locales.ReaderThreadCount(n))
 				}
 			})
 
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				if html {
-					segmented(c, &r.view, "Text", "HTML")
+					segmented(c, &r.view, locales.SettingsOpenAsText(), locales.SettingsOpenAsHTML())
 				}
 
-				label := "Show all headers"
+				label := locales.ReaderShowHeaders()
 				if a.allHeaders {
-					label = "Hide headers"
+					label = locales.ReaderHideHeaders()
 				}
 
-				if ui.Button(c, label).Tooltip("Of " + author(m) + "'s message, " + longDate(m.Date)).Clicked() {
+				if ui.Button(c, label).Tooltip(locales.ReaderHeadersTip(author(m), longDate(m.Date))).Clicked() {
 					a.allHeaders = !a.allHeaders
 					if a.allHeaders {
 						a.loadFields(r)
@@ -209,11 +211,11 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 func (a *app) replyBar(c *ui.Context) {
 	t, r := c.Theme(), a.cur
 	ui.Divider(c)
-	ui.Row(c).Gap(8).Padding(12, 24).Children(func() {
+	ui.Row(c).Gap(8).Wrap().Padding(12, 24).Children(func() {
 		for _, b := range []struct {
 			icon        *ui.SVG
 			label, kind string
-		}{{replyIcon, "Reply", "reply"}, {replyAllIcon, "Reply all", "all"}, {forwardIcon, "Forward", "forward"}} {
+		}{{replyIcon, locales.ActionReply(), "reply"}, {replyAllIcon, locales.ActionReplyAll(), "all"}, {forwardIcon, locales.ActionForward(), "forward"}} {
 			if b.kind != "forward" && !canReply(r.m, r.body, b.kind == "all", r.mine) {
 				continue
 			}
@@ -236,7 +238,7 @@ func (a *app) messageBody(c *ui.Context, r *reader) {
 	t := c.Theme()
 	switch {
 	case r.pending > 0 && a.web != nil:
-		ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c).Label("Loading conversation") })
+		ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c).Label(locales.ReaderLoadingConversation()) })
 
 	case a.web != nil:
 		a.trustNotes(c, r)
@@ -251,9 +253,9 @@ func (a *app) messageBody(c *ui.Context, r *reader) {
 
 			if len(blocked) > 0 {
 				ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8, 24).Background(t.Warning.Alpha(0.12)).Children(func() {
-					ui.Text(c, "Remote images are blocked.").TextColor(t.Text).Grow(1)
+					ui.Text(c, locales.ReaderImagesBlocked()).TextColor(t.Text).Grow(1)
 
-					if ui.Button(c, "Load remote images").Clicked() {
+					if ui.Button(c, locales.ReaderLoadImages()).Clicked() {
 						r.remote = true
 
 						for _, x := range blocked {
@@ -299,7 +301,7 @@ func (a *app) loadFields(r *reader) {
 		}
 
 		if err != nil {
-			r.fieldsErr = "Couldn't read the headers: " + err.Error()
+			r.fieldsErr = locales.ReaderHeadersFailed(err.Error())
 		}
 	}
 	if raw, err := a.st.Raw(r.m.ID); err == nil {
@@ -309,7 +311,7 @@ func (a *app) loadFields(r *reader) {
 
 	s := a.syncer(r.m.AccountID)
 	if s == nil {
-		r.fieldsErr = "Couldn't read the headers: not connected to the server."
+		r.fieldsErr = locales.ReaderHeadersOffline()
 		return
 	}
 
@@ -326,7 +328,7 @@ func (a *app) headerFields(c *ui.Context, r *reader) {
 	t := c.Theme()
 	switch {
 	case r.fieldsBusy:
-		ui.Spinner(c).Label("Loading headers").AlignSelf(ui.Start)
+		ui.Spinner(c).Label(locales.ReaderLoadingHeaders()).AlignSelf(ui.Start)
 	case r.fieldsErr != "":
 		notice(c, r.fieldsErr, t.Danger)
 
@@ -344,23 +346,29 @@ func (a *app) headerFields(c *ui.Context, r *reader) {
 	}
 }
 
+// humanSize is a size in bytes as the language shown writes it: "1.5 MB",
+// "1,5 Mo" in French.
 func humanSize(n int64) string {
+	one := i18n.NumberOptions{MinFractionDigits: 1, MaxFractionDigits: 1}
+	num := func(v any, o i18n.NumberOptions) string { return i18n.FormatNumber(i18n.Locale(), v, o) }
+
 	switch {
 	case n >= 1<<30:
-		return fmt.Sprintf("%.1f GB", float64(n)/(1<<30))
+		return locales.SizeGB(num(float64(n)/(1<<30), one))
 	case n >= 1<<20:
-		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+		return locales.SizeMB(num(float64(n)/(1<<20), one))
 	case n >= 1<<10:
-		return fmt.Sprintf("%d KB", n>>10)
+		return locales.SizeKB(num(n>>10, i18n.NumberOptions{}))
 	}
-	return fmt.Sprintf("%d B", n)
+
+	return locales.SizeBytes(num(n, i18n.NumberOptions{}))
 }
 
 // saveAttachment asks where to save a part, and fetches it unless the
 // message is stored whole (POP3).
 func (a *app) saveAttachment(m store.Message, at courrier.Attachment) {
 	// The name is the sender's: as a path it would choose the folder too.
-	a.saveMessage(m, "Save attachment", fileName(at.Filename), func(raw []byte) ([]byte, error) { return courrier.Part(raw, at.Part) })
+	a.saveMessage(m, locales.DialogSaveAttachment(), fileName(at.Filename), func(raw []byte) ([]byte, error) { return courrier.Part(raw, at.Part) })
 }
 
 // quarantine marks a file saved from mail as downloaded, so the system
@@ -377,16 +385,16 @@ func quarantine(path string) {
 
 // saveEML saves a message whole, as a .eml file.
 func (a *app) saveEML(m store.Message) {
-	a.saveMessage(m, "Save message", fileName(cmp.Or(m.Subject, "message"))+".eml", func(raw []byte) ([]byte, error) { return raw, nil })
+	a.saveMessage(m, locales.DialogSaveMessage(), fileName(cmp.Or(m.Subject, "message"))+".eml", func(raw []byte) ([]byte, error) { return raw, nil })
 }
 
 // print prints the conversation shown, as its page shows it.
 func (a *app) print() {
 	switch {
 	case a.cur == nil:
-		a.toast = "Choose a message to print."
+		a.toast = locales.ToastChoosePrint()
 	case a.web == nil:
-		a.toast = "Printing needs the system web view."
+		a.toast = locales.ToastPrintNeedsWebView()
 	default:
 		a.web.Page().Print()
 	}
@@ -406,7 +414,7 @@ func (a *app) saveMessage(m store.Message, title, name string, part func(raw []b
 		path, err := saveFile(title, name)
 		if err != nil || path == "" {
 			if err != nil {
-				report("Couldn't save: " + err.Error())
+				report(locales.CommonSaveFailed(err.Error()))
 			}
 			return
 		}
@@ -424,15 +432,15 @@ func (a *app) saveMessage(m store.Message, title, name string, part func(raw []b
 			}
 
 			if err != nil {
-				report("Couldn't save: " + err.Error())
+				report(locales.CommonSaveFailed(err.Error()))
 			} else {
-				report("Saved " + filepath.Base(path))
+				report(locales.ToastSaved(filepath.Base(path)))
 			}
 		}
 		if raw, err := st.Raw(m.ID); err == nil {
 			write(raw, nil)
 		} else if s == nil {
-			write(nil, errors.New("not connected to the server"))
+			write(nil, errors.New(locales.ErrNotConnected()))
 		} else {
 			s.Raw(m.Path, m.UID, write)
 		}

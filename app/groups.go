@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 
+	"courrier/app/locales"
 	"courrier/store"
 
 	"github.com/egoist/mygo/ui"
@@ -24,15 +25,15 @@ func (a *app) groupsView(c *ui.Context) {
 	t := c.Theme()
 	e := &a.grpEdit
 	a.page(c, 12, func() {
-		header(c, "Settings", "Groups", "Folders of accounts in the sidebar. Pick an account's group under Accounts.")
+		header(c, locales.SettingsKicker(), locales.SettingsGroups(), locales.GroupsSub())
 
-		if ui.PrimaryButton(c, "New group…").AlignSelf(ui.Start).Clicked() {
+		if ui.PrimaryButton(c, locales.GroupsNew()).AlignSelf(ui.Start).Clicked() {
 			*e = groupEdit{open: true}
 		}
 
 		if len(a.groups) == 0 {
 			ui.Column(c).Padding(28).Radius(12).Border(1, t.Border).Center().Children(func() {
-				ui.Text(c, "No groups yet.").TextColor(t.TextMuted)
+				ui.Text(c, locales.GroupsEmpty()).TextColor(t.TextMuted)
 			})
 		}
 
@@ -51,7 +52,7 @@ func (a *app) groupsView(c *ui.Context) {
 
 				ui.Column(c).Grow(1).Gap(4).Children(func() {
 					ui.Text(c, g.Name).FontWeight(500)
-					sub := "No accounts"
+					sub := locales.SidebarNoAccounts()
 					if len(members) > 0 {
 						sub = strings.Join(members, ", ")
 					}
@@ -59,7 +60,7 @@ func (a *app) groupsView(c *ui.Context) {
 					ui.Text(c, sub).FontSize(12).TextColor(t.TextMuted).Wrap()
 				})
 
-				if ui.Button(c, "Edit").Label("Edit " + g.Name).Clicked() {
+				if ui.Button(c, locales.CommonEdit()).Label(locales.CommonEditNamed(g.Name)).Clicked() {
 					*e = groupEdit{open: true, id: g.ID, name: g.Name}
 				}
 			})
@@ -68,15 +69,15 @@ func (a *app) groupsView(c *ui.Context) {
 
 	ui.Modal(c, &e.open, func() {
 		ui.Column(c).Gap(16).Width(min(400, a.width-80)).Children(func() {
-			title := "New group"
+			title := locales.GroupsNewTitle()
 			if e.id != 0 {
-				title = "Rename group"
+				title = locales.GroupsRenameTitle()
 			}
 
 			ui.Text(c, title).FontSize(18).Bold().LetterSpacing(-0.3)
 
 			a.formIn(c, min(400, a.width-80), func() {
-				field(c, e.errs, "name", "Name", func() { ui.TextInput(c, &e.name).Placeholder("Work").AutoFocus() })
+				field(c, e.errs, "name", locales.CommonName(), func() { ui.TextInput(c, &e.name).Placeholder(locales.PlaceholderGroup()).AutoFocus() })
 			})
 
 			if e.err != "" {
@@ -84,33 +85,33 @@ func (a *app) groupsView(c *ui.Context) {
 			}
 
 			ui.Row(c).Gap(8).Children(func() {
-				if e.id != 0 && ui.Button(c, "Delete").TextColor(t.Danger).Clicked() {
+				if e.id != 0 && ui.Button(c, locales.CommonDelete()).TextColor(t.Danger).Clicked() {
 					e.askDelete = true
 				}
 
 				ui.Spacer(c)
 
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					e.open = false
 				}
 
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if ui.PrimaryButton(c, locales.CommonSave()).Clicked() {
 					a.saveGroup(e)
 				}
 			})
 		})
 	})
 
-	if ui.AlertDialog(c, &e.askDelete, "Delete “"+e.name+"”?",
-		"Its accounts stay; they move out of the group.", "Cancel", "Delete") == 1 {
+	if ui.AlertDialog(c, &e.askDelete, locales.GroupsDeleteTitle(e.name),
+		locales.GroupsDeleteBody(), locales.CommonCancel(), locales.CommonDelete()) == 1 {
 		if err := a.st.DeleteGroup(e.id); err != nil {
-			e.err = "Couldn't delete: " + err.Error()
+			e.err = locales.CommonDeleteFailed(err.Error())
 			return
 		}
 
 		e.open = false
 		a.reload()
-		a.toast = "Group deleted"
+		a.toast = locales.GroupsDeleted()
 	}
 }
 
@@ -118,9 +119,9 @@ func (a *app) saveGroup(e *groupEdit) {
 	e.errs, e.err = map[string]string{}, ""
 	name := strings.TrimSpace(e.name)
 	if name == "" {
-		e.errs["name"] = "Enter a name."
+		e.errs["name"] = locales.FormEnterName()
 	} else if name == noGroup {
-		e.errs["name"] = "That name is reserved."
+		e.errs["name"] = locales.FormNameReserved()
 	}
 
 	if len(e.errs) > 0 {
@@ -129,13 +130,13 @@ func (a *app) saveGroup(e *groupEdit) {
 
 	g := store.Group{ID: e.id, Name: name}
 	if err := a.st.SaveGroup(&g); err != nil {
-		e.err = "Couldn't save: " + err.Error()
+		e.err = locales.CommonSaveFailed(err.Error())
 		return
 	}
 
 	e.open = false
 	a.reload()
-	a.toast = "Group saved"
+	a.toast = locales.GroupsSaved()
 }
 
 func (a *app) groupName(id int64) string {
@@ -145,6 +146,15 @@ func (a *app) groupName(id int64) string {
 		}
 	}
 	return noGroup
+}
+
+// groupLabel names a group in the picker; noGroup stays the value kept.
+func groupLabel(name string) string {
+	if name == noGroup {
+		return locales.GroupNone()
+	}
+
+	return name
 }
 
 func (a *app) groupNames() []string {
@@ -166,7 +176,7 @@ func (a *app) setGroup(acc store.Account, name string) {
 	}
 
 	if err := a.st.SetAccountGroup(acc.ID, id); err != nil {
-		a.toast = "Couldn't change the group: " + err.Error()
+		a.toast = locales.GroupsChangeFailed(err.Error())
 	}
 
 	a.reload()

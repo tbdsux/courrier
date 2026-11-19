@@ -3,15 +3,17 @@ package main
 import (
 	"time"
 
+	"courrier/app/locales"
+
 	"github.com/egoist/mygo/ui"
 )
 
 // keepChoices are the choices of "Keep message bodies for", in days; 0
 // keeps every one.
 var keepChoices = []struct {
-	label string
+	label func() string
 	days  int
-}{{"30 days", 30}, {"90 days", 90}, {"1 year", 365}, {"Everything", 0}}
+}{{locales.Keep30Days, 30}, {locales.Keep90Days, 90}, {locales.Keep1Year, 365}, {locales.KeepEverything, 0}}
 
 // openedKeep is how long a message opened keeps its body, whatever its age.
 const openedKeep = 30
@@ -57,9 +59,9 @@ func (a *app) sweep(clear bool) {
 
 			switch {
 			case err != nil:
-				a.toast = "Couldn't clear the cache: " + err.Error()
+				a.toast = locales.ToastClearCacheFailed(err.Error())
 			case clear:
-				a.toast = "Cleared " + humanSize(freed)
+				a.toast = locales.ToastCleared(humanSize(freed))
 			}
 
 			if a.sel == "storage" {
@@ -73,50 +75,50 @@ func (a *app) sweep(clear bool) {
 
 func (a *app) storageView(c *ui.Context) {
 	var labels []string
-	keep := keepChoices[len(keepChoices)-1].label
+	keep := keepChoices[len(keepChoices)-1].label()
 	for _, k := range keepChoices {
-		labels = append(labels, k.label)
+		labels = append(labels, k.label())
 
 		if k.days == a.set.KeepBodies {
-			keep = k.label
+			keep = k.label()
 		}
 	}
 
 	before := keep
 
 	a.page(c, 16, func() {
-		header(c, "Settings", "Storage", "What Courrier keeps of your mail on this computer.")
+		header(c, locales.SettingsKicker(), locales.SettingsStorage(), locales.StorageSub())
 
 		a.formIn(c, a.contentWidth(), func() {
-			a.card(c, "space", "Space used", func() {
+			a.card(c, "space", locales.StorageSpace(), func() {
 				if a.disk.err != "" {
-					notice(c, "Couldn't measure it: "+a.disk.err, c.Theme().Danger)
+					notice(c, locales.StorageMeasureFailed(a.disk.err), c.Theme().Danger)
 				}
 
 				for _, acc := range a.accounts {
 					ui.Field(c.Key(acc.ID), acc.Email, func() { ui.Text(c, humanSize(a.disk.usage[acc.ID])) })
 				}
 
-				ui.Field(c, "In all", func() { ui.Text(c, humanSize(a.disk.total)) }).
-					Description("The search index included.")
+				ui.Field(c, locales.StorageInAll(), func() { ui.Text(c, humanSize(a.disk.total)) }).
+					Description(locales.StorageInAllDesc())
 			})
 
-			a.card(c, "cache", "Cache", func() {
-				ui.Field(c, "Keep message bodies for", func() { dropdown(c, &keep, labels).Width(160) }).
-					Description("Older ones are fetched again as you open them. Mail opened in the last 30 days, POP3 mail and local folders stay.")
+			a.card(c, "cache", locales.StorageCache(), func() {
+				ui.Field(c, locales.StorageKeepBodies(), func() { dropdown(c, &keep, labels).Width(160) }).
+					Description(locales.StorageKeepBodiesDesc())
 
-				ui.Field(c, "Cache", func() {
-					if ui.Button(c, "Clear cache").Disabled(a.disk.busy).Clicked() {
+				ui.Field(c, locales.StorageCache(), func() {
+					if ui.Button(c, locales.StorageClear()).Disabled(a.disk.busy).Clicked() {
 						a.sweep(true)
 					}
-				}).Description("Drops every message body the server still has. The lists stay as they are.")
+				}).Description(locales.StorageClearDesc())
 			})
 		})
 	})
 
 	if keep != before {
 		for _, k := range keepChoices {
-			if k.label == keep {
+			if k.label() == keep {
 				a.set.KeepBodies = k.days
 			}
 		}

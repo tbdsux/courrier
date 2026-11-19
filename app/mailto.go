@@ -4,18 +4,20 @@ import (
 	"strings"
 
 	courrier "courrier/mail"
+
+	"courrier/app/locales"
 )
 
 // openMailto opens a compose window for a mailto: link.
 func (a *app) openMailto(raw string) {
 	m, err := courrier.ParseMailto(raw)
 	if err != nil {
-		a.toast = "Couldn't open the link: " + err.Error()
+		a.toast = locales.ToastOpenLinkFailed(err.Error())
 		return
 	}
 
 	if len(a.accounts) == 0 {
-		a.toast = "Add an account to write mail."
+		a.toast = locales.ToastAddAccountToWrite()
 		return
 	}
 

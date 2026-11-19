@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strconv"
 
+	"courrier/app/locales"
 	"courrier/store"
 
 	"github.com/egoist/mygo"
@@ -50,7 +51,7 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 
 	title, tip := "", "Courrier"
 	if unread > 0 {
-		title, tip = strconv.Itoa(unread), fmt.Sprintf("Courrier · %d unread", unread)
+		title, tip = strconv.Itoa(unread), locales.TrayUnread(unread)
 	}
 
 	mb.tray.SetTitle(title)
@@ -60,9 +61,9 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 		return func(*mygo.MenuItem, *mygo.Window) { a.update(fn) }
 	}
 	items := []*mygo.MenuItem{
-		{Label: "Open Courrier", Click: do(a.showWindow)},
-		{Label: "New message", Accelerator: "CmdOrCtrl+N", Click: do(func() { a.showWindow(); a.newMessage() })},
-		{Label: "Check mail now", Click: do(a.checkAll)},
+		{Label: locales.TrayOpen(), Click: do(a.showWindow)},
+		{Label: locales.TrayNewMessage(), Accelerator: "CmdOrCtrl+N", Click: do(func() { a.showWindow(); a.newMessage() })},
+		{Label: locales.TrayCheckMail(), Click: do(a.checkAll)},
 	}
 	if len(recent) > 0 {
 		items = append(items, mygo.Separator())
@@ -73,7 +74,7 @@ func (mb *menuBar) set(on bool, unread int, recent []store.Message) {
 		items = append(items, &mygo.MenuItem{Label: clip(sender(m)+" — "+subject(m.Subject), 60), Click: do(func() { a.openNotification(id) })})
 	}
 
-	mb.tray.SetMenu(mygo.NewMenu(append(items, mygo.Separator(), &mygo.MenuItem{Label: "Quit Courrier", Role: mygo.RoleQuit})))
+	mb.tray.SetMenu(mygo.NewMenu(append(items, mygo.Separator(), &mygo.MenuItem{Label: locales.TrayQuit(), Role: mygo.RoleQuit})))
 }
 
 // trayImage is the tray's icon on this system.

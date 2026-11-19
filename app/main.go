@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"courrier/app/locales"
 	"courrier/store"
 
 	"github.com/egoist/mygo"
@@ -105,7 +106,7 @@ func main() {
 		}
 
 		a.pickFiles = func() ([]string, error) {
-			return mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Attach files", Multiple: true})
+			return mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: locales.DialogAttachFiles(), Multiple: true})
 		}
 
 		a.pickDir = func(title string) (string, error) {
@@ -134,7 +135,7 @@ func main() {
 			cm.setTitle = func(s string) { w.SetTitle(s) }
 
 			cm.pickFiles = func() ([]string, error) {
-				return mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: w, Title: "Attach files", Multiple: true})
+				return mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: w, Title: locales.DialogAttachFiles(), Multiple: true})
 			}
 
 			w = mygo.NewWindow(mygo.WindowOptions{Title: cm.title(), Width: 720, Height: 640, MinWidth: 480, MinHeight: 360, TitleBarStyle: mygo.TitleBarHidden, Content: ui.View(cm.view)})
@@ -175,7 +176,10 @@ func main() {
 			read: func(s *system) {
 				s.login, s.isDefault = mygo.App.OpenAtLogin(), mygo.App.IsURLSchemeRegistered("mailto")
 				s.autoCheck, s.autoFetch = updater.AutomaticChecks(), updater.AutomaticDownloads()
+				s.locale = mygo.App.ChosenLocale()
 			},
+			// MyGo keeps the language, where macOS's own texts read it too.
+			setLocale:    mygo.App.SetLocale,
 			setLogin:     mygo.App.SetOpenAtLogin,
 			makeDefault:  func() error { return mygo.App.RegisterURLScheme("mailto") },
 			setAutoCheck: updater.SetAutomaticChecks, setAutoFetch: updater.SetAutomaticDownloads,
@@ -210,6 +214,16 @@ func main() {
 
 		a.setMenu = func() { mygo.App.SetMenu(a.appMenu()) }
 		a.setMenu()
+
+		// Views follow a new language by themselves; the menus and the tray say it again.
+		mygo.App.OnLocaleChanged(func(string) {
+			win.Update(func() {
+				a.setMenu()
+				a.trayShown = ""
+				a.showCounts()
+			})
+		})
+
 		// Open drafts stay as they are, to reopen next launch.
 		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
 		a.startSync()

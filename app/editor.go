@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 
@@ -243,17 +244,18 @@ func formatOn(f richtext.Formatting, action string) bool {
 }
 
 var tools = []struct {
-	action, label, tip string
-	icon               *ui.SVG
+	action     string
+	label, tip func() string
+	icon       *ui.SVG
 }{
-	{"bold", "Bold", "Bold (⌘B)", boldIcon},
-	{"italic", "Italic", "Italic (⌘I)", italicIcon},
-	{"underline", "Underline", "Underline (⌘U)", underlineIcon},
-	{"link", "Link", "Link (⌘K)", linkIcon},
-	{"bullet", "Bulleted list", "Bulleted list (⇧⌘8)", listIcon},
-	{"ordered", "Numbered list", "Numbered list (⇧⌘7)", orderedIcon},
-	{"quote", "Quote", "Quote", quoteIcon},
-	{"code", "Code", "Code (⌘E)", codeIcon},
+	{"bold", locales.EditorBold, locales.EditorBoldTip, boldIcon},
+	{"italic", locales.EditorItalic, locales.EditorItalicTip, italicIcon},
+	{"underline", locales.EditorUnderline, locales.EditorUnderlineTip, underlineIcon},
+	{"link", locales.EditorLink, locales.EditorLinkTip, linkIcon},
+	{"bullet", locales.EditorBullets, locales.EditorBulletsTip, listIcon},
+	{"ordered", locales.EditorNumbers, locales.EditorNumbersTip, orderedIcon},
+	{"quote", locales.EditorQuote, locales.EditorQuote, quoteIcon},
+	{"code", locales.EditorCode, locales.EditorCodeTip, codeIcon},
 }
 
 // editor builds the toolbar and the text.
@@ -262,7 +264,7 @@ func (cm *compose) editor(c *ui.Context) {
 	f := cm.doc.Formatting()
 	ui.Toolbar(c, func() {
 		for _, tl := range tools {
-			b := iconButton(c.Key(tl.action), tl.icon, tl.label, tl.tip).KeepFocus()
+			b := iconButton(c.Key(tl.action), tl.icon, tl.label(), tl.tip()).KeepFocus()
 			if formatOn(f, tl.action) {
 				b.Background(t.Accent.Alpha(0.18))
 			}
@@ -275,10 +277,10 @@ func (cm *compose) editor(c *ui.Context) {
 				cm.linkPopover(c, b, f)
 			}
 		}
-	}).Label("Formatting").Padding(6, 14, 0, 14)
+	}).Label(locales.EditorFormatting()).Padding(6, 14, 0, 14)
 
 	richtext.Editor(c.Key(cm.d.ID), cm.doc, richtext.EditorOptions{
-		Label:         "Message",
+		Label:         locales.EditorMessage(),
 		OnLinkCommand: func() { cm.formatBody("link") },
 		Theme:         &richtext.Theme{QuoteBar: t.TextMuted.Alpha(0.5), QuoteText: t.Text.Alpha(0.75), QuoteBarWidth: 2},
 	}).Grow(1).Basis(0).Margin(6, 14, 10, 14)
@@ -288,13 +290,13 @@ func (cm *compose) editor(c *ui.Context) {
 func (cm *compose) linkPopover(c *ui.Context, anchor ui.Element, f richtext.Formatting) {
 	ui.Popover(c, anchor, &cm.linkOpen, func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			input := ui.TextInput(c, &cm.linkURL).Placeholder("https://").Width(260).AutoFocus().Label("Link address")
-			if input.Submitted() || ui.PrimaryButton(c, "Link").Clicked() {
+			input := ui.TextInput(c, &cm.linkURL).Placeholder("https://").Width(260).AutoFocus().Label(locales.EditorLinkAddress())
+			if input.Submitted() || ui.PrimaryButton(c, locales.EditorLink()).Clicked() {
 				cm.doc.SetLink(strings.TrimSpace(cm.linkURL))
 				cm.linkOpen = false
 			}
 
-			if f.Link != "" && ui.Button(c, "Remove").Clicked() {
+			if f.Link != "" && ui.Button(c, locales.CommonRemove()).Clicked() {
 				cm.doc.SetLink("")
 				cm.linkOpen = false
 			}
