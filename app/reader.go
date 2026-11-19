@@ -211,7 +211,7 @@ func (a *app) messageView(c *ui.Context, narrow bool) {
 func (a *app) replyBar(c *ui.Context) {
 	t, r := c.Theme(), a.cur
 	ui.Divider(c)
-	ui.Row(c).Gap(8).Padding(12, 24).Children(func() {
+	ui.Row(c).Gap(8).Wrap().Padding(12, 24).Children(func() {
 		for _, b := range []struct {
 			icon        *ui.SVG
 			label, kind string
