@@ -606,7 +606,7 @@ func (a *app) messageList(c *ui.Context) {
 			ui.Text(c, a.mailboxTitle()).FontSize(17).Bold().LetterSpacing(-0.4).SingleLine().Shrink(1)
 			// A text input: SearchField takes the focus only from a click, not from ⌘F.
 			search := ui.TextInput(c, &a.query).Placeholder(locales.SearchPlaceholder()).Label(locales.SearchPlaceholder()).FocusBind(&a.focus, "search").
-				Radius(16).Padding(6, 14).Background(t.Surface).Grow(1)
+				Radius(16).Padding(6, 14).Background(t.Surface).Grow(1).MinWidth(140)
 			if search.Changed() {
 				a.searchChanged()
 			}
