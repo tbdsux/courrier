@@ -14,6 +14,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 
@@ -93,13 +94,13 @@ func splitQuote(text string) (body, quote string) {
 func author(m store.Message) string {
 	switch {
 	case m.Special == "sent" || m.Special == "drafts":
-		return "me"
+		return locales.AuthorMe()
 	case m.FromName != "":
 		return m.FromName
 	case m.FromAddr != "":
 		return m.FromAddr
 	}
-	return "(unknown sender)"
+	return locales.ListUnknownSender()
 }
 
 // names shortens "Ann <a@x>, b@x" to "Ann, b@x".
@@ -129,7 +130,7 @@ func recipients(m store.Message) string {
 		return ""
 	}
 
-	return "to " + to
+	return locales.ConvTo(to)
 }
 
 // avatarColors are senders' initials, one a sender, on a tint of the same
@@ -145,7 +146,7 @@ func avatar(m store.Message) (initial, color string) {
 	return string(unicode.ToUpper(r)), avatarColors[h.Sum32()%uint32(len(avatarColors))]
 }
 
-func longDate(d time.Time) string { return d.Local().Format("Mon, Jan 2, 15:04") }
+func longDate(d time.Time) string { return localDate(d.Local(), "MMMEdHm") }
 
 // isOpen is whether r shows message i of its conversation open.
 func (r *reader) isOpen(i int) bool {
@@ -176,9 +177,9 @@ func (a *app) conversationCards(c *ui.Context, r *reader) {
 
 func (a *app) foldCard(c *ui.Context, r *reader, n int) {
 	t := c.Theme()
-	b := ui.Row(c.Key("fold")).Gap(10).AlignItems(ui.Center).Padding(8, 8).Label(fmt.Sprintf("Show %d more messages", n)).Children(func() {
+	b := ui.Row(c.Key("fold")).Gap(10).AlignItems(ui.Center).Padding(8, 8).Label(locales.ConvShowMore(n)).Children(func() {
 		ui.Column(c).Grow(1).Height(1).Background(t.Border)
-		ui.Text(c, fmt.Sprintf("%d more messages", n)).FontSize(12).TextColor(t.Accent)
+		ui.Text(c, locales.ConvMore(n)).FontSize(12).TextColor(t.Accent)
 		ui.Column(c).Grow(1).Height(1).Background(t.Border)
 	})
 	b.OnClick(func() { r.unfold = true })
@@ -194,7 +195,7 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 			ui.Divider(c)
 		}
 
-		head := ui.Row(c).Gap(12).AlignItems(ui.Start).Padding(12, 8).Label(map[bool]string{true: "Close", false: "Open"}[open] + " message from " + author(m))
+		head := ui.Row(c).Gap(12).AlignItems(ui.Start).Padding(12, 8).Label(map[bool]func(string) string{true: locales.ConvCloseFrom, false: locales.ConvOpenFrom}[open](author(m)))
 		head.Children(func() {
 			initial, color := avatar(m)
 			ui.Column(c).Size(32, 32).Radius(16).Background(ui.Hex(color).Alpha(0.16)).Center().Shrink(0).Children(func() {
@@ -215,7 +216,7 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 					ui.Spacer(c)
 
 					if m.HasAttach {
-						ui.Icon(c, paperclipIcon).FontSize(12).TextColor(t.TextMuted).Label("Attachment")
+						ui.Icon(c, paperclipIcon).FontSize(12).TextColor(t.TextMuted).Label(locales.RowAttachment())
 					}
 
 					ui.Text(c, longDate(m.Date)).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(0)
@@ -244,9 +245,9 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 		ui.Column(c).Gap(10).Padding(0, 8, 14, 52).Children(func() {
 			switch {
 			case !has && r.pending > 0:
-				ui.Spinner(c).Label("Loading message").AlignSelf(ui.Start)
+				ui.Spinner(c).Label(locales.ConvLoadingMessage()).AlignSelf(ui.Start)
 			case !has:
-				ui.Text(c, "This message isn't downloaded yet. It will be once Courrier is online.").TextColor(t.TextMuted).Wrap()
+				ui.Text(c, locales.ConvNotDownloaded()).TextColor(t.TextMuted).Wrap()
 
 			default:
 				a.cardNotes(c, m, body)
@@ -261,7 +262,7 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 				ui.Text(c, main).FontSize(size).Wrap().Selectable().FillWidth()
 
 				if quote != "" {
-					if ui.Button(c, "•••").Label("Show quoted text").Tooltip("Show quoted text").Padding(0, 8).AlignSelf(ui.Start).Clicked() {
+					if ui.Button(c, "•••").Label(locales.ConvShowQuoted()).Tooltip(locales.ConvShowQuoted()).Padding(0, 8).AlignSelf(ui.Start).Clicked() {
 						r.quotes[m.ID] = !r.quotes[m.ID]
 					}
 
@@ -288,7 +289,7 @@ func (a *app) cardAttachments(c *ui.Context, m store.Message, b courrier.Body) {
 			ui.Text(c, at.Filename).SingleLine().Shrink(1)
 			ui.Text(c, at.MIMEType+" · "+humanSize(at.Size)).FontSize(11).TextColor(t.TextMuted).SingleLine().Grow(1)
 
-			if ui.Button(c, "Save").Label("Save " + at.Filename).Clicked() {
+			if ui.Button(c, locales.CommonSave()).Label(locales.ConvSaveNamed(at.Filename)).Clicked() {
 				a.saveAttachment(m, at)
 			}
 		})
@@ -604,7 +605,7 @@ func (r *reader) conversationPage(theme string) string {
 
 	for _, cd := range stack(len(r.thread), r.isOpen, r.unfold) {
 		if cd.more > 0 {
-			fmt.Fprintf(&sb, `<details class="more"><summary>%d more messages</summary>`, cd.more)
+			fmt.Fprintf(&sb, `<details class="more"><summary>%s</summary>`, html.EscapeString(locales.ConvMore(cd.more)))
 
 			for i := cd.i; i < cd.i+cd.more; i++ {
 				r.pageCard(&sb, i)
@@ -620,9 +621,9 @@ func (r *reader) conversationPage(theme string) string {
 	if n := len(r.thread); n > 0 {
 		m := r.thread[n-1]
 		sb.WriteString(`<div class="acts">`)
-		for _, k := range []struct{ kind, label string }{{"reply", "Reply"}, {"all", "Reply all"}, {"forward", "Forward"}} {
+		for _, k := range []struct{ kind, label string }{{"reply", locales.ActionReply()}, {"all", locales.ActionReplyAll()}, {"forward", locales.ActionForward()}} {
 			if k.kind == "forward" || canReply(m, r.bodies[m.ID], k.kind == "all", r.mine) {
-				fmt.Fprintf(&sb, `<a href="courrier://%s/%d">%s</a>`, k.kind, m.ID, k.label)
+				fmt.Fprintf(&sb, `<a href="courrier://%s/%d">%s</a>`, k.kind, m.ID, html.EscapeString(k.label))
 			}
 		}
 
@@ -663,13 +664,13 @@ func (r *reader) pageCard(sb *strings.Builder, i int) {
 
 	switch {
 	case !has:
-		sb.WriteString(`<p class="sub">This message isn't downloaded yet. It will be once courrier is online.</p>`)
+		fmt.Fprintf(sb, `<p class="sub">%s</p>`, esc(locales.ConvNotDownloaded()))
 
 	case r.view == 1 && b.HTML != "":
 		scope := fmt.Sprint("m", m.ID)
 		body := scopedHTML(b.HTML, scope)
 		if strings.Contains(body, "gmail_quote") || strings.Contains(body, `type="cite"`) {
-			fmt.Fprintf(sb, `<input type="checkbox" class="qt" id="q%d">%s<label class="ql" for="q%d" title="Show quoted text">•••</label>`, m.ID, body, m.ID)
+			fmt.Fprintf(sb, `<input type="checkbox" class="qt" id="q%d">%s<label class="ql" for="q%d" title="%s">•••</label>`, m.ID, body, m.ID, esc(locales.ConvShowQuoted()))
 		} else {
 			sb.WriteString(body)
 		}
@@ -684,7 +685,7 @@ func (r *reader) pageCard(sb *strings.Builder, i int) {
 		fmt.Fprintf(sb, `<pre class="text">%s</pre>`, textHTML(main))
 
 		if quote != "" {
-			fmt.Fprintf(sb, `<details class="q"><summary title="Show quoted text">•••</summary><pre class="text quote">%s</pre></details>`, textHTML(quote))
+			fmt.Fprintf(sb, `<details class="q"><summary title="%s">•••</summary><pre class="text quote">%s</pre></details>`, esc(locales.ConvShowQuoted()), textHTML(quote))
 		}
 	}
 

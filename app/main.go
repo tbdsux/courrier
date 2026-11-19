@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"courrier/app/locales"
 	"courrier/store"
 
 	"github.com/egoist/mygo"
@@ -105,7 +106,7 @@ func main() {
 		}
 
 		a.pickFiles = func() ([]string, error) {
-			return mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Attach files", Multiple: true})
+			return mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: locales.DialogAttachFiles(), Multiple: true})
 		}
 
 		a.pickDir = func(title string) (string, error) {
@@ -134,7 +135,7 @@ func main() {
 			cm.setTitle = func(s string) { w.SetTitle(s) }
 
 			cm.pickFiles = func() ([]string, error) {
-				return mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: w, Title: "Attach files", Multiple: true})
+				return mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: w, Title: locales.DialogAttachFiles(), Multiple: true})
 			}
 
 			w = mygo.NewWindow(mygo.WindowOptions{Title: cm.title(), Width: 720, Height: 640, MinWidth: 480, MinHeight: 360, TitleBarStyle: mygo.TitleBarHidden, Content: ui.View(cm.view)})

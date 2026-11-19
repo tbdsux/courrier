@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 
+	"courrier/app/locales"
+
 	"github.com/egoist/mygo/ui"
 )
 
@@ -37,22 +39,22 @@ func (a *app) commands() []command {
 		}
 
 		seen[k.what] = true
-		cs = append(cs, command{"Actions", k.what, "", k.label(i), commandIcons[k.what], func() { k.run(a) }})
+		cs = append(cs, command{locales.PaletteActions(), k.name(), "", k.label(i), commandIcons[k.what], func() { k.run(a) }})
 	}
 
-	cs = append(cs, command{"Actions", "Check mail", "", "⇧⌘N", refreshIcon, a.checkAll})
+	cs = append(cs, command{locales.PaletteActions(), locales.PaletteCheckMail(), "", "⇧⌘N", refreshIcon, a.checkAll})
 
 	if len(a.accounts) > 0 {
 		goTo := func(name, sub string, icon *ui.SVG, sel string) {
-			cs = append(cs, command{"Mailboxes", name, sub, "", icon, func() { a.sel = sel }})
+			cs = append(cs, command{locales.PaletteMailboxes(), name, sub, "", icon, func() { a.sel = sel }})
 		}
-		goTo("Inbox", "Unified", inboxIcon, "u:inbox")
-		goTo("Flagged", "Unified", flagIcon, "u:flagged")
-		goTo("Snoozed", "Unified", clockIcon, "u:snoozed")
-		goTo("Outbox", "Unified", outboxIcon, "u:outbox")
+		goTo(locales.FolderInbox(), locales.SideUnified(), inboxIcon, "u:inbox")
+		goTo(locales.MailboxFlagged(), locales.SideUnified(), flagIcon, "u:flagged")
+		goTo(locales.MailboxSnoozed(), locales.SideUnified(), clockIcon, "u:snoozed")
+		goTo(locales.MailboxOutbox(), locales.SideUnified(), outboxIcon, "u:outbox")
 
 		for i, q := range a.searches {
-			goTo(q, "Saved search", searchIcon, "s:"+strconv.Itoa(i))
+			goTo(q, locales.PaletteSavedSearch(), searchIcon, "s:"+strconv.Itoa(i))
 		}
 
 		for _, acc := range a.accounts {
@@ -79,7 +81,7 @@ func (a *app) commands() []command {
 			keys = "⌘,"
 		}
 
-		cs = append(cs, command{"Settings", strings.ToUpper(p[:1]) + p[1:], "Settings", keys, pages[i], func() { a.sel = p }})
+		cs = append(cs, command{locales.PaletteSettings(), settingsPageNames[p](), locales.PaletteSettings(), keys, pages[i], func() { a.sel = p }})
 	}
 
 	return cs
@@ -139,7 +141,7 @@ func keycap(c *ui.Context, keys string) {
 // paletteButton is the title bar's way into the palette.
 func (a *app) paletteButton(c *ui.Context) {
 	t := c.Theme()
-	b := ui.Button(c, "").Label("Command palette").Tooltip("Command palette ("+a.paletteKeys()+")").
+	b := ui.Button(c, "").Label(locales.PaletteButton()).Tooltip(locales.PaletteButtonTip(a.paletteKeys())).
 		Width(min(320, a.width/2)).Padding(4, 12).Radius(8).Background(t.Surface).Transition(hoverFade)
 	if b.Hovered() {
 		b.Background(t.SurfaceHover)
@@ -148,7 +150,7 @@ func (a *app) paletteButton(c *ui.Context) {
 	b.Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, searchIcon).FontSize(12).TextColor(t.TextMuted)
-			ui.Text(c, "Search commands").FontSize(12).TextColor(t.TextMuted).Grow(1).SingleLine()
+			ui.Text(c, locales.PaletteSearchCommands()).FontSize(12).TextColor(t.TextMuted).Grow(1).SingleLine()
 			ui.Text(c, a.paletteKeys()).FontSize(11).TextColor(t.TextMuted)
 		})
 	})
@@ -194,7 +196,7 @@ func (a *app) paletteDialog(c *ui.Context) {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Padding(16, 18).Children(func() {
 			ui.Icon(c, searchIcon).FontSize(18).TextColor(t.TextMuted)
 
-			in := ui.TextInputBase(c, &a.paletteQuery).Placeholder("Search for commands and mailboxes…").Label("Command").
+			in := ui.TextInputBase(c, &a.paletteQuery).Placeholder(locales.PalettePlaceholder()).Label(locales.PaletteCommand()).
 				FontSize(17).Grow(1).AutoFocus()
 			in.OnShortcut(0, ui.KeyDown, func() { a.paletteRow = min(a.paletteRow+1, len(cs)-1) })
 			in.OnShortcut(0, ui.KeyUp, func() { a.paletteRow = max(a.paletteRow-1, 0) })
@@ -207,7 +209,7 @@ func (a *app) paletteDialog(c *ui.Context) {
 			}
 
 			if n := len(a.targets()); n > 0 { // what the actions apply to
-				ui.Text(c, strconv.Itoa(n)+" selected").FontSize(11).FontWeight(500).TextColor(t.Accent).
+				ui.Text(c, locales.PaletteSelected(n)).FontSize(11).FontWeight(500).TextColor(t.Accent).
 					Padding(3, 8).Radius(10).Background(a.pal.accentSoft)
 			}
 		})
@@ -216,7 +218,7 @@ func (a *app) paletteDialog(c *ui.Context) {
 		ui.Scroll(c).Height(min(380, h*0.5)).Children(func() {
 			ui.Column(c).Padding(6, 8).Children(func() {
 				if len(cs) == 0 {
-					ui.Text(c, "No results").TextColor(t.TextMuted).AlignSelf(ui.Center).Padding(40)
+					ui.Text(c, locales.PaletteNoResults()).TextColor(t.TextMuted).AlignSelf(ui.Center).Padding(40)
 				}
 
 				for i, cmd := range cs {
@@ -233,10 +235,10 @@ func (a *app) paletteDialog(c *ui.Context) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 14).Radius(0, 0, 13, 13).Background(a.pal.sidebar).Children(func() {
 			ui.Image(c, appLogo).Size(16, 16)
 			ui.Text(c, "Courrier").FontSize(12).TextColor(t.TextMuted).Grow(1)
-			ui.Text(c, "Run").FontSize(12).TextColor(t.Text)
+			ui.Text(c, locales.PaletteRun()).FontSize(12).TextColor(t.Text)
 			keycap(c, "↩")
 			ui.Column(c).Size(1, 14).Background(t.Border).Margin(0, 4)
-			ui.Text(c, "Close").FontSize(12).TextColor(t.Text)
+			ui.Text(c, locales.PaletteClose()).FontSize(12).TextColor(t.Text)
 			keycap(c, "esc")
 		})
 	})

@@ -8,9 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -500,7 +502,7 @@ func (a *app) loadBodies(r *reader) {
 				r.pending--
 
 				if err != nil {
-					r.err = "Couldn't fetch the message: " + err.Error()
+					r.err = locales.ErrFetchMessage(err.Error())
 				}
 
 				a.reloadMail()
@@ -526,7 +528,7 @@ func (a *app) moveTo(d msgDrag, to store.Folder) {
 	}
 
 	name, _ := leaf(to)
-	a.move(ms, to.ID, "", "Moved to "+name)
+	a.move(ms, to.ID, "", locales.ToastMovedTo(name))
 }
 
 // Panes
@@ -535,6 +537,28 @@ func (a *app) moveTo(d msgDrag, to store.Folder) {
 // the message, rows of sender and subject, and a row a line across the
 // window, which messages open over.
 var views = []string{"Comfortable", "Compact", "One line"}
+
+// viewLabel names a view in the language shown.
+func viewLabel(view string) string {
+	switch view {
+	case "Compact":
+		return locales.ViewCompact()
+	case "One line":
+		return locales.ViewOneLine()
+	}
+
+	return locales.ViewComfortable()
+}
+
+// viewLabels names views, in order.
+func viewLabels() []string {
+	labels := make([]string, len(views))
+	for i, v := range views {
+		labels[i] = viewLabel(v)
+	}
+
+	return labels
+}
 
 func (a *app) mailView(c *ui.Context) {
 	if a.contentWidth() < narrowContent || a.set.View == "One line" {
@@ -553,11 +577,11 @@ func (a *app) mailboxTitle() string {
 	id, _ := a.mailbox()
 	switch id {
 	case store.UnifiedInbox:
-		return "All inboxes"
+		return locales.MailboxAllInboxes()
 	case store.UnifiedFlagged:
-		return "Flagged"
+		return locales.MailboxFlagged()
 	case store.UnifiedSnoozed:
-		return "Snoozed"
+		return locales.MailboxSnoozed()
 	}
 
 	if q, ok := a.savedSearch(); ok {
@@ -581,7 +605,7 @@ func (a *app) messageList(c *ui.Context) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(16, 16, 12, 16).Children(func() {
 			ui.Text(c, a.mailboxTitle()).FontSize(17).Bold().LetterSpacing(-0.4).SingleLine().Shrink(1)
 			// A text input: SearchField takes the focus only from a click, not from ⌘F.
-			search := ui.TextInput(c, &a.query).Placeholder("Search mail").Label("Search mail").FocusBind(&a.focus, "search").
+			search := ui.TextInput(c, &a.query).Placeholder(locales.SearchPlaceholder()).Label(locales.SearchPlaceholder()).FocusBind(&a.focus, "search").
 				Radius(16).Padding(6, 14).Background(t.Surface).Grow(1)
 			if search.Changed() {
 				a.searchChanged()
@@ -592,13 +616,13 @@ func (a *app) messageList(c *ui.Context) {
 				a.searchChanged()
 			})
 
-			if q := strings.TrimSpace(a.query); searching && !slices.Contains(a.searches, q) && iconButton(c, bookmarkIcon, "Save search", "Save this search in the sidebar").Clicked() {
+			if q := strings.TrimSpace(a.query); searching && !slices.Contains(a.searches, q) && iconButton(c, bookmarkIcon, locales.SearchSave(), locales.SearchSaveTip()).Clicked() {
 				a.saveSearch(q)
 			}
 
-			buttonMenu(c, iconButton(c, layoutIcon, "List view", "List view"), func(m *ui.Menu) {
+			buttonMenu(c, iconButton(c, layoutIcon, locales.ListView(), locales.ListView()), func(m *ui.Menu) {
 				for _, v := range views {
-					if m.Item(v).Checked(a.set.View == v).Chosen() {
+					if m.Item(viewLabel(v)).Checked(a.set.View == v).Chosen() {
 						a.set.View = v
 						a.saveSettings()
 					}
@@ -606,9 +630,9 @@ func (a *app) messageList(c *ui.Context) {
 			})
 
 			if sy := a.syncers[f.AccountID]; isFolder && sy != nil && sy.status.Syncing || a.loadingMore {
-				ui.Spinner(c).Label("Syncing")
+				ui.Spinner(c).Label(locales.ListSyncing())
 			} else if a.syncOn {
-				if iconButton(c, refreshIcon, "Refresh", "Sync now").Clicked() {
+				if iconButton(c, refreshIcon, locales.ListRefresh(), locales.ListSyncNow()).Clicked() {
 					a.refresh()
 				}
 			}
@@ -616,7 +640,7 @@ func (a *app) messageList(c *ui.Context) {
 
 		if _, saved := a.savedSearch(); searching && !saved {
 			ui.Row(c).Padding(0, 16, 10, 16).Children(func() {
-				if segmented(c, &a.searchAll, a.mailboxTitle(), "All mail").Changed() {
+				if segmented(c, &a.searchAll, a.mailboxTitle(), locales.SearchAllMail()).Changed() {
 					a.searchChanged()
 				}
 			})
@@ -625,14 +649,14 @@ func (a *app) messageList(c *ui.Context) {
 		ui.Divider(c)
 
 		if a.mailErr != "" {
-			ui.Column(c).Padding(12).Children(func() { notice(c, "Couldn't read the mail cache: "+a.mailErr, t.Danger) })
+			ui.Column(c).Padding(12).Children(func() { notice(c, locales.ErrReadCache(a.mailErr), t.Danger) })
 		}
 
 		if sy := a.syncers[f.AccountID]; isFolder && sy != nil && sy.status.Err != nil {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(10, 12).Children(func() {
-				ui.Column(c).Grow(1).Children(func() { notice(c, describe("The", sy.status.Err), t.Danger) })
+				ui.Column(c).Grow(1).Children(func() { notice(c, locales.SyncServerFailed(describe(sy.status.Err)), t.Danger) })
 
-				if ui.Button(c, "Retry").Clicked() {
+				if ui.Button(c, locales.ListRetry()).Clicked() {
 					a.restartSync(f.AccountID)
 				}
 			})
@@ -671,9 +695,9 @@ func (a *app) messageList(c *ui.Context) {
 
 		list.Children(func() {
 			if len(a.msgs) == 0 {
-				empty := "No messages"
+				empty := locales.ListEmpty()
 				if searching {
-					empty = "No messages found"
+					empty = locales.ListNoneFound()
 				}
 
 				ui.Text(c, empty).TextColor(t.TextMuted).Padding(24, 16)
@@ -706,21 +730,27 @@ func shortDate(d, now time.Time) string {
 	y2, m2, d2 := now.Date()
 	switch {
 	case y1 == y2 && m1 == m2 && d1 == d2:
-		return d.Format("15:04")
+		return localDate(d, "Hm")
 	case now.Sub(d) < 6*24*time.Hour && d.Before(now):
-		return d.Format("Mon")
+		return localDate(d, "E")
 	case y1 == y2:
-		return d.Format("Jan 2")
+		return localDate(d, "MMMd")
 	}
 
 	return d.Format("2006-01-02")
+}
+
+// localDate writes the fields of a CLDR skeleton of t ("MMMd", "Hm") in
+// the language shown, in its order: "Jan 2", "2 janv.", "1月2日".
+func localDate(t time.Time, skeleton string) string {
+	return i18n.FormatDate(i18n.Locale(), t, i18n.DateOptions{Skeleton: skeleton})
 }
 
 // sender is who the list shows a message from: the recipient in Sent.
 func sender(m store.Message) string {
 	if m.Special == "sent" || m.Special == "drafts" {
 		if m.To != "" {
-			return "To: " + m.To
+			return locales.ListTo(m.To)
 		}
 	}
 
@@ -732,14 +762,24 @@ func sender(m store.Message) string {
 		return m.FromAddr
 	}
 
-	return "(unknown sender)"
+	return locales.ListUnknownSender()
 }
 
 func subject(s string) string {
 	if strings.TrimSpace(s) == "" {
-		return "(no subject)"
+		return locales.ListNoSubject()
 	}
 	return s
+}
+
+// avatarName is whose initials a row shows: the sender's, or the
+// recipient's in Sent and Drafts.
+func avatarName(m store.Message) string {
+	if (m.Special == "sent" || m.Special == "drafts") && m.To != "" {
+		return m.To
+	}
+
+	return sender(m)
 }
 
 // messageRow builds a row, which drags onto folders: with the rows
@@ -786,15 +826,15 @@ func (a *app) messageRow(c *ui.Context, m store.Message, folder bool) ui.Element
 	}
 	marks := func() {
 		if m.Answered {
-			ui.Icon(c, replyIcon).FontSize(12).TextColor(muted).Label("Answered")
+			ui.Icon(c, replyIcon).FontSize(12).TextColor(muted).Label(locales.RowAnswered())
 		}
 
 		if m.HasAttach {
-			ui.Icon(c, paperclipIcon).FontSize(12).TextColor(muted).Label("Attachment")
+			ui.Icon(c, paperclipIcon).FontSize(12).TextColor(muted).Label(locales.RowAttachment())
 		}
 
 		if m.Flagged {
-			ui.Icon(c, flagIcon).FontSize(12).TextColor(warn).Label("Flagged")
+			ui.Icon(c, flagIcon).FontSize(12).TextColor(warn).Label(locales.RowFlagged())
 		}
 
 		ui.Text(c, shortDate(m.Date, time.Now())).FontSize(11).TextColor(muted).Shrink(0)
@@ -824,7 +864,7 @@ func (a *app) messageRow(c *ui.Context, m store.Message, folder bool) ui.Element
 	dot := func() ui.Element {
 		d := ui.Box(c).Size(7, 7).Radius(4).Shrink(0).Label("")
 		if !m.Seen {
-			d.Background(accent).Label("Unread")
+			d.Background(accent).Label(locales.RowUnread())
 		}
 
 		return d
@@ -861,7 +901,7 @@ func (a *app) messageRow(c *ui.Context, m store.Message, folder bool) ui.Element
 			dot().Margin(6, 0, 0, 0)
 		} else {
 			dot().Margin(11, 0, 0, 0)
-			ui.Avatar(c, strings.TrimPrefix(sender(m), "To: "), nil)
+			ui.Avatar(c, avatarName(m), nil)
 		}
 
 		ui.Column(c).Grow(1).Gap(3).Children(func() {
@@ -883,9 +923,9 @@ func (a *app) messageRow(c *ui.Context, m store.Message, folder bool) ui.Element
 func (a *app) accountsView(c *ui.Context) {
 	t := c.Theme()
 	a.page(c, 12, func() {
-		header(c, "Settings", "Accounts", "The mailboxes Courrier reads. Removing one removes its cached mail.")
+		header(c, locales.SettingsKicker(), locales.SettingsAccounts(), locales.AccountsSub())
 
-		if ui.PrimaryButton(c, "New account…").AlignSelf(ui.Start).Clicked() {
+		if ui.PrimaryButton(c, locales.AccountsNew()).AlignSelf(ui.Start).Clicked() {
 			a.sel, a.shown = "new", ""
 		}
 
@@ -900,11 +940,11 @@ func (a *app) accountsView(c *ui.Context) {
 					ui.Text(c, acc.DisplayName).FontSize(12).TextColor(t.TextMuted)
 				})
 
-				if len(a.groups) > 0 && dropdown(c, a.groupPick[acc.ID], a.groupNames()).Width(160).Label("Group of "+acc.Email).Changed() {
+				if len(a.groups) > 0 && selectLabeled(c, a.groupPick[acc.ID], a.groupNames(), groupLabel).Width(160).Label(locales.AccountsGroupOf(acc.Email)).Changed() {
 					a.setGroup(acc, *a.groupPick[acc.ID])
 				}
 
-				if ui.Button(c, "Edit").Label("Edit " + acc.Email).Clicked() {
+				if ui.Button(c, locales.CommonEdit()).Label(locales.CommonEditNamed(acc.Email)).Clicked() {
 					a.sel = strconv.FormatInt(acc.ID, 10)
 				}
 			})

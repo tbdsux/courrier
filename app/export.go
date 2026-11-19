@@ -2,11 +2,11 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 )
@@ -57,7 +57,7 @@ func (a *app) exportFolder(f store.Folder, path string, done func(n int, err err
 
 	s := a.syncer(f.AccountID)
 	if s == nil {
-		finish(errors.New("not connected to the server"))
+		finish(errors.New(locales.ErrNotConnected()))
 		return
 	}
 
@@ -65,7 +65,7 @@ func (a *app) exportFolder(f store.Folder, path string, done func(n int, err err
 }
 
 func exported(n int, path string) string {
-	return fmt.Sprintf("Exported %d messages to %s", n, filepath.Base(path))
+	return locales.ToastExported(n, filepath.Base(path))
 }
 
 // askExport asks where to export a folder, then does.
@@ -76,17 +76,17 @@ func (a *app) askExport(f store.Folder, name string) {
 
 	saveFile := a.saveFile
 	go func() {
-		path, err := saveFile("Export as mbox", fileName(name)+".mbox")
+		path, err := saveFile(locales.DialogExportMbox(), fileName(name)+".mbox")
 		a.update(func() {
 			switch {
 			case err != nil:
-				a.toast = "Couldn't export: " + err.Error()
+				a.toast = locales.ToastExportFailed(err.Error())
 
 			case path != "":
-				a.toast = "Exporting…"
+				a.toast = locales.ToastExporting()
 				a.exportFolder(f, path, func(n int, err error) {
 					if a.toast = exported(n, path); err != nil {
-						a.toast = "Couldn't export: " + err.Error()
+						a.toast = locales.ToastExportFailed(err.Error())
 					}
 				})
 			}
@@ -103,11 +103,11 @@ func (a *app) askExportAccount(account int64) {
 
 	pickDir := a.pickDir
 	go func() {
-		dir, err := pickDir("Export every folder to")
+		dir, err := pickDir(locales.DialogExportAllTo())
 		a.update(func() {
 			switch {
 			case err != nil:
-				a.toast = "Couldn't export: " + err.Error()
+				a.toast = locales.ToastExportFailed(err.Error())
 
 			case dir != "":
 				var fs []store.Folder
@@ -117,7 +117,7 @@ func (a *app) askExportAccount(account int64) {
 					}
 				}
 
-				a.toast = "Exporting…"
+				a.toast = locales.ToastExporting()
 				a.exportAll(fs, dir, 0)
 			}
 		})
@@ -133,7 +133,7 @@ func (a *app) exportAll(fs []store.Folder, dir string, total int) {
 	f := fs[0]
 	a.exportFolder(f, filepath.Join(dir, fileName(f.Path)+".mbox"), func(n int, err error) {
 		if err != nil {
-			a.toast = "Couldn't export " + f.Path + ": " + err.Error()
+			a.toast = locales.ToastExportFolderFailed(f.Path, err.Error())
 			return
 		}
 
@@ -150,10 +150,10 @@ func (a *app) askImport(f store.Folder) {
 
 	openFile, st, local := a.openFile, a.st, a.keepsAll(f)
 	go func() {
-		path, err := openFile("Import mbox")
+		path, err := openFile(locales.DialogImportMbox())
 		if err != nil || path == "" {
 			if err != nil {
-				a.update(func() { a.toast = "Couldn't import: " + err.Error() })
+				a.update(func() { a.toast = locales.ToastImportFailed(err.Error()) })
 			}
 			return
 		}
@@ -168,11 +168,11 @@ func (a *app) askImport(f store.Folder) {
 
 			switch {
 			case err != nil:
-				a.toast = fmt.Sprintf("Couldn't import all of it, %d messages in: %v", n, err)
+				a.toast = locales.ToastImportPartial(n, err.Error())
 			case local:
-				a.toast = fmt.Sprintf("Imported %d messages", n)
+				a.toast = locales.ToastImported(n)
 			default:
-				a.toast = fmt.Sprintf("Importing %d messages: they show as the server takes them", n)
+				a.toast = locales.ToastImporting(n)
 			}
 		})
 	}()

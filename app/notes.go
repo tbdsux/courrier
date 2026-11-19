@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 
@@ -28,12 +29,12 @@ type note struct {
 func notes(m store.Message, b courrier.Body) []note {
 	var out []note
 	if b.Auth.Failed() {
-		who := "who it says"
+		who := locales.NoteWhoItSays()
 		if _, domain, ok := strings.Cut(m.FromAddr, "@"); ok {
 			who = domain
 		}
 
-		out = append(out, note{warn: true, trust: true, text: "This message failed its sender checks: it may not be from " + who + ". Be careful with its links and attachments."})
+		out = append(out, note{warn: true, trust: true, text: locales.NoteAuthFailed(who)})
 	}
 
 	if n, ok := signatureNote(b.Security); ok {
@@ -46,7 +47,7 @@ func notes(m store.Message, b courrier.Body) []note {
 	}
 
 	if b.NoReply {
-		out = append(out, note{text: "This sender doesn't take replies: write to them another way."})
+		out = append(out, note{text: locales.NoteNoReply()})
 	}
 
 	return out
@@ -56,13 +57,13 @@ func notes(m store.Message, b courrier.Body) []note {
 func signatureNote(s courrier.Security) (note, bool) {
 	switch {
 	case s.Encrypted:
-		return note{warn: true, text: "This message is encrypted with " + s.Kind + ". Courrier can't decrypt it yet: open it in an app that has your key."}, true
+		return note{warn: true, text: locales.NoteEncrypted(s.Kind)}, true
 	case s.Signed && s.Kind == "PGP":
-		return note{text: "Signed with PGP. Courrier can't check PGP signatures yet."}, true
+		return note{text: locales.NotePGPSigned()}, true
 	case s.Signed && s.Problem != "":
-		return note{warn: true, text: "Don't trust this message's S/MIME signature: " + s.Problem + "."}, true
+		return note{warn: true, text: locales.NoteSMIMEBad(s.Problem)}, true
 	case s.Signed:
-		return note{text: "Signed by " + s.Signer + " (S/MIME). The signature checks out."}, true
+		return note{text: locales.NoteSMIMEGood(s.Signer)}, true
 	}
 
 	return note{}, false
@@ -90,16 +91,16 @@ func canReply(m store.Message, b courrier.Body, all bool, mine []string) bool {
 
 // inviteText says what an invite is, when and where, on one line.
 func inviteText(inv courrier.Invite) string {
-	kind := map[string]string{"REQUEST": "Invitation", "CANCEL": "Cancelled", "REPLY": "Reply to an invitation"}[inv.Method]
-	parts := []string{cmp.Or(kind, "Event") + ": " + cmp.Or(inv.Summary, "(no title)")}
+	kind := map[string]string{"REQUEST": locales.InviteRequest(), "CANCEL": locales.InviteCancel(), "REPLY": locales.InviteReply()}[inv.Method]
+	parts := []string{locales.InviteTitle(cmp.Or(kind, locales.InviteEvent()), cmp.Or(inv.Summary, locales.InviteNoTitle()))}
 	switch s, e := inv.Start.Local(), inv.End.Local(); {
 	case inv.Start.IsZero():
 	case inv.AllDay:
-		parts = append(parts, s.Format("Mon, Jan 2")+" (all day)")
+		parts = append(parts, locales.InviteAllDay(localDate(s, "MMMEd")))
 	case inv.End.IsZero():
 		parts = append(parts, longDate(s))
 	case s.YearDay() == e.YearDay() && s.Year() == e.Year():
-		parts = append(parts, longDate(s)+"–"+e.Format("15:04"))
+		parts = append(parts, longDate(s)+"–"+localDate(e, "Hm"))
 	default:
 		parts = append(parts, longDate(s)+" – "+longDate(e))
 	}
@@ -109,7 +110,7 @@ func inviteText(inv courrier.Invite) string {
 	}
 
 	if inv.Organizer != "" {
-		parts = append(parts, "from "+inv.Organizer)
+		parts = append(parts, locales.InviteFrom(inv.Organizer))
 	}
 
 	return strings.Join(parts, " · ")
@@ -225,12 +226,12 @@ func (a *app) linkDialog(c *ui.Context) {
 	}
 
 	l := a.link
-	msg := "The link shows " + l.mis.Shown + " but goes to " + l.mis.Target + ". Phishing mail often hides where a link goes."
+	msg := locales.LinkMismatch(l.mis.Shown, l.mis.Target)
 	if l.mis.Shown == "" {
-		msg = "The link goes to the bare address " + l.mis.Target + ", not a named site. Phishing mail often hides where a link goes."
+		msg = locales.LinkBare(l.mis.Target)
 	}
 
-	if ui.AlertDialog(c, &a.link.open, "Open "+l.mis.Target+"?", msg, "Cancel", "Open") == 1 {
+	if ui.AlertDialog(c, &a.link.open, locales.LinkOpenTitle(l.mis.Target), msg, locales.CommonCancel(), locales.LinkOpen()) == 1 {
 		a.openURL(l.url)
 	}
 }
@@ -284,7 +285,7 @@ func (a *app) unsubscribeBanner(c *ui.Context, r *reader) {
 	}
 
 	m, ok := r.listMessage()
-	text, link := "Mailing list from "+author(m), ""
+	text, link := locales.UnsubMailingList(author(m)), ""
 	if !ok {
 		if a.set.UnsubscribeGuess {
 			link = r.guessedUnsubscribe()
@@ -294,13 +295,13 @@ func (a *app) unsubscribeBanner(c *ui.Context, r *reader) {
 			return
 		}
 
-		text = "Found an unsubscribe link to " + linkHost(link) + " in this message. It might be wrong: check the page it opens."
+		text = locales.UnsubGuessed(linkHost(link))
 	}
 
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8, 24).Background(a.pal.sidebar).Children(func() {
 		ui.Text(c, text).Wrap().Grow(1).Shrink(1)
 
-		btn := ui.Button(c, "Unsubscribe")
+		btn := ui.Button(c, locales.UnsubButton())
 		if link != "" {
 			btn = btn.Tooltip(link)
 		}
@@ -333,16 +334,16 @@ func (a *app) unsubscribe(r *reader, m store.Message, b courrier.Body) {
 	switch {
 	case b.OneClick:
 		u, update, who := b.UnsubscribeURL(), a.update, author(m)
-		a.toast = "Unsubscribing…"
+		a.toast = locales.ToastUnsubscribing()
 		r.unsubscribed = true // no second POST; a failure offers it again
 		go func() {
 			err := courrier.Unsubscribe(context.Background(), u)
 			update(func() {
 				if err != nil {
 					r.unsubscribed = false
-					a.toast = "Couldn't unsubscribe: " + err.Error()
+					a.toast = locales.ToastUnsubscribeFailed(err.Error())
 				} else {
-					a.toast = "Unsubscribed from " + who
+					a.toast = locales.ToastUnsubscribed(who)
 				}
 			})
 		}()

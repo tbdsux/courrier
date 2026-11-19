@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 
@@ -177,7 +178,7 @@ func (a *app) view(c *ui.Context) {
 
 	if id := a.undoID; id != 0 {
 		a.undoID = 0
-		c.ToastAction("Sending…", "Undo", func() { a.takeBack(id) })
+		c.ToastAction(locales.ToastSending(), locales.CommonUndo(), func() { a.takeBack(id) })
 	}
 
 	a.undoToast(c)
@@ -207,7 +208,7 @@ func (a *app) panes(c *ui.Context) {
 		_, isMail := a.mailbox()
 		switch {
 		case a.loadErr != "":
-			ui.Text(c, "Couldn't read your accounts: "+a.loadErr).TextColor(c.Theme().Danger).Padding(24)
+			ui.Text(c, locales.ErrReadAccounts(a.loadErr)).TextColor(c.Theme().Danger).Padding(24)
 		case a.sel == "u:outbox":
 			a.outboxView(c)
 		case isMail && len(a.accounts) > 0:
@@ -223,6 +224,12 @@ func (a *app) panes(c *ui.Context) {
 // settingsPages are the pages in Settings' menu.
 var settingsPages = []string{"general", "accounts", "groups", "rules", "servers", "storage", "about"}
 
+// settingsPageNames name the pages of Settings.
+var settingsPageNames = map[string]func() string{
+	"general": locales.SettingsGeneral, "accounts": locales.SettingsAccounts, "groups": locales.SettingsGroups,
+	"rules": locales.SettingsRules, "servers": locales.SettingsServers, "storage": locales.SettingsStorage, "about": locales.SettingsAbout,
+}
+
 // inSettings reports whether the main view shows Settings rather than mail.
 func (a *app) inSettings() bool { return slices.Contains(settingsPages, a.sel) || a.form != nil }
 
@@ -230,16 +237,16 @@ func (a *app) inSettings() bool { return slices.Contains(settingsPages, a.sel) |
 func (a *app) settingsPage(c *ui.Context) {
 	ui.Row(c).Fill().Children(func() {
 		ui.Column(c).Width(a.settingsNavW()).FillHeight().Background(a.pal.sidebar).Children(func() {
-			ui.Text(c, "Settings").FontSize(15).Bold().LetterSpacing(-0.3).Padding(18, 16, 10, 16)
+			ui.Text(c, locales.SidebarSettings()).FontSize(15).Bold().LetterSpacing(-0.3).Padding(18, 16, 10, 16)
 
 			side := ui.Sidebar(c, &a.sel, func() {
-				a.sideItem(c, "general", settingsIcon, "General")
-				a.sideItem(c, "accounts", userIcon, "Accounts")
-				a.sideItem(c, "groups", folderIcon, "Groups")
-				a.sideItem(c, "rules", filterIcon, "Rules")
-				a.sideItem(c, "servers", serverIcon, "Servers")
-				a.sideItem(c, "storage", driveIcon, "Storage")
-				a.sideItem(c, "about", infoIcon, "About")
+				a.sideItem(c, "general", settingsIcon, locales.SettingsGeneral())
+				a.sideItem(c, "accounts", userIcon, locales.SettingsAccounts())
+				a.sideItem(c, "groups", folderIcon, locales.SettingsGroups())
+				a.sideItem(c, "rules", filterIcon, locales.SettingsRules())
+				a.sideItem(c, "servers", serverIcon, locales.SettingsServers())
+				a.sideItem(c, "storage", driveIcon, locales.SettingsStorage())
+				a.sideItem(c, "about", infoIcon, locales.SettingsAbout())
 			}).Grow(1).Background(a.pal.sidebar)
 
 			// Only one of this and the main sidebar holds the chosen item.
@@ -337,7 +344,7 @@ func (a *app) editForm(acc store.Account) *accountForm {
 
 	f.inPass, f.smtpPass, err = a.st.Passwords(acc.ID)
 	if err != nil {
-		f.saveErr = "Couldn't read the passwords from the keychain: " + err.Error()
+		f.saveErr = locales.ErrReadPasswords(err.Error())
 	}
 
 	f.appPassword = acc.Auth == "password"
@@ -370,7 +377,7 @@ func (a *app) sidebar(c *ui.Context) {
 		if len(a.accounts) > 0 {
 			ui.Row(c).Gap(6).Padding(0, 12, 10, 12).Children(func() {
 				// A tint of the accent, not a solid fill, as chosen rows are.
-				b := ui.Button(c, "").Label("Compose").Tooltip("New message (⌘N)").Padding(9, 16).Radius(18).Grow(1).Background(a.pal.accentSoft)
+				b := ui.Button(c, "").Label(locales.SidebarCompose()).Tooltip(locales.SidebarComposeTip()).Padding(9, 16).Radius(18).Grow(1).Background(a.pal.accentSoft)
 				if b.Hovered() {
 					b.Background(t.Accent.Alpha(0.22))
 				}
@@ -378,7 +385,7 @@ func (a *app) sidebar(c *ui.Context) {
 				b.Children(func() {
 					ui.Row(c).Gap(8).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 						ui.Icon(c, composeIcon).FontSize(15).TextColor(t.Accent)
-						ui.Text(c, "Compose").FontWeight(600).TextColor(t.Accent)
+						ui.Text(c, locales.SidebarCompose()).FontWeight(600).TextColor(t.Accent)
 					})
 				})
 				if b.Clicked() {
@@ -386,7 +393,7 @@ func (a *app) sidebar(c *ui.Context) {
 				}
 
 				if len(a.templates) > 0 {
-					buttonMenu(c, iconButton(c, draftsIcon, "New from template", "New from template").Size(36, 36).Radius(18), a.templatesMenu)
+					buttonMenu(c, iconButton(c, draftsIcon, locales.SidebarNewFromTemplate(), locales.SidebarNewFromTemplate()).Size(36, 36).Radius(18), a.templatesMenu)
 				}
 			})
 
@@ -411,7 +418,7 @@ func (a *app) sidebar(c *ui.Context) {
 			ui.Scroll(c).Fill().Children(func() {
 				ui.Column(c).Gap(2).Padding(10, 16, 20, 16).Children(func() {
 					if len(a.accounts) == 0 {
-						ui.Text(c, "No accounts").FontSize(11).TextColor(t.TextMuted)
+						ui.Text(c, locales.SidebarNoAccounts()).FontSize(11).TextColor(t.TextMuted)
 					}
 
 					a.syncStatus(c)
@@ -449,7 +456,7 @@ func (a *app) updateButton(c *ui.Context) {
 // settingsButton opens Settings, from under the folders.
 func (a *app) settingsButton(c *ui.Context) {
 	t := c.Theme()
-	b := ui.Button(c, "").Label("Settings").Tooltip("Settings (⌘,)").Justify(ui.Start).Padding(8, 12).Margin(4, 8, 6, 8).Radius(8).Background(a.pal.sidebar).Border(0, ui.Transparent)
+	b := ui.Button(c, "").Label(locales.SidebarSettings()).Tooltip(locales.SidebarSettingsTip()).Justify(ui.Start).Padding(8, 12).Margin(4, 8, 6, 8).Radius(8).Background(a.pal.sidebar).Border(0, ui.Transparent)
 	if a.inSettings() {
 		b.Background(a.pal.accentSoft)
 	} else if b.Hovered() {
@@ -459,7 +466,7 @@ func (a *app) settingsButton(c *ui.Context) {
 	b.Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, settingsIcon).FontSize(15).TextColor(t.TextMuted)
-			ui.Text(c, "Settings")
+			ui.Text(c, locales.SidebarSettings())
 		})
 	})
 	if b.Clicked() {
@@ -486,14 +493,14 @@ func (a *app) emptyView(c *ui.Context) {
 		})
 
 		if len(a.accounts) == 0 {
-			ui.Text(c, "No accounts yet").FontSize(20).Bold().LetterSpacing(-0.4).Margin(6, 0, 0, 0)
-			ui.Text(c, "Connect an IMAP or POP3 mailbox to get started.").TextColor(t.TextMuted)
+			ui.Text(c, locales.AccountsEmptyTitle()).FontSize(20).Bold().LetterSpacing(-0.4).Margin(6, 0, 0, 0)
+			ui.Text(c, locales.AccountsEmptySub()).TextColor(t.TextMuted)
 
-			if ui.PrimaryButton(c, "Add your first account").Padding(10, 18).Margin(8, 0, 0, 0).Clicked() {
+			if ui.PrimaryButton(c, locales.AccountsAddFirst()).Padding(10, 18).Margin(8, 0, 0, 0).Clicked() {
 				a.sel = "new"
 			}
 		} else {
-			ui.Text(c, "Pick an account to edit it.").TextColor(t.TextMuted)
+			ui.Text(c, locales.AccountsPick()).TextColor(t.TextMuted)
 		}
 	})
 }
@@ -505,23 +512,23 @@ func field(c *ui.Context, errs map[string]string, key, label string, fn func()) 
 
 func securityNote(sec string) string {
 	if sec == "None" {
-		return "Warning: your password and mail travel unencrypted."
+		return locales.SecurityNoneWarning()
 	}
 	return ""
 }
 
 // incomingFields and smtpFields edit a server form's settings.
 func incomingFields(c *ui.Context, f *serverForm, errs map[string]string) {
-	ui.Field(c, "Protocol", func() { segmented(c, &f.protocol, protocolLabels...) })
-	field(c, errs, "inHost", "Host", func() { ui.TextInput(c, &f.inHost).Placeholder("imap.example.com") })
-	field(c, errs, "inPort", "Port", func() { ui.NumberInput(c, &f.inPort, 1, 65535, 1).Width(120) })
-	ui.Field(c.Key("inSec"), "Security", func() { dropdown(c, &f.inSec, securityLabels).Width(160) }).Description(securityNote(f.inSec))
+	ui.Field(c, locales.ServerProtocol(), func() { segmented(c, &f.protocol, protocolLabels...) })
+	field(c, errs, "inHost", locales.CommonHost(), func() { ui.TextInput(c, &f.inHost).Placeholder("imap.example.com") })
+	field(c, errs, "inPort", locales.CommonPort(), func() { ui.NumberInput(c, &f.inPort, 1, 65535, 1).Width(120) })
+	ui.Field(c.Key("inSec"), locales.ServerSecurity(), func() { selectLabeled(c, &f.inSec, securityLabels, securityLabel).Width(160) }).Description(securityNote(f.inSec))
 }
 
 func smtpFields(c *ui.Context, f *serverForm, errs map[string]string) {
-	field(c, errs, "smtpHost", "Host", func() { ui.TextInput(c, &f.smtpHost).Placeholder("smtp.example.com") })
-	field(c, errs, "smtpPort", "Port", func() { ui.NumberInput(c, &f.smtpPort, 1, 65535, 1).Width(120) })
-	ui.Field(c.Key("smtpSec"), "Security", func() { dropdown(c, &f.smtpSec, securityLabels).Width(160) }).Description(securityNote(f.smtpSec))
+	field(c, errs, "smtpHost", locales.CommonHost(), func() { ui.TextInput(c, &f.smtpHost).Placeholder("smtp.example.com") })
+	field(c, errs, "smtpPort", locales.CommonPort(), func() { ui.NumberInput(c, &f.smtpPort, 1, 65535, 1).Width(120) })
+	ui.Field(c.Key("smtpSec"), locales.ServerSecurity(), func() { selectLabeled(c, &f.smtpSec, securityLabels, securityLabel).Width(160) }).Description(securityNote(f.smtpSec))
 }
 
 func (a *app) accountView(c *ui.Context, f *accountForm) {
@@ -534,109 +541,109 @@ func (a *app) accountView(c *ui.Context, f *accountForm) {
 	// Keyed by the form so its inputs start fresh, not with the last form's text.
 	a.page(c.Key(f), 16, func() {
 		if f.id == 0 {
-			header(c, "New account", "Add a mailbox", "Incoming mail over IMAP or POP3, outgoing over SMTP.")
+			header(c, locales.AccountNewKicker(), locales.AccountNewTitle(), locales.AccountNewSub())
 		} else {
-			header(c, "Account", f.email, f.displayName)
+			header(c, locales.AccountKicker(), f.email, f.displayName)
 		}
 
 		isCustom := f.choice == custom
 		// One form around the cards, so their labels share one column.
 		a.formIn(c, a.contentWidth(), func() {
-			a.card(c, "who", "Identity", func() {
+			a.card(c, "who", locales.AccountIdentity(), func() {
 				choices := append(append(a.profileNames(), presetNames()...), custom)
-				if ui.Field(c, "Server", func() {
-					dropdown(c, &f.choice, choices).Width(240)
+				if ui.Field(c, locales.AccountServer(), func() {
+					selectLabeled(c, &f.choice, choices, choiceLabel).Width(240)
 				}).Changed() {
 					f.choiceSet = true
 				}
 
 				f.syncChoice(a.profiles)
-				field(c, errs, "displayName", "Name", func() { ui.TextInput(c, &f.displayName).Placeholder("Jane Doe") })
+				field(c, errs, "displayName", locales.CommonName(), func() { ui.TextInput(c, &f.displayName).Placeholder(locales.PlaceholderName()) })
 
-				if field(c, errs, "email", "Email", func() { ui.TextInput(c, &f.email).Placeholder("jane@example.com") }).Changed() && !f.choiceSet {
+				if field(c, errs, "email", locales.CommonEmail(), func() { ui.TextInput(c, &f.email).Placeholder("jane@example.com") }).Changed() && !f.choiceSet {
 					if p := presetFor(f.email); p != "" {
 						f.choice = p
 					}
 				}
 
 				if isPreset(f.choice) && f.oauth() == "" {
-					notice(c, f.choice+" needs an app password, not your usual one.", t.Warning)
+					notice(c, locales.AccountNeedsAppPassword(f.choice), t.Warning)
 
-					if k := presetAuth(f.choice); k != "" && ui.Button(c, "Sign in with "+providers[k].Name+" instead").Clicked() {
+					if k := presetAuth(f.choice); k != "" && ui.Button(c, locales.AccountSignInInstead(providers[k].Name)).Clicked() {
 						f.appPassword = false
 					}
 				}
 			})
 
 			if k := f.oauth(); k != "" {
-				a.card(c, "signin", "Sign-in", func() { a.signInCard(c, f, k) })
+				a.card(c, "signin", locales.AccountSignIn(), func() { a.signInCard(c, f, k) })
 			}
 
-			a.card(c, "in", "Incoming", func() {
+			a.card(c, "in", locales.AccountIncoming(), func() {
 				if isCustom {
 					incomingFields(c, &f.srv, errs)
 				}
 
 				if f.oauth() == "" {
-					field(c, errs, "inUser", "Username", func() { ui.TextInput(c, &f.inUser).Placeholder(f.email) })
-					field(c, errs, "inPass", "Password", func() { ui.TextInput(c, &f.inPass).Password() })
+					field(c, errs, "inUser", locales.CommonUsername(), func() { ui.TextInput(c, &f.inUser).Placeholder(f.email) })
+					field(c, errs, "inPass", locales.CommonPassword(), func() { ui.TextInput(c, &f.inPass).Password() })
 				} else if !isCustom {
-					ui.Text(c, f.resolve(a.profiles).InHost+" · signed in with "+providers[f.oauth()].Name).TextColor(t.TextMuted)
+					ui.Text(c, locales.AccountSignedInWith(f.resolve(a.profiles).InHost, providers[f.oauth()].Name)).TextColor(t.TextMuted)
 				}
 
 				if f.resolve(a.profiles).Protocol == "pop3" {
-					ui.Field(c, "Keep on server", func() { ui.Switch(c, &f.keep) }).Description("Leave messages on the server after download.")
+					ui.Field(c, locales.AccountKeepOnServer(), func() { ui.Switch(c, &f.keep) }).Description(locales.AccountKeepOnServerDesc())
 				}
 			})
 
-			a.card(c, "out", "Outgoing · SMTP", func() {
+			a.card(c, "out", locales.AccountOutgoing(), func() {
 				if isCustom {
 					smtpFields(c, &f.srv, errs)
 				}
 
 				if f.oauth() != "" {
-					ui.Text(c, f.resolve(a.profiles).SMTPHost+" · signed in with "+providers[f.oauth()].Name).TextColor(t.TextMuted)
+					ui.Text(c, locales.AccountSignedInWith(f.resolve(a.profiles).SMTPHost, providers[f.oauth()].Name)).TextColor(t.TextMuted)
 					return
 				}
 
-				ui.Field(c, "Same login", func() { ui.Switch(c, &f.sameCreds) }).Description("Use the incoming username and password.")
+				ui.Field(c, locales.AccountSameLogin(), func() { ui.Switch(c, &f.sameCreds) }).Description(locales.AccountSameLoginDesc())
 
 				if !f.sameCreds {
-					field(c, errs, "smtpUser", "Username", func() { ui.TextInput(c, &f.smtpUser).Placeholder(f.email) })
-					field(c, errs, "smtpPass", "Password", func() { ui.TextInput(c, &f.smtpPass).Password() })
+					field(c, errs, "smtpUser", locales.CommonUsername(), func() { ui.TextInput(c, &f.smtpUser).Placeholder(f.email) })
+					field(c, errs, "smtpPass", locales.CommonPassword(), func() { ui.TextInput(c, &f.smtpPass).Password() })
 				}
 			})
 
-			a.card(c, "sig", "Signature", func() {
+			a.card(c, "sig", locales.CommonSignature(), func() {
 				ui.Row(c).Gap(10).AlignItems(ui.Stretch).Children(func() {
-					ui.TextArea(c, &f.signature).Label("Signature").Placeholder("**Jane Doe**\nAcme · +1 555 0100").Height(96).Grow(1).Basis(0)
+					ui.TextArea(c, &f.signature).Label(locales.CommonSignature()).Placeholder("**" + locales.PlaceholderName() + "**\nAcme · +1 555 0100").Height(96).Grow(1).Basis(0)
 
-					ui.Column(c).Gap(10).Padding(10, 12).Grow(1).Basis(0).Radius(8).Border(1, t.Border).Label("Signature preview").Children(func() {
+					ui.Column(c).Gap(10).Padding(10, 12).Grow(1).Basis(0).Radius(8).Border(1, t.Border).Label(locales.AccountSignaturePreview()).Children(func() {
 						markdownView(c, courrier.Markdown(f.signature))
 					})
 				})
 
-				ui.Text(c, "Markdown. New messages, replies and forwards start with it.").FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, locales.AccountSignatureHint()).FontSize(12).TextColor(t.TextMuted)
 			})
 
-			a.card(c, "idents", "Other addresses", func() { a.identsCard(c, f) })
+			a.card(c, "idents", locales.AccountOtherAddresses(), func() { a.identsCard(c, f) })
 
 			if isCustom {
-				a.card(c, "profile", "Server profile", func() {
-					ui.Field(c, "Save profile", func() { ui.Switch(c, &f.saveProfile) }).
-						Description("Reuse these settings for other accounts.")
+				a.card(c, "profile", locales.AccountServerProfile(), func() {
+					ui.Field(c, locales.AccountSaveProfile(), func() { ui.Switch(c, &f.saveProfile) }).
+						Description(locales.AccountSaveProfileDesc())
 
 					if f.saveProfile {
-						field(c, errs, "name", "Profile name", func() { ui.TextInput(c, &f.srv.name).Placeholder("Work mail") })
+						field(c, errs, "name", locales.AccountProfileName(), func() { ui.TextInput(c, &f.srv.name).Placeholder(locales.PlaceholderProfileName()) })
 					}
 				})
 			} else if f.id != 0 && !isPreset(f.choice) {
-				a.card(c, "profile", "Server profile", func() {
+				a.card(c, "profile", locales.AccountServerProfile(), func() {
 					ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, "Linked to “"+f.choice+"”. Detach to change this account's server on its own.").
+						ui.Text(c, locales.AccountLinked(f.choice)).
 							TextColor(t.TextMuted).Wrap().Grow(1)
 
-						if ui.Button(c, "Detach").Clicked() {
+						if ui.Button(c, locales.AccountDetach()).Clicked() {
 							f.choice = custom
 							f.syncChoice(a.profiles)
 						}
@@ -648,8 +655,8 @@ func (a *app) accountView(c *ui.Context, f *accountForm) {
 		switch {
 		case f.testing:
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(10, 14).Children(func() {
-				ui.Spinner(c).Label("Testing")
-				ui.Text(c, "Connecting…").TextColor(t.TextMuted)
+				ui.Spinner(c).Label(locales.AccountTesting())
+				ui.Text(c, locales.AccountConnecting()).TextColor(t.TextMuted)
 			})
 
 		case f.testMsg != "" && f.testOK:
@@ -663,29 +670,29 @@ func (a *app) accountView(c *ui.Context, f *accountForm) {
 		}
 
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Margin(8, 0, 0, 0).Children(func() {
-			if f.id != 0 && ui.Button(c, "Remove account…").TextColor(t.Danger).Clicked() {
+			if f.id != 0 && ui.Button(c, locales.AccountRemove()).TextColor(t.Danger).Clicked() {
 				f.askRemove = true
 			}
 
 			ui.Spacer(c)
 
-			if ui.Button(c, "Test connection").Disabled(f.testing || f.signingIn).Clicked() {
+			if ui.Button(c, locales.AccountTest()).Disabled(f.testing || f.signingIn).Clicked() {
 				a.test(f, false)
 			}
 
-			if ui.PrimaryButton(c, "Save").Padding(8, 22).Disabled(f.testing || f.signingIn).Clicked() {
+			if ui.PrimaryButton(c, locales.CommonSave()).Padding(8, 22).Disabled(f.testing || f.signingIn).Clicked() {
 				a.test(f, true)
 			}
 		})
 	})
 
-	switch ui.AlertDialog(c, &f.askAnyway, "Couldn't connect", f.testMsg, "Cancel", "Save anyway") {
+	switch ui.AlertDialog(c, &f.askAnyway, locales.AccountConnectFailed(), f.testMsg, locales.CommonCancel(), locales.AccountSaveAnyway()) {
 	case 1:
 		a.saveAccount(f)
 	}
 
-	switch ui.AlertDialog(c, &f.askRemove, "Remove "+f.email+"?",
-		"Its passwords and cached mail are deleted. Its server profile stays.", "Cancel", "Remove") {
+	switch ui.AlertDialog(c, &f.askRemove, locales.AccountRemoveTitle(f.email),
+		locales.AccountRemoveBody(), locales.CommonCancel(), locales.CommonRemove()) {
 	case 1:
 		a.removeAccount(f)
 	}
@@ -698,10 +705,10 @@ func (a *app) signInCard(c *ui.Context, f *accountForm, k string) {
 	switch {
 	case f.signingIn:
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			ui.Spinner(c).Label("Signing in")
-			ui.Text(c, "Waiting for "+p.Name+" in your browser…").TextColor(t.TextMuted).Grow(1)
+			ui.Spinner(c).Label(locales.AccountSigningIn())
+			ui.Text(c, locales.AccountWaitingFor(p.Name)).TextColor(t.TextMuted).Grow(1)
 
-			if ui.Button(c, "Cancel").Clicked() {
+			if ui.Button(c, locales.CommonCancel()).Clicked() {
 				f.cancelSignIn()
 			}
 		})
@@ -713,7 +720,7 @@ func (a *app) signInCard(c *ui.Context, f *accountForm, k string) {
 			}
 
 			if f.refreshFor == k {
-				ui.Text(c, "Signed in.").TextColor(t.Success)
+				ui.Text(c, locales.AccountSignedIn()).TextColor(t.Success)
 			}
 		})
 	}
@@ -726,7 +733,7 @@ func (a *app) signInCard(c *ui.Context, f *accountForm, k string) {
 		notice(c, f.signInErr, t.Danger)
 	}
 
-	if ui.Button(c, "Use an app password instead").FontSize(12).TextColor(t.TextMuted).Padding(2, 0).Clicked() {
+	if ui.Button(c, locales.AccountUseAppPassword()).FontSize(12).TextColor(t.TextMuted).Padding(2, 0).Clicked() {
 		f.appPassword = true
 	}
 }
@@ -750,7 +757,7 @@ func (a *app) startSignIn(f *accountForm, k string) {
 			switch {
 			case errors.Is(err, context.Canceled):
 			case err != nil:
-				f.signInErr = "Couldn't sign in: " + err.Error()
+				f.signInErr = locales.AccountSignInFailed(err.Error())
 			default:
 				f.refresh, f.refreshFor = rt, k
 			}
@@ -761,23 +768,23 @@ func (a *app) startSignIn(f *accountForm, k string) {
 // identsCard edits the other addresses an account sends as.
 func (a *app) identsCard(c *ui.Context, f *accountForm) {
 	t := c.Theme()
-	ui.Text(c, "Addresses this account also sends from. The server decides whether it lets it.").FontSize(12).TextColor(t.TextMuted).Wrap()
+	ui.Text(c, locales.AccountIdentsHint()).FontSize(12).TextColor(t.TextMuted).Wrap()
 	remove := -1
 	for i := range f.idents {
 		id := &f.idents[i]
 		ui.Column(c.Key(i)).Gap(10).Padding(12).Radius(8).Border(1, t.Border).Children(func() {
 			ui.Row(c).Gap(10).AlignItems(ui.Start).Children(func() {
 				ui.Column(c).Gap(10).Grow(1).Children(func() {
-					field(c, f.errs, fmt.Sprint("identName", i), "Name", func() { ui.TextInput(c, &id.Name).Placeholder("Jane Doe") })
-					field(c, f.errs, fmt.Sprint("identEmail", i), "Email", func() { ui.TextInput(c, &id.Email).Placeholder("jane@work.com") })
+					field(c, f.errs, fmt.Sprint("identName", i), locales.CommonName(), func() { ui.TextInput(c, &id.Name).Placeholder(locales.PlaceholderName()) })
+					field(c, f.errs, fmt.Sprint("identEmail", i), locales.CommonEmail(), func() { ui.TextInput(c, &id.Email).Placeholder("jane@work.com") })
 				})
 
-				if iconButton(c, trashIcon, "Remove address", "Remove").Clicked() {
+				if iconButton(c, trashIcon, locales.AccountRemoveAddress(), locales.CommonRemove()).Clicked() {
 					remove = i
 				}
 			})
 
-			ui.TextArea(c, &id.Signature).Label("Signature").Placeholder("Signature, in Markdown").Height(64)
+			ui.TextArea(c, &id.Signature).Label(locales.CommonSignature()).Placeholder(locales.PlaceholderSignature()).Height(64)
 		})
 	}
 
@@ -785,7 +792,7 @@ func (a *app) identsCard(c *ui.Context, f *accountForm) {
 		f.idents = append(f.idents[:remove], f.idents[remove+1:]...)
 	}
 
-	if ui.Button(c, "Add address").Clicked() {
+	if ui.Button(c, locales.AccountAddAddress()).Clicked() {
 		f.idents = append(f.idents, store.Identity{Name: strings.TrimSpace(f.displayName)})
 	}
 }
@@ -842,30 +849,37 @@ func (a *app) test(f *accountForm, save bool) {
 func checkBoth(check func(context.Context, courrier.Endpoint) error, in, out courrier.Endpoint) (string, bool) {
 	var msgs []string
 	for _, e := range []struct {
-		name string
-		ep   courrier.Endpoint
-	}{{"Incoming", in}, {"Outgoing", out}} {
+		say func(string) string
+		ep  courrier.Endpoint
+	}{{locales.CheckIncomingFailed, in}, {locales.CheckOutgoingFailed, out}} {
 		if err := check(context.Background(), e.ep); err != nil {
-			msgs = append(msgs, describe(e.name, err))
+			msgs = append(msgs, e.say(describe(err)))
 		}
 	}
 
 	if len(msgs) == 0 {
-		return "Connected to both servers.", true
+		return locales.CheckBothOK(), true
 	}
 
 	return strings.Join(msgs, "\n"), false
 }
 
+// errKinds are the kinds of server errors, as courrier says them.
+var errKinds = []struct {
+	err error
+	say func() string
+}{{courrier.ErrAuth, locales.ErrAuth}, {courrier.ErrUnreachable, locales.ErrUnreachable}, {courrier.ErrTLS, locales.ErrTLS}, {courrier.ErrProtocol, locales.ErrProtocol}}
+
 // describe says what went wrong in plain words, with the server's own.
-func describe(server string, err error) string {
-	for _, k := range []error{courrier.ErrAuth, courrier.ErrUnreachable, courrier.ErrTLS, courrier.ErrProtocol} {
-		if errors.Is(err, k) {
-			detail := strings.TrimPrefix(err.Error(), k.Error()+": ")
-			return fmt.Sprintf("%s server: %s. (%s)", server, k, detail)
+func describe(err error) string {
+	for _, k := range errKinds {
+		if errors.Is(err, k.err) {
+			detail := strings.TrimPrefix(err.Error(), k.err.Error()+": ")
+			return fmt.Sprintf("%s. (%s)", k.say(), detail)
 		}
 	}
-	return fmt.Sprintf("%s server: %v", server, err)
+
+	return err.Error()
 }
 
 func (a *app) saveAccount(f *accountForm) {
@@ -886,7 +900,7 @@ func (a *app) saveAccount(f *accountForm) {
 	}
 
 	if err := a.st.SaveAccount(&acc, srv, inPass, smtpPass); err != nil {
-		f.saveErr = "Couldn't save: " + err.Error()
+		f.saveErr = locales.CommonSaveFailed(err.Error())
 		return
 	}
 
@@ -897,20 +911,20 @@ func (a *app) saveAccount(f *accountForm) {
 
 	if err := a.st.SetIdentities(acc.ID, ids); err != nil {
 		f.id = acc.ID // saved already: a retry updates it
-		f.saveErr = "Couldn't save the other addresses: " + err.Error()
+		f.saveErr = locales.AccountSaveIdentsFailed(err.Error())
 		return
 	}
 
 	a.reload()
 	a.restartSync(acc.ID)
 	a.reloadMail()
-	a.toast = "Account saved"
+	a.toast = locales.AccountSaved()
 	a.sel, a.shown = strconv.FormatInt(acc.ID, 10), "" // reopen it from the store
 }
 
 func (a *app) removeAccount(f *accountForm) {
 	if err := a.st.DeleteAccount(f.id); err != nil {
-		f.saveErr = "Couldn't remove: " + err.Error()
+		f.saveErr = locales.AccountRemoveFailed(err.Error())
 		return
 	}
 
@@ -918,6 +932,6 @@ func (a *app) removeAccount(f *accountForm) {
 	a.restartSync(f.id)
 	a.cur = nil
 	a.reloadMail()
-	a.toast = "Account removed"
+	a.toast = locales.AccountRemoved()
 	a.sel = "accounts"
 }

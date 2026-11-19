@@ -3,8 +3,13 @@ package main
 import (
 	"embed"
 	"log"
+	"slices"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
+
+	"courrier/app/locales"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -60,7 +65,7 @@ var appLogo = func() *ui.Bitmap {
 
 // signInButton is "Sign in with Google" or "Microsoft", with the logo.
 func signInButton(c *ui.Context, auth, name string) ui.Element {
-	label := "Sign in with " + name
+	label := locales.SignInWith(name)
 	return ui.Button(c, "").Label(label).Padding(8, 14).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			// Google's dark-theme button keeps the "G" on white.
@@ -147,6 +152,21 @@ type look struct {
 // system's light or dark appearance.
 var appearances = []string{"System", "Light", "Dark", "Solarized Light", "Nord", "Dracula", "Gruvbox"}
 
+// appearanceLabel is how Settings names the theme appearance: the
+// themes named after their makers keep their names.
+func appearanceLabel(appearance string) string {
+	switch appearance {
+	case "System":
+		return locales.ThemeSystem()
+	case "Light":
+		return locales.ThemeLight()
+	case "Dark":
+		return locales.ThemeDark()
+	}
+
+	return appearance
+}
+
 var looks = map[string]look{
 	"Light":           {false, "#ffffff", "#f0f0f3", "#e7e7ec", "#dedee4", "#e3e3e8", "#17171c", "#73737f", "#6e56cf", "#5f48c2", "#5039b3", "#ffffff", "#12a26b", "#d93d42", "#f3f3f6", "#ffffff"},
 	"Dark":            {true, "#111113", "#1f1f23", "#28282d", "#313137", "#2c2c32", "#ececf1", "#8b8b96", "#8e7cf6", "#a495f8", "#7b67f0", "#ffffff", "#3ddc97", "#ff6b6b", "#0b0b0d", "#17171a"},
@@ -182,6 +202,13 @@ func styled(system *ui.Theme, appearance string, fontSize float32) (*ui.Theme, p
 	t.Selection, t.Focus = t.Accent.Alpha(0.28), t.Accent.Alpha(0.55)
 
 	return &t, palette{sidebar: ui.Hex(l.sidebar), card: ui.Hex(l.card), accentSoft: t.Accent.Alpha(0.14)}
+}
+
+// upperFirst upper-cases the first letter of s.
+func upperFirst(s string) string {
+	r, n := utf8.DecodeRuneInString(s)
+
+	return string(unicode.ToTitle(r)) + s[n:]
 }
 
 // eyebrow is the small upper-case label above a page's title.
@@ -255,6 +282,24 @@ func dropdown(c *ui.Context, selected *string, options []string) ui.Element {
 	defer softAccent(c)()
 
 	return ui.Select(c, selected, options)
+}
+
+// selectLabeled is a dropdown of options, which it names by label: what it
+// keeps in *selected stays the same in every language.
+func selectLabeled(c *ui.Context, selected *string, options []string, label func(string) string) ui.Element {
+	labels := make([]string, len(options))
+	for i, o := range options {
+		labels[i] = label(o)
+	}
+
+	shown := label(*selected)
+	e := dropdown(c, &shown, labels)
+
+	if i := slices.Index(labels, shown); i >= 0 {
+		*selected = options[i]
+	}
+
+	return e
 }
 
 // notice is a tinted line of status.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 )
@@ -67,7 +68,7 @@ func (a *app) startAccount(acc store.Account) {
 
 	pass, smtpPass, err := a.st.Passwords(acc.ID)
 	if err != nil {
-		sy.status.Err = fmt.Errorf("couldn't read the password from the keychain: %w", err)
+		sy.status.Err = fmt.Errorf("%s: %w", locales.ErrKeychain(), err)
 		return
 	}
 

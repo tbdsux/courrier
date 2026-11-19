@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"slices"
 
+	"courrier/app/locales"
+
 	"github.com/egoist/mygo/ui"
 )
 
@@ -79,7 +81,7 @@ func (a *app) loadSettings() {
 func (a *app) saveSettings() {
 	b, _ := json.Marshal(a.set)
 	if err := a.st.SetPref("ui.settings", string(b)); err != nil {
-		a.toast = "Couldn't save settings: " + err.Error()
+		a.toast = locales.ToastSaveSettingsFailed(err.Error())
 	}
 }
 
@@ -96,53 +98,54 @@ func (a *app) settingsView(c *ui.Context) {
 	}
 
 	a.page(c, 16, func() {
-		header(c, "Settings", "General", "How Courrier looks and opens your mail.")
+		header(c, locales.SettingsKicker(), locales.SettingsGeneral(), locales.SettingsGeneralSub())
 
 		a.formIn(c, a.contentWidth(), func() {
-			a.card(c, "look", "Appearance", func() {
-				ui.Field(c, "Theme", func() { dropdown(c, &s.Appearance, appearances).Width(200) })
-				ui.Field(c, "Message list", func() { segmented(c, &list, views...) }).
-					Description("One line shows the list across the window, and messages open over it.")
-				ui.Field(c, "Font size", func() { ui.NumberInput(c, &s.FontSize, 10, 20, 1).Width(120) })
-				ui.Field(c, "Group spacing", func() { ui.NumberInput(c, &s.GroupGap, 0, 16, 1).Width(120) }).
-					Description("Room above each account in a sidebar group.")
-				ui.Field(c, "Sync status", func() { ui.Switch(c, &s.SyncStatus) }).
-					Description("When each account last updated, under the sidebar. Sync errors show either way.")
+			a.card(c, "look", locales.SettingsAppearance(), func() {
+				ui.Field(c, locales.SettingsTheme(), func() { selectLabeled(c, &s.Appearance, appearances, appearanceLabel).Width(200) })
+
+				ui.Field(c, locales.SettingsMessageList(), func() { segmented(c, &list, viewLabels()...) }).
+					Description(locales.SettingsMessageListDesc())
+				ui.Field(c, locales.SettingsFontSize(), func() { ui.NumberInput(c, &s.FontSize, 10, 20, 1).Width(120) })
+				ui.Field(c, locales.SettingsGroupSpacing(), func() { ui.NumberInput(c, &s.GroupGap, 0, 16, 1).Width(120) }).
+					Description(locales.SettingsGroupSpacingDesc())
+				ui.Field(c, locales.SettingsSyncStatus(), func() { ui.Switch(c, &s.SyncStatus) }).
+					Description(locales.SettingsSyncStatusDesc())
 			})
 
-			a.card(c, "read", "Reading", func() {
-				ui.Field(c, "Open messages as", func() { segmented(c, &view, "Text", "HTML") }).
-					Description("Messages without HTML always open as text.")
-				ui.Field(c, "Remote images", func() { ui.Switch(c, &s.RemoteImages) }).
-					Description("Load them in every message. Senders can tell when you read their mail.")
-				ui.Field(c, "All headers", func() { ui.Switch(c, &s.ShowHeaders) }).
-					Description("Show every header field when a message opens.")
-				ui.Field(c, "Group by conversation", func() { ui.Switch(c, &s.Threads) }).
-					Description("A reply shows with the message it answers, yours included, in one row.")
-				ui.Field(c, "Unsubscribe banner", func() { ui.Switch(c, &s.UnsubscribeBanner) }).
-					Description("Offer to unsubscribe above mail from a mailing list.")
+			a.card(c, "read", locales.SettingsReading(), func() {
+				ui.Field(c, locales.SettingsOpenAs(), func() { segmented(c, &view, locales.SettingsOpenAsText(), locales.SettingsOpenAsHTML()) }).
+					Description(locales.SettingsOpenAsDesc())
+				ui.Field(c, locales.SettingsRemoteImages(), func() { ui.Switch(c, &s.RemoteImages) }).
+					Description(locales.SettingsRemoteImagesDesc())
+				ui.Field(c, locales.SettingsAllHeaders(), func() { ui.Switch(c, &s.ShowHeaders) }).
+					Description(locales.SettingsAllHeadersDesc())
+				ui.Field(c, locales.SettingsThreads(), func() { ui.Switch(c, &s.Threads) }).
+					Description(locales.SettingsThreadsDesc())
+				ui.Field(c, locales.SettingsUnsubscribeBanner(), func() { ui.Switch(c, &s.UnsubscribeBanner) }).
+					Description(locales.SettingsUnsubscribeBannerDesc())
 
 				if s.UnsubscribeBanner {
-					ui.Field(c, "Find unsubscribe links in messages", func() { ui.Switch(c, &s.UnsubscribeGuess) }).
-						Description("For mail without an unsubscribe header, look for a link in its HTML. This is a guess and might be wrong, so check the page it opens.")
+					ui.Field(c, locales.SettingsUnsubscribeGuess(), func() { ui.Switch(c, &s.UnsubscribeGuess) }).
+						Description(locales.SettingsUnsubscribeGuessDesc())
 				}
 			})
 
-			a.card(c, "notify", "Notifications", func() {
+			a.card(c, "notify", locales.SettingsNotifications(), func() {
 				for _, acc := range a.accounts {
 					if ui.Field(c.Key(acc.ID), acc.Email, func() { ui.Switch(c, a.notifyOn(acc.ID)) }).Changed() {
 						a.saveNotifyOn(acc.ID)
 					}
 				}
 
-				ui.Field(c, "Play a sound", func() { ui.Switch(c, &s.Sound) }).
-					Description("Do Not Disturb applies as the system sets it.")
+				ui.Field(c, locales.SettingsSound(), func() { ui.Switch(c, &s.Sound) }).
+					Description(locales.SettingsSoundDesc())
 			})
 
-			a.card(c, "dock", "Dock and menu bar", func() {
-				ui.Field(c, "Badge", func() { segmented(c, &badge, "Inbox unread", "Off") })
-				ui.Field(c, "Show in menu bar", func() { ui.Switch(c, &s.MenuBar) }).
-					Description("The Inbox's unread count and newest mail. Closing the window keeps Courrier running there.")
+			a.card(c, "dock", locales.SettingsDock(), func() {
+				ui.Field(c, locales.SettingsBadge(), func() { segmented(c, &badge, locales.SettingsBadgeUnread(), locales.SettingsBadgeOff()) })
+				ui.Field(c, locales.SettingsMenuBar(), func() { ui.Switch(c, &s.MenuBar) }).
+					Description(locales.SettingsMenuBarDesc())
 			})
 
 			a.shortcutsCard(c)
@@ -152,7 +155,7 @@ func (a *app) settingsView(c *ui.Context) {
 			}
 		})
 
-		if ui.Button(c, "Reset to defaults").Clicked() {
+		if ui.Button(c, locales.SettingsReset()).Clicked() {
 			*s = defaultSettings()
 			view, badge, list = 0, 0, max(slices.Index(views, s.View), 0)
 			a.resetShortcuts()
@@ -178,49 +181,49 @@ func (a *app) settingsView(c *ui.Context) {
 
 func (a *app) systemCards(c *ui.Context) {
 	sys := a.sys
-	a.card(c, "system", "System", func() {
-		ui.Field(c, "Default mail app", func() {
+	a.card(c, "system", locales.SettingsSystem(), func() {
+		ui.Field(c, locales.SettingsDefaultApp(), func() {
 			if sys.isDefault {
-				ui.Text(c, "Courrier is the default")
-			} else if ui.Button(c, "Make Courrier the default").Clicked() {
+				ui.Text(c, locales.SettingsIsDefault())
+			} else if ui.Button(c, locales.SettingsMakeDefault()).Clicked() {
 				if err := sys.makeDefault(); err != nil {
-					a.toast = "Couldn't make Courrier the default: " + err.Error()
+					a.toast = locales.ToastMakeDefaultFailed(err.Error())
 				}
 
 				sys.read(sys)
 			}
-		}).Description("mailto: links open a new message.")
+		}).Description(locales.SettingsDefaultAppDesc())
 
-		if ui.Field(c, "Open at login", func() { ui.Switch(c, &sys.login) }).
-			Description("With the menu bar item on, Courrier starts without its window.").Changed() {
+		if ui.Field(c, locales.SettingsOpenAtLogin(), func() { ui.Switch(c, &sys.login) }).
+			Description(locales.SettingsOpenAtLoginDesc()).Changed() {
 			if err := sys.setLogin(sys.login); err != nil {
-				a.toast = "Couldn't change it: " + err.Error()
+				a.toast = locales.ToastChangeFailed(err.Error())
 			}
 
 			sys.read(sys)
 		}
 	})
 
-	a.card(c, "updates", "Updates", func() {
-		if ui.Field(c, "Check automatically", func() { ui.Switch(c, &sys.autoCheck) }).Changed() {
+	a.card(c, "updates", locales.SettingsUpdates(), func() {
+		if ui.Field(c, locales.SettingsAutoCheck(), func() { ui.Switch(c, &sys.autoCheck) }).Changed() {
 			sys.setAutoCheck(sys.autoCheck)
 		}
 
-		if ui.Field(c, "Download automatically", func() { ui.Switch(c, &sys.autoFetch) }).
-			Description("Updates install at the next launch.").Changed() {
+		if ui.Field(c, locales.SettingsAutoFetch(), func() { ui.Switch(c, &sys.autoFetch) }).
+			Description(locales.SettingsAutoFetchDesc()).Changed() {
 			sys.setAutoFetch(sys.autoFetch)
 		}
 	})
 }
 
-func updateLabel(version string) string { return "Update to " + version }
+func updateLabel(version string) string { return locales.SettingsUpdateTo(version) }
 
 const repoURL = "https://github.com/tbdsux/courrier"
 
 // aboutView is the version running and where it comes from.
 func (a *app) aboutView(c *ui.Context) {
 	a.page(c, 16, func() {
-		header(c, "Settings", "About", "The version you're running and where it comes from.")
+		header(c, locales.SettingsKicker(), locales.SettingsAbout(), locales.SettingsAboutSub())
 
 		if a.sys == nil {
 			return
@@ -229,11 +232,11 @@ func (a *app) aboutView(c *ui.Context) {
 		sys := a.sys
 		a.formIn(c, a.contentWidth(), func() {
 			a.card(c, "about", "Courrier", func() {
-				ui.Field(c, "Version", func() {
+				ui.Field(c, locales.SettingsVersion(), func() {
 					ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 						ui.Text(c, sys.version)
 
-						label := "Check now"
+						label := locales.SettingsCheckNow()
 						if sys.available != "" {
 							label = updateLabel(sys.available)
 						}
@@ -244,10 +247,10 @@ func (a *app) aboutView(c *ui.Context) {
 					})
 				})
 
-				ui.Field(c, "Platform", func() { ui.Text(c, runtime.GOOS+" "+runtime.GOARCH) })
-				ui.Field(c, "Release notes", func() { ui.Link(c, "Releases on GitHub", repoURL+"/releases") })
-				ui.Field(c, "Source code", func() { ui.Link(c, "tbdsux/courrier", repoURL) })
-				ui.Field(c, "License", func() { ui.Link(c, "MIT", repoURL+"/blob/main/LICENSE") })
+				ui.Field(c, locales.SettingsPlatform(), func() { ui.Text(c, runtime.GOOS+" "+runtime.GOARCH) })
+				ui.Field(c, locales.SettingsReleaseNotes(), func() { ui.Link(c, locales.SettingsReleasesOnGitHub(), repoURL+"/releases") })
+				ui.Field(c, locales.SettingsSourceCode(), func() { ui.Link(c, "tbdsux/courrier", repoURL) })
+				ui.Field(c, locales.SettingsLicense(), func() { ui.Link(c, "MIT", repoURL+"/blob/main/LICENSE") })
 			})
 		})
 	})

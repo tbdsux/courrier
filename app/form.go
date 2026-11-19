@@ -5,6 +5,7 @@ import (
 	"net/mail"
 	"strings"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 )
@@ -34,6 +35,25 @@ func secLabel(code string) string {
 		}
 	}
 	return securityLabels[0]
+}
+
+// securityLabel names a security label in the language shown; "None"
+// stays the value forms keep.
+func securityLabel(label string) string {
+	if label == "None" {
+		return locales.SecurityNone()
+	}
+
+	return label
+}
+
+// choiceLabel names a Server choice: a profile's or preset's name, or Custom.
+func choiceLabel(choice string) string {
+	if choice == custom {
+		return locales.FormCustom()
+	}
+
+	return choice
 }
 
 // defaultPort is the usual port of a protocol (imap, pop3, smtp) over a security.
@@ -194,25 +214,25 @@ func validPort(p float64) bool { return p >= 1 && p <= 65535 && p == float64(int
 // validate checks the server fields, and the name when named is set.
 func (f *serverForm) validate(errs map[string]string, named bool) {
 	if named && strings.TrimSpace(f.name) == "" {
-		errs["name"] = "Enter a name."
+		errs["name"] = locales.FormEnterName()
 	} else if named && (isPreset(strings.TrimSpace(f.name)) || strings.TrimSpace(f.name) == custom) {
-		errs["name"] = "That name is reserved."
+		errs["name"] = locales.FormNameReserved()
 	}
 
 	if strings.TrimSpace(f.inHost) == "" {
-		errs["inHost"] = "Enter the incoming server."
+		errs["inHost"] = locales.FormEnterIncoming()
 	}
 
 	if !validPort(f.inPort) {
-		errs["inPort"] = "Enter a port from 1 to 65535."
+		errs["inPort"] = locales.FormEnterPort()
 	}
 
 	if strings.TrimSpace(f.smtpHost) == "" {
-		errs["smtpHost"] = "Enter the outgoing server."
+		errs["smtpHost"] = locales.FormEnterOutgoing()
 	}
 
 	if !validPort(f.smtpPort) {
-		errs["smtpPort"] = "Enter a port from 1 to 65535."
+		errs["smtpPort"] = locales.FormEnterPort()
 	}
 }
 
@@ -336,34 +356,34 @@ func (f *accountForm) syncChoice(profiles []store.Server) {
 func (f *accountForm) validate() map[string]string {
 	errs := map[string]string{}
 	if strings.TrimSpace(f.displayName) == "" {
-		errs["displayName"] = "Enter your name."
+		errs["displayName"] = locales.FormEnterYourName()
 	}
 
 	if a, err := mail.ParseAddress(strings.TrimSpace(f.email)); err != nil || a.Address != strings.TrimSpace(f.email) || !strings.Contains(a.Address, ".") {
-		errs["email"] = "Enter an email address like jane@example.com."
+		errs["email"] = locales.FormEnterEmailExample()
 	}
 
 	if k := f.oauth(); k != "" {
 		if f.refreshFor != k {
-			errs["signIn"] = "Sign in with " + providers[k].Name + " first."
+			errs["signIn"] = locales.FormSignInFirst(providers[k].Name)
 		}
 	} else {
 		if f.inPass == "" {
-			errs["inPass"] = "Enter the password."
+			errs["inPass"] = locales.FormEnterPassword()
 		}
 
 		if !f.sameCreds && f.smtpPass == "" {
-			errs["smtpPass"] = "Enter the password."
+			errs["smtpPass"] = locales.FormEnterPassword()
 		}
 	}
 
 	for i, id := range f.idents {
 		if strings.TrimSpace(id.Name) == "" {
-			errs[fmt.Sprint("identName", i)] = "Enter the name."
+			errs[fmt.Sprint("identName", i)] = locales.FormEnterTheName()
 		}
 
 		if a, err := mail.ParseAddress(strings.TrimSpace(id.Email)); err != nil || a.Address != strings.TrimSpace(id.Email) {
-			errs[fmt.Sprint("identEmail", i)] = "Enter an email address."
+			errs[fmt.Sprint("identEmail", i)] = locales.FormEnterEmail()
 		}
 	}
 
