@@ -42,6 +42,9 @@ show HTML mail in a sandbox (no scripts, no remote images unless you allow them)
   Dock/taskbar and in the menu bar, start at login, default `mailto:` handler.
 - **Big mailboxes**: CONDSTORE/QRESYNC sync, a cache size you choose
   (Settings → Storage), and export to mbox.
+- **Your language**: English, French, Spanish, Japanese, Korean and
+  Simplified Chinese, following the system's language or the one picked in
+  Settings → General, switched without a restart.
 - **Auto-updates** from GitHub releases, signed.
 
 ### Keyboard shortcuts
