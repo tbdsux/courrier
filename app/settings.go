@@ -8,6 +8,7 @@ import (
 
 	"courrier/app/locales"
 
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -37,6 +38,7 @@ type system struct {
 	version              string
 	available            string // the newer version out, "" for none
 	login, isDefault     bool   // opens at login; the default mail app
+	locale               string // the language chosen, "" to follow the system's
 	autoCheck, autoFetch bool   // for updates
 	read                 func(*system)
 	setLogin             func(bool) error
@@ -44,6 +46,7 @@ type system struct {
 	setAutoCheck         func(bool)
 	setAutoFetch         func(bool)
 	checkNow             func()
+	setLocale            func(string)
 }
 
 func defaultSettings() settings {
@@ -103,6 +106,10 @@ func (a *app) settingsView(c *ui.Context) {
 		a.formIn(c, a.contentWidth(), func() {
 			a.card(c, "look", locales.SettingsAppearance(), func() {
 				ui.Field(c, locales.SettingsTheme(), func() { selectLabeled(c, &s.Appearance, appearances, appearanceLabel).Width(200) })
+
+				if a.sys != nil {
+					a.languageField(c)
+				}
 
 				ui.Field(c, locales.SettingsMessageList(), func() { segmented(c, &list, viewLabels()...) }).
 					Description(locales.SettingsMessageListDesc())
@@ -217,6 +224,31 @@ func (a *app) systemCards(c *ui.Context) {
 }
 
 func updateLabel(version string) string { return locales.SettingsUpdateTo(version) }
+
+// languageField picks the language Courrier shows: the system's, or one
+// of those it is translated to, each named in itself.
+func (a *app) languageField(c *ui.Context) {
+	sys := a.sys
+	tags := append([]string{""}, locales.Catalog.Languages()...)
+	chosen := sys.locale
+	ui.Field(c, locales.SettingsLanguage(), func() { selectLabeled(c, &chosen, tags, languageName).Width(200) }).
+		Description(locales.SettingsLanguageDesc())
+
+	if chosen != sys.locale {
+		sys.locale = chosen
+		sys.setLocale(chosen)
+	}
+}
+
+// languageName names a language in itself, with a capital as menus of
+// languages have it (CLDR writes "français"), or "System" for "".
+func languageName(tag string) string {
+	if tag == "" {
+		return locales.SettingsLanguageSystem()
+	}
+
+	return upperFirst(i18n.Autonym(tag))
+}
 
 const repoURL = "https://github.com/tbdsux/courrier"
 
