@@ -4,9 +4,14 @@
   "version": "0.5.1",
   "main": "./app",
   "out": "build",
-  "urlSchemes": ["mailto"],
+  "urlSchemes": [
+    "mailto"
+  ],
   "updates": {
     "publicKey": "ovqylKIMLlu91q/OxJnV9bwDRa2QNJ/h8zcnCUefCQ4=",
     "github": "tbdsux/courrier"
+  },
+  "i18n": {
+    "dir": "app/locales"
   }
 }
