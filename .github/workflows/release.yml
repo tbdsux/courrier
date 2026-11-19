@@ -115,6 +115,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+          # The OAuth clients for "Sign in with Google / Microsoft"; an unset
+          # secret links in "", which hides that sign-in.
+          MYGO_LDFLAGS: >-
+            -X courrier/mail.GoogleClientID=${{ secrets.GOOGLE_CLIENT_ID }}
+            -X courrier/mail.GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
+            -X courrier/mail.MicrosoftClientID=${{ secrets.MICROSOFT_CLIENT_ID }}
         run: |
           if [ -n "$MYGO_UPDATER_PRIVATE_KEY" ] && jq -e .updates.github mygo.json > /dev/null; then
             go tool mygo build -platform "${{ matrix.platform }}" -upload
