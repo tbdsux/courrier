@@ -330,7 +330,7 @@ func (s *Store) addStored(account int64, path string, h mail.Header, b mail.Body
 	return err
 }
 
-var specialNames = map[string]string{"sent": "Sent", "drafts": "Drafts", "trash": "Trash", "archive": "Archive", "snoozed": "Snoozed"}
+var specialNames = map[string]string{"sent": "Sent", "drafts": "Drafts", "trash": "Trash", "archive": "Archive", "junk": "Junk", "snoozed": "Snoozed"}
 
 // AddLocal stores a message, read, in the account's folder of a special
 // use, made local when there is none.

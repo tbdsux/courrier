@@ -84,6 +84,47 @@ func subjectsShown(a *app) string {
 	return strings.Join(out, ",")
 }
 
+func TestJunkAndNotJunk(t *testing.T) {
+	a, tt, st, acc := actionsApp(t)
+	click(t, tt, 0, "Launch plan")
+	key(tt, ui.Shift, ui.Key1)
+
+	if got := subjectsShown(a); got != "Newest,Oldest" || !tt.HasText("Moved to Junk") {
+		t.Fatalf("after junk: %s", got)
+	}
+
+	// The account has no Junk folder: it goes to one named Junk, made on the server.
+	if as := actionsOf(st, acc); len(as) != 3 || as[1].Op != "move" || as[1].Dest != "Junk" {
+		t.Fatalf("queued %+v", as)
+	}
+
+	if err := st.UpdateFolder(acc, courrier.Folder{Path: "Spam", Special: "junk", UIDValidity: 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := st.AddHeaders(acc, "Spam", []courrier.Header{{UID: 1, FromName: "Eve", Subject: "Real mail", Date: time.Now()}}); err != nil {
+		t.Fatal(err)
+	}
+
+	fs, _ := st.Folders()
+	var spam []store.Message
+	for _, f := range fs {
+		if f.Path == "Spam" {
+			spam, _ = st.Messages(f.ID, 10)
+		}
+	}
+
+	if len(spam) != 1 || junkLabel(spam) != "Not junk" {
+		t.Fatalf("spam %+v", spam)
+	}
+
+	a.junk(spam)
+
+	if as := actionsOf(st, acc); len(as) != 4 || as[3].Path != "Spam" || as[3].Dest != "INBOX" {
+		t.Errorf("not junk queued %+v", as)
+	}
+}
+
 func TestArchiveShowsNext(t *testing.T) {
 	a, tt, st, acc := actionsApp(t)
 	click(t, tt, 0, "Launch plan")

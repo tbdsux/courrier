@@ -614,6 +614,16 @@ func (msgs Messages) ActionForward() string {
 	return Catalog.Format(msgs.locale, "actionForward", nil)
 }
 
+// ActionJunk says "Mark as junk"
+// in the language the app shows.
+func ActionJunk() string { return In(i18n.Locale()).ActionJunk() }
+
+// ActionJunk says "Mark as junk"
+// in the language of msgs.
+func (msgs Messages) ActionJunk() string {
+	return Catalog.Format(msgs.locale, "actionJunk", nil)
+}
+
 // ActionMarkRead says "Mark as read"
 // in the language the app shows.
 func ActionMarkRead() string { return In(i18n.Locale()).ActionMarkRead() }
@@ -662,6 +672,16 @@ func ActionMoveTo() string { return In(i18n.Locale()).ActionMoveTo() }
 // in the language of msgs.
 func (msgs Messages) ActionMoveTo() string {
 	return Catalog.Format(msgs.locale, "actionMoveTo", nil)
+}
+
+// ActionNotJunk says "Not junk"
+// in the language the app shows.
+func ActionNotJunk() string { return In(i18n.Locale()).ActionNotJunk() }
+
+// ActionNotJunk says "Not junk"
+// in the language of msgs.
+func (msgs Messages) ActionNotJunk() string {
+	return Catalog.Format(msgs.locale, "actionNotJunk", nil)
 }
 
 // ActionReply says "Reply"
@@ -2632,6 +2652,16 @@ func MenuForward() string { return In(i18n.Locale()).MenuForward() }
 // in the language of msgs.
 func (msgs Messages) MenuForward() string {
 	return Catalog.Format(msgs.locale, "menuForward", nil)
+}
+
+// MenuJunk says "Mark as Junk or Not Junk"
+// in the language the app shows.
+func MenuJunk() string { return In(i18n.Locale()).MenuJunk() }
+
+// MenuJunk says "Mark as Junk or Not Junk"
+// in the language of msgs.
+func (msgs Messages) MenuJunk() string {
+	return Catalog.Format(msgs.locale, "menuJunk", nil)
 }
 
 // MenuMessage says "Message"
@@ -4732,6 +4762,16 @@ func (msgs Messages) ShortcutForward() string {
 	return Catalog.Format(msgs.locale, "shortcutForward", nil)
 }
 
+// ShortcutJunk says "Mark junk or not junk"
+// in the language the app shows.
+func ShortcutJunk() string { return In(i18n.Locale()).ShortcutJunk() }
+
+// ShortcutJunk says "Mark junk or not junk"
+// in the language of msgs.
+func (msgs Messages) ShortcutJunk() string {
+	return Catalog.Format(msgs.locale, "shortcutJunk", nil)
+}
+
 // ShortcutMarkReadOrUnread says "Mark read or unread"
 // in the language the app shows.
 func ShortcutMarkReadOrUnread() string { return In(i18n.Locale()).ShortcutMarkReadOrUnread() }
@@ -5584,6 +5624,16 @@ func (msgs Messages) ToastMovedTo(folder string) string {
 	return Catalog.Format(msgs.locale, "toastMovedTo", map[string]any{"folder": folder})
 }
 
+// ToastMovedToJunk says "Moved to Junk"
+// in the language the app shows.
+func ToastMovedToJunk() string { return In(i18n.Locale()).ToastMovedToJunk() }
+
+// ToastMovedToJunk says "Moved to Junk"
+// in the language of msgs.
+func (msgs Messages) ToastMovedToJunk() string {
+	return Catalog.Format(msgs.locale, "toastMovedToJunk", nil)
+}
+
 // ToastMovedToTrash says "Moved to Trash"
 // in the language the app shows.
 func ToastMovedToTrash() string { return In(i18n.Locale()).ToastMovedToTrash() }
@@ -5612,6 +5662,16 @@ func ToastNoReplyAddress() string { return In(i18n.Locale()).ToastNoReplyAddress
 // in the language of msgs.
 func (msgs Messages) ToastNoReplyAddress() string {
 	return Catalog.Format(msgs.locale, "toastNoReplyAddress", nil)
+}
+
+// ToastNotJunk says "Moved to Inbox"
+// in the language the app shows.
+func ToastNotJunk() string { return In(i18n.Locale()).ToastNotJunk() }
+
+// ToastNotJunk says "Moved to Inbox"
+// in the language of msgs.
+func (msgs Messages) ToastNotJunk() string {
+	return Catalog.Format(msgs.locale, "toastNotJunk", nil)
 }
 
 // ToastOfflineAttachments says "Offline: the attachments aren't forwarded."

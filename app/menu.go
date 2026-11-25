@@ -71,6 +71,7 @@ func (a *app) appMenu() *mygo.Menu {
 			{Label: locales.MenuMoveTo(), Click: do(func() { a.movePick = len(a.targets()) > 0 })},
 			{Label: locales.MenuArchive(), Click: do(on(a.archive))},
 			{Label: locales.MenuDelete(), Click: do(on(a.deleteMessages))},
+			{Label: locales.MenuJunk(), Click: do(on(a.junk))},
 		}},
 		{Role: mygo.RoleWindowMenu},
 	})

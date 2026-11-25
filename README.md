@@ -54,6 +54,7 @@ show HTML mail in a sandbox (no scripts, no remote images unless you allow them)
 | `J` / `K` | Next / previous message | `R` | Reply |
 | `U` | Mark read / unread | `A` | Reply all |
 | `S` | Flag / unflag | `F` | Forward |
+| `!` | Junk / not junk | | |
 | `E` | Archive | `Z` | Snooze |
 | `#`, `Delete`, `⌫` | Delete | `V` | Move to… |
 | `⌘N` / `Ctrl+N` | New message | `⌘F` / `Ctrl+F` | Search |

@@ -22,7 +22,7 @@ type command struct {
 // commandIcons are the icons of the shortcuts' commands, by what they do.
 var commandIcons = map[string]*ui.SVG{
 	"Next message": downIcon, "Previous message": upIcon, "Mark read or unread": mailIcon,
-	"Flag or unflag": flagIcon, "Snooze": clockIcon, "Archive": archiveIcon, "Delete": trashIcon,
+	"Flag or unflag": flagIcon, "Snooze": clockIcon, "Archive": archiveIcon, "Delete": trashIcon, "Junk or not junk": junkIcon,
 	"Move to…": moveIcon, "Reply": replyIcon, "Reply all": replyAllIcon, "Forward": forwardIcon,
 	"New message": composeIcon, "Search": searchIcon, "Print": printerIcon,
 	"Zoom in": zoomInIcon, "Zoom out": zoomOutIcon, "Actual size": searchIcon,
