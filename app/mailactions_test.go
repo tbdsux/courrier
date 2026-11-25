@@ -343,7 +343,7 @@ func TestShortcutsListed(t *testing.T) {
 func TestShortcutsRebound(t *testing.T) {
 	a, tt, _, _ := actionsApp(t)
 	a.sel = "general"
-	tt.SetSize(1100, 2000)
+	tt.SetSize(1100, 2600) // the whole shortcut list, with room for longer fonts
 	tt.Frame()
 
 	must := func(err error) {
