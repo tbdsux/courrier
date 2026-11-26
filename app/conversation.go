@@ -7,6 +7,7 @@ import (
 	"html"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -450,7 +451,9 @@ func cssSealed(css string) bool {
 
 		switch {
 		case c == '\\':
-			i++ // an escaped character is no brace
+			if i++; i == len(css) {
+				return false // it would escape the brace closing the scope
+			}
 
 		case strings.HasPrefix(css[i:], "/*"):
 			n := strings.Index(css[i+2:], "*/")
@@ -557,6 +560,10 @@ func scopedHTML(src, scope string) string {
 				n.RemoveChild(k)
 
 			default:
+				if k.Type == xhtml.ElementNode {
+					k.Attr = safeAttrs(k.Attr)
+				}
+
 				if k.Type == xhtml.ElementNode && k.Data == "body" {
 					body = k
 				}
@@ -595,6 +602,19 @@ func scopedHTML(src, scope string) string {
 	out.WriteString("</div></div>")
 
 	return out.String()
+}
+
+// urlSpace is what a URL parser drops: tabs and newlines anywhere.
+var urlSpace = strings.NewReplacer("\t", "", "\n", "", "\r", "")
+
+// safeAttrs drops the attributes of a message's element that could act in
+// the app: links to its courrier: actions, and popovers, which show above
+// everything, out of the message's box.
+func safeAttrs(as []xhtml.Attribute) []xhtml.Attribute {
+	return slices.DeleteFunc(as, func(at xhtml.Attribute) bool {
+		v := strings.TrimFunc(urlSpace.Replace(at.Val), func(r rune) bool { return r <= ' ' })
+		return strings.HasPrefix(at.Key, "popover") || len(v) >= 9 && strings.EqualFold(v[:9], "courrier:")
+	})
 }
 
 // conversationPage is r's conversation as one page for the web view, in

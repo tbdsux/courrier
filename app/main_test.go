@@ -425,6 +425,16 @@ func TestCSSSealed(t *testing.T) {
 	if !strings.Contains(h, `<div class="mail"><div id="m1" class="html" style="contain:none">`) || !strings.HasSuffix(h, "</div></div>") {
 		t.Errorf("the message's style reaches its box: %q", h)
 	}
+
+	if cssSealed(`a{} \`) {
+		t.Error("a trailing backslash would escape the scope")
+	}
+
+	// The message can't link to the app's own actions, nor pop over the page.
+	h = scopedHTML(`<a href=" Courrier://forward/1">a</a><a href="cour&#9;rier:save/1">b</a><div popover id=x>c</div><button popovertarget=x>d</button><a href="https://example.com">e</a>`, "m1")
+	if strings.Contains(strings.ToLower(h), "courrier") || strings.Contains(h, "popover") || !strings.Contains(h, `href="https://example.com"`) {
+		t.Errorf("unsafe attributes kept: %q", h)
+	}
 }
 
 func TestShortDate(t *testing.T) {
