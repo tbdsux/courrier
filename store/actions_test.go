@@ -211,3 +211,23 @@ func TestRemoveAccountClearsItsActions(t *testing.T) {
 		t.Errorf("actions after removing an account: %+v %+v", actions(t, s, a), actions(t, s, b.ID))
 	}
 }
+
+// A new UIDVALIDITY renumbers the folder: the changes waiting for the old
+// UIDs would take other mail.
+func TestUIDValidityDropsActions(t *testing.T) {
+	s, _ := open(t)
+	acc, ms := imapInbox(t, s, 2)
+	must(t, s.SetFlag([]int64{ms[0].ID}, "flagged", true))
+	must(t, s.QueueAppend(acc, "INBOX", []byte("raw")))
+	must(t, s.UpdateFolder(acc, mail.Folder{Path: "INBOX", Special: "inbox", UIDValidity: 1}))
+
+	if as := actions(t, s, acc); len(as) != 2 {
+		t.Fatalf("same UIDVALIDITY dropped actions: %+v", as)
+	}
+
+	must(t, s.UpdateFolder(acc, mail.Folder{Path: "INBOX", Special: "inbox", UIDValidity: 2}))
+
+	if as := actions(t, s, acc); len(as) != 1 || as[0].Op != "append" {
+		t.Errorf("actions after a new UIDVALIDITY: %+v", as)
+	}
+}

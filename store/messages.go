@@ -104,6 +104,9 @@ func folderStmts(account int64, f mail.Folder) []sqlite.Statement {
 		// A new UIDVALIDITY means the cached UIDs name other messages now.
 		{SQL: "DELETE FROM messages WHERE folder_id = " + folderID + " AND ?3 != 0 AND (SELECT uidvalidity FROM folders WHERE id = folder_id) NOT IN (0, ?3)",
 			Args: []any{account, f.Path, int64(f.UIDValidity)}},
+		// So do the changes waiting for them: done now, they would take other mail.
+		{SQL: "DELETE FROM actions WHERE account_id = ?1 AND path = ?2 AND op != 'append' AND ?3 != 0 AND (SELECT uidvalidity FROM folders WHERE account_id = ?1 AND path = ?2) NOT IN (0, ?3)",
+			Args: []any{account, f.Path, int64(f.UIDValidity)}},
 		{SQL: `INSERT INTO folders (account_id, path, delim, special, noselect, local, uidvalidity, uidnext, unread, total)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (account_id, path) DO UPDATE SET delim = excluded.delim, special = excluded.special, noselect = excluded.noselect,
