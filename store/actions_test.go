@@ -231,3 +231,23 @@ func TestUIDValidityDropsActions(t *testing.T) {
 		t.Errorf("actions after a new UIDVALIDITY: %+v", as)
 	}
 }
+
+// A folder named Trash that can't take mail is no Trash to make again.
+func TestDestinationUnusable(t *testing.T) {
+	s, _ := open(t)
+	acc := accountOn(t, s, "pop3")
+	must(t, s.SetFolders(acc, []mail.Folder{{Path: "INBOX", Special: "inbox"}, {Path: "Trash", NoSelect: true}}))
+	raw := []byte("Subject: Hi\r\n\r\nHello\r\n")
+	h, b, _ := mail.Parse(raw)
+	must(t, s.AddPOP3(acc, "u1", h, b, raw))
+	inbox := folderNamed(t, s, "INBOX")
+	ms, _ := s.Messages(inbox.ID, 10)
+
+	if _, err := s.Move([]int64{ms[0].ID}, 0, "trash"); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, _ := s.Messages(inbox.ID, 10); len(got) != 1 {
+		t.Errorf("moved to an unusable folder: %+v", got)
+	}
+}
