@@ -463,7 +463,7 @@ func (s *Syncer) runIMAP(ctx context.Context, pending *[]request) (connected boo
 				return true, err
 			}
 
-			news = uint32(sel.UIDNext) != s.known[inbox].UIDNext
+			news = sel.UIDNext != 0 && uint32(sel.UIDNext) != s.known[inbox].UIDNext
 			lastLook = time.Now()
 		}
 

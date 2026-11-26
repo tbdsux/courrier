@@ -428,7 +428,7 @@ func (ic *imapConn) syncFolder(cache Cache, account int64, f *Folder, counted bo
 
 		hs, err = ic.fetchHeaders(imap.SeqSet{{Start: from, Stop: sel.NumMessages}}, 0)
 
-	case uint32(sel.UIDNext) > newest+1:
+	case sel.UIDNext == 0 || uint32(sel.UIDNext) > newest+1: // 0: a server that didn't say
 		hs, err = ic.fetchHeaders(imap.UIDSet{{Start: imap.UID(newest + 1), Stop: 0}}, newest)
 		for _, h := range hs {
 			if !h.Seen {
