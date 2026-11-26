@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"cmp"
 	"errors"
 	"slices"
 	"sort"
@@ -168,7 +169,7 @@ func (s *Syncer) exportFrom(path string, uids []imap.UID, each func([]byte) erro
 			return err
 		}
 
-		slices.SortFunc(msgs, func(a, b *imapclient.FetchMessageBuffer) int { return int(a.UID) - int(b.UID) })
+		slices.SortFunc(msgs, func(a, b *imapclient.FetchMessageBuffer) int { return cmp.Compare(a.UID, b.UID) })
 
 		for _, m := range msgs {
 			if len(m.BodySection) > 0 {
