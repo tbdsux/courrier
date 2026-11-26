@@ -81,11 +81,12 @@ func (s *Store) DueSnoozes(now time.Time) ([]Snoozed, error) {
 const lostAfter = 24 * time.Hour
 
 // Wake brings a due snoozed message back to the folder it left (else the
-// Inbox), unread. found is false while the cache lacks it: its Snoozed
-// folder is to sync. One the user moved out of Snoozed meanwhile stays.
+// Inbox), unread. found is false while the cache lacks it in Snoozed: that
+// folder is to sync. One the user moved back meanwhile stays; a copy
+// elsewhere, as Gmail's All Mail keeps, isn't it moved out.
 func (s *Store) Wake(sn Snoozed) (found bool, err error) {
-	rows, err := s.db.Query(ctx, "SELECT m.id, "+snoozedFolder+" FROM messages m JOIN folders f ON f.id = m.folder_id WHERE f.account_id = ? AND m.message_id = ? AND m.date = ?",
-		sn.AccountID, sn.MessageID, sn.Date.Unix())
+	rows, err := s.db.Query(ctx, "SELECT m.id, "+snoozedFolder+", f.path = ? OR f.special = 'inbox' FROM messages m JOIN folders f ON f.id = m.folder_id WHERE f.account_id = ? AND m.message_id = ? AND m.date = ?",
+		sn.FromPath, sn.AccountID, sn.MessageID, sn.Date.Unix())
 	if err != nil {
 		return false, err
 	}
@@ -94,18 +95,22 @@ func (s *Store) Wake(sn Snoozed) (found bool, err error) {
 		_, err := s.db.Execute(ctx, "DELETE FROM snoozes WHERE id = ?", sn.ID)
 		return err
 	}
-	if len(rows.Values) == 0 {
-		if time.Since(sn.WakeAt) > lostAfter {
-			return false, drop()
-		}
-		return false, nil
-	}
 
 	var ids []int64
+	back := false
 	for _, r := range rows.Values {
 		if r[1].(int64) != 0 {
 			ids = append(ids, r[0].(int64))
 		}
+
+		back = back || r[2].(int64) != 0
+	}
+
+	if len(ids) == 0 && !back {
+		if time.Since(sn.WakeAt) > lostAfter {
+			return false, drop()
+		}
+		return false, nil
 	}
 
 	if len(ids) > 0 {

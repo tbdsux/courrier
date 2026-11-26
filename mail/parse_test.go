@@ -42,6 +42,34 @@ func TestParseInlineBomb(t *testing.T) {
 	}
 }
 
+// Images go in by their whole Content-ID, whatever order; one no link
+// names is an attachment.
+func TestParseInlineImages(t *testing.T) {
+	part := func(cid, data string) string {
+		return "\r\n--x\r\nContent-Type: image/png\r\nContent-Id: <" + cid + ">\r\nContent-Transfer-Encoding: base64\r\n\r\n" + base64.StdEncoding.EncodeToString([]byte(data))
+	}
+	raw := "From: a@b.c\r\nContent-Type: multipart/related; boundary=x\r\n\r\n--x\r\nContent-Type: text/html\r\n\r\n" +
+		`<img src="cid:img"><img src="CID:img2">` + part("img", "one") + part("img2", "two") + part("logo", "three") + "\r\n--x--\r\n"
+
+	for range 20 { // map order differs run to run
+		h, b, _ := Parse([]byte(raw))
+		one, two := base64.StdEncoding.EncodeToString([]byte("one")), base64.StdEncoding.EncodeToString([]byte("two"))
+		if b.HTML != `<img src="data:image/png;base64,`+one+`"><img src="data:image/png;base64,`+two+`">` {
+			t.Fatalf("HTML %q", b.HTML)
+		}
+
+		if len(b.Attachments) != 3 || b.Attachments[0].ContentID != "img" || b.Attachments[2].ContentID != "" || !h.HasAttach {
+			t.Fatalf("attachments %+v, has %v", b.Attachments, h.HasAttach)
+		}
+	}
+}
+
+func TestHTMLTextUnclosedHead(t *testing.T) {
+	if got := HTMLText("<html><head><title>T</title><body><p>Hello</p>"); got != "Hello" {
+		t.Errorf("got %q", got)
+	}
+}
+
 func TestParseDeepNesting(t *testing.T) {
 	nested := func(depth int) []byte {
 		var sb strings.Builder

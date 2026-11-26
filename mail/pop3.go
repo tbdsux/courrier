@@ -47,12 +47,17 @@ func pop3Login(ctx context.Context, conn net.Conn, e Endpoint) (*pop3Conn, error
 		c = &pop3Conn{newLineConn(tc)}
 	}
 
-	if _, err := c.cmd("USER " + e.Username); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrAuth, err)
+	if strings.ContainsAny(e.Username+e.Password, "\r\n") { // would end the command early
+		return nil, fmt.Errorf("%w: a line break in the username or password", ErrAuth)
 	}
 
-	if _, err := c.cmd("PASS " + e.Password); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrAuth, err)
+	for _, s := range []string{"USER " + e.Username, "PASS " + e.Password} {
+		// Only the server's refusal is ErrAuth; a dropped connection is retried.
+		if l, err := c.cmd(s); strings.HasPrefix(l, "-ERR") {
+			return nil, fmt.Errorf("%w: %v", ErrAuth, err)
+		} else if err != nil {
+			return nil, err
+		}
 	}
 
 	return c, nil

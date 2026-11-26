@@ -2,6 +2,8 @@ package store
 
 import (
 	"courrier/mail"
+
+	"github.com/egoist/mygo/plugins/sqlite"
 )
 
 // messages_fts indexes the cached messages for search, kept in step by
@@ -33,16 +35,18 @@ func (s *Store) openSearch() error {
 		return err
 	}
 
+	// In one transaction: a crash between them would leave a new index
+	// never filled, as it is made only once.
+	var stmts []sqlite.Statement
 	for _, stmt := range searchSchema {
-		if _, err := s.db.Execute(ctx, stmt); err != nil {
-			return err
-		}
+		stmts = append(stmts, sqlite.Statement{SQL: stmt})
 	}
 
 	if len(rows.Values) == 0 {
-		_, err = s.db.Execute(ctx, "INSERT INTO messages_fts (messages_fts) VALUES ('rebuild')")
+		stmts = append(stmts, sqlite.Statement{SQL: "INSERT INTO messages_fts (messages_fts) VALUES ('rebuild')"})
 	}
 
+	_, err = s.db.Transaction(ctx, stmts)
 	return err
 }
 

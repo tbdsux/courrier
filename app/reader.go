@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -43,17 +44,14 @@ func sandbox(html string, remote bool) string {
 	return `<!doctype html><meta http-equiv="Content-Security-Policy" content="` + p + `"><meta charset="utf-8">` + html
 }
 
-// hasRemote guesses whether HTML loads anything from the network.
-func hasRemote(html string) bool {
-	l := strings.ToLower(html)
-	for _, s := range []string{`src="http`, `src='http`, `src=http`, `url(http`, `url("http`, `url('http`, `background="http`} {
-		if strings.Contains(l, s) {
-			return true
-		}
-	}
+// remoteRef matches an address a page loads: absolute or
+// protocol-relative, in a src, srcset, background or poster attribute or
+// a CSS url().
+var remoteRef = regexp.MustCompile(`(?i)(?:\b(?:src|srcset|background|poster)\s*=\s*["']?|url\(\s*["']?)\s*(?:https?:)?//`)
 
-	return false
-}
+// hasRemote guesses whether HTML loads anything from the network. What it
+// misses gets no banner offering images, and the CSP still blocks it.
+func hasRemote(html string) bool { return remoteRef.MatchString(html) }
 
 // guardNavigation keeps the message's page in place: links open in the
 // browser, everything else is dropped.
@@ -80,12 +78,14 @@ func (a *app) followLink(raw string, clicked bool) {
 		return
 	}
 
-	if u.Scheme == "courrier" {
+	switch {
+	case u.Scheme == "courrier":
 		a.update(func() { a.pageLink(u) })
-		return
-	}
 
-	if a.openURL != nil && (u.Scheme == "http" || u.Scheme == "https" || u.Scheme == "mailto") {
+	case u.Scheme == "mailto": // written here, not in another mail app
+		a.update(func() { a.openMailto(raw) })
+
+	case a.openURL != nil && (u.Scheme == "http" || u.Scheme == "https"):
 		a.update(func() { a.openLink(raw, u.Hostname()) })
 	}
 }
@@ -93,7 +93,18 @@ func (a *app) followLink(raw string, clicked bool) {
 // imagesTrusted tells whether m's sender was allowed remote images. After
 // a failed sender check, anyone could have written that address.
 func (a *app) imagesTrusted(m store.Message, b courrier.Body) bool {
-	return !b.Auth.Failed() && a.st.Pref("images:"+m.FromAddr) == "1"
+	k := imagesPref(m.FromAddr)
+	return k != "" && !b.Auth.Failed() && a.st.Pref(k) == "1"
+}
+
+// imagesPref is the preference that lets mail from addr load remote
+// images; "" for no address, which anyone could send as.
+func imagesPref(addr string) string {
+	if addr = strings.ToLower(strings.TrimSpace(addr)); addr == "" {
+		return ""
+	}
+
+	return "images:" + addr
 }
 
 func (a *app) messageView(c *ui.Context, narrow bool) {
@@ -259,8 +270,8 @@ func (a *app) messageBody(c *ui.Context, r *reader) {
 						r.remote = true
 
 						for _, x := range blocked {
-							if !r.bodies[x.ID].Auth.Failed() {
-								a.st.SetPref("images:"+x.FromAddr, "1")
+							if k := imagesPref(x.FromAddr); k != "" && !r.bodies[x.ID].Auth.Failed() {
+								a.st.SetPref(k, "1")
 							}
 						}
 					}
@@ -316,10 +327,15 @@ func (a *app) loadFields(r *reader) {
 	}
 
 	r.fieldsBusy = true
+	id := r.m.ID
 	s.Header(r.m.Path, r.m.UID, func(raw []byte, err error) {
 		a.update(func() {
 			r.fieldsBusy = false
-			set(raw, err)
+			if r.m.ID == id {
+				set(raw, err)
+			} else if a.allHeaders && a.cur == r { // another message shown meanwhile
+				a.loadFields(r)
+			}
 		})
 	})
 }

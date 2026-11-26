@@ -26,6 +26,12 @@ func TestMetaUnsubscribe(t *testing.T) {
 		t.Errorf("urls %q %q", b.UnsubscribeURL(), b.UnsubscribeMailto())
 	}
 
+	// A comma inside the brackets is the URL's.
+	_, b, _ = Parse([]byte("List-Unsubscribe: <https://example.com/u?a=1,2>, <mailto:x@example.com>\r\n\r\nhi"))
+	if !slices.Equal(b.Unsubscribe, []string{"https://example.com/u?a=1,2", "mailto:x@example.com"}) {
+		t.Errorf("comma in a URL: %q", b.Unsubscribe)
+	}
+
 	// One click needs an https: URL.
 	_, b, _ = Parse([]byte("List-Unsubscribe: <mailto:a@b>\r\nList-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n\r\nhi"))
 	if b.OneClick {
@@ -87,6 +93,7 @@ func TestUnsubscribeStaysPublic(t *testing.T) {
 	for addr, public := range map[string]bool{
 		"93.184.216.34:443": true, "127.0.0.1:443": false, "192.168.1.1:443": false, "10.0.0.8:443": false,
 		"169.254.169.254:80": false, "[::1]:443": false, "[fe80::1]:443": false, "0.0.0.0:443": false,
+		"100.100.100.200:80": false, "100.64.0.1:443": false, "198.18.0.1:443": false, "255.255.255.255:443": false, "[64:ff9b::a00:1]:443": false,
 	} {
 		if err := publicOnly("tcp", addr, nil); (err == nil) != public {
 			t.Errorf("%s: %v", addr, err)

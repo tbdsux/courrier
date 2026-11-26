@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 
@@ -343,12 +344,26 @@ func TestSandbox(t *testing.T) {
 		t.Error("remote images not allowed when asked")
 	}
 
-	if !hasRemote(evil) || hasRemote(`<img src="data:image/png;base64,xx">`) {
+	if !hasRemote(evil) || hasRemote(`<img src="data:image/png;base64,xx">`) || hasRemote(`<a href="https://example.com">x</a>`) {
 		t.Error("hasRemote")
 	}
 
-	// Navigation, as the meta refresh tries, is cancelled; clicked links open outside.
+	for _, h := range []string{`<img src = " https://t.example/p.gif">`, `<img srcset="//t.example/p.gif 2x">`, `<td background='http://t.example/b.png'>`, `<p style="background: URL( https://t.example/b.png)">`} {
+		if !hasRemote(h) {
+			t.Errorf("hasRemote missed %s", h)
+		}
+	}
+
+	// mailto: links are written here, not in another app.
 	var opened []string
+	b := &app{openURL: func(u string) { opened = append(opened, u) }, update: func(f func()) { f() }}
+	b.guardNavigation(&mygo.NavigateEvent{URL: "mailto:bob@example.com", UserInitiated: true})
+	if len(opened) != 0 || b.toast != locales.ToastAddAccountToWrite() {
+		t.Errorf("mailto: opened %v, toast %q", opened, b.toast)
+	}
+
+	// Navigation, as the meta refresh tries, is cancelled; clicked links open outside.
+	opened = nil
 	a := &app{openURL: func(u string) { opened = append(opened, u) }, update: func(f func()) { f() }}
 	for _, e := range []*mygo.NavigateEvent{{URL: "about:blank"}, {URL: "https://evil.example"}, {URL: "https://example.com", UserInitiated: true}, {URL: "file:///etc/passwd", UserInitiated: true}} {
 		a.guardNavigation(e)
@@ -418,6 +433,20 @@ func TestCSSSealed(t *testing.T) {
 
 	if !strings.Contains(h, `<div class="mail"><div id="m1" class="html" style="contain:none">`) || !strings.HasSuffix(h, "</div></div>") {
 		t.Errorf("the message's style reaches its box: %q", h)
+	}
+
+	if cssSealed(`a{} \`) {
+		t.Error("a trailing backslash would escape the scope")
+	}
+
+	// The message can't link to the app's own actions, nor pop over the page.
+	h = scopedHTML(`<a href=" Courrier://forward/1">a</a><a href="cour&#9;rier:save/1">b</a><div popover id=x>c</div><button popovertarget=x>d</button><a href="https://example.com">e</a>`, "m1")
+	if strings.Contains(strings.ToLower(h), "courrier") || strings.Contains(h, "popover") || !strings.Contains(h, `href="https://example.com"`) {
+		t.Errorf("unsafe attributes kept: %q", h)
+	}
+
+	if got := textHTML(`see <https://example.com/a?b=1&c=2> and "https://example.org"`); got != `see &lt;<a href="https://example.com/a?b=1&amp;c=2">https://example.com/a?b=1&amp;c=2</a>&gt; and &#34;<a href="https://example.org">https://example.org</a>&#34;` {
+		t.Errorf("textHTML: %s", got)
 	}
 }
 

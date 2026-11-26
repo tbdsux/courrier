@@ -669,6 +669,10 @@ func (a *app) folderDone(fe *folderEdit) func(error) {
 }
 
 func (a *app) applyFolderEdit(fe *folderEdit) {
+	if fe.busy { // Enter again while the server works
+		return
+	}
+
 	name := strings.TrimSpace(fe.name)
 	if name == "" {
 		fe.err = locales.FormEnterName()

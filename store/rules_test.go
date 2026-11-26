@@ -212,4 +212,53 @@ func TestTemplatesAndReschedule(t *testing.T) {
 	if out, _ := s.Outbox(acc); !out[0].SendAfter.Equal(at) {
 		t.Errorf("send after %v, want %v", out[0].SendAfter, at)
 	}
+
+	// Rescheduled after it was listed as due: not claimed to send now.
+	if ok, err := s.Claim(id, time.Now().Add(time.Minute)); err != nil || ok {
+		t.Errorf("claimed a message due later: %v %v", ok, err)
+	}
+
+	must(t, s.RetryOutgoing(id))
+	if ok, err := s.Claim(id, time.Now().Add(time.Minute)); err != nil || !ok {
+		t.Fatalf("not claimed when due: %v %v", ok, err)
+	}
+
+	// Being sent: a new time would be a lie.
+	must(t, s.Reschedule(id, at))
+	if out, _ := s.Outbox(acc); out[0].SendAfter.Equal(at) {
+		t.Error("rescheduled while sending")
+	}
+}
+
+// Gmail keeps a copy in All Mail: until Snoozed syncs, that copy is no
+// sign the user moved the message out.
+func TestWakeWithAllMailCopy(t *testing.T) {
+	s, _ := open(t)
+	acc, _ := imapInbox(t, s, 0)
+	must(t, s.SetFolders(acc, []mail.Folder{{Path: "INBOX", Special: "inbox", UIDValidity: 1}, {Path: "[Gmail]/All Mail", Special: "all", UIDValidity: 1}}))
+	h := mail.Header{UID: 1, MessageID: "<a@x>", Subject: "Hi", Date: time.Unix(5000, 0)}
+	must(t, s.AddHeaders(acc, "INBOX", []mail.Header{h}))
+	must(t, s.AddHeaders(acc, "[Gmail]/All Mail", []mail.Header{h}))
+	ms, _ := s.Messages(folderNamed(t, s, "INBOX").ID, 10)
+	must(t, s.Snooze([]int64{ms[0].ID}, time.Now().Add(-time.Minute)))
+	due, _ := s.DueSnoozes(time.Now())
+
+	if found, err := s.Wake(due[0]); err != nil || found {
+		t.Fatalf("woke from the All Mail copy: %v %v", found, err)
+	}
+
+	if due, _ := s.DueSnoozes(time.Now()); len(due) != 1 {
+		t.Fatal("snooze dropped")
+	}
+
+	// Back in the Inbox by the user's hand: it stays, the snooze goes.
+	h.UID = 2
+	must(t, s.AddHeaders(acc, "INBOX", []mail.Header{h}))
+	if found, err := s.Wake(due[0]); err != nil || !found {
+		t.Fatalf("moved back: %v %v", found, err)
+	}
+
+	if due, _ := s.DueSnoozes(time.Now()); len(due) != 0 {
+		t.Error("still due")
+	}
 }

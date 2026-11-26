@@ -14,6 +14,7 @@ func TestMboxRoundTrip(t *testing.T) {
 		crlf("From: Bob <bob@example.com>\nSubject: one\nDate: Mon, 02 Jan 2026 15:04:05 +0000\n\nFrom here on\n>From quoted already\n\nlast\n"),
 		crlf("From: ann@example.com\nSubject: two\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=b\n\n--b\nContent-Type: text/plain\n\nsee attached\n--b\nContent-Type: application/pdf\nContent-Disposition: attachment; filename=a.pdf\nContent-Transfer-Encoding: base64\n\nJVBERi0=\n--b--\n"),
 		crlf("Subject: no sender, no end of line\n\nx"),
+		crlf("From: \"john smith\"@example.com\nSubject: a space in the address\n\nhi\n"),
 	}
 
 	var box bytes.Buffer
@@ -23,7 +24,7 @@ func TestMboxRoundTrip(t *testing.T) {
 		}
 	}
 
-	if n := strings.Count(box.String(), "\nFrom ") + 1; n != 3 || strings.Contains(box.String(), "\r") {
+	if n := strings.Count(box.String(), "\nFrom ") + 1; n != 4 || strings.Contains(box.String(), "\r") || !strings.Contains(box.String(), "\nFrom johnsmith@example.com ") {
 		t.Fatalf("%d From lines in\n%s", n, box.String())
 	}
 

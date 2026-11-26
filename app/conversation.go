@@ -7,6 +7,7 @@ import (
 	"html"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	courrier "courrier/mail"
 	"courrier/store"
 
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 	xhtml "golang.org/x/net/html"
 )
@@ -165,7 +167,7 @@ func (a *app) conversationCards(c *ui.Context, r *reader) {
 		ui.Column(c).Padding(4, 16, 16, 16).Children(func() {
 			for _, cd := range stack(len(r.thread), r.isOpen, r.unfold) {
 				if cd.more > 0 {
-					a.foldCard(c, r, cd.more)
+					a.foldCard(c, r, cd.i, cd.more)
 					continue
 				}
 
@@ -175,9 +177,10 @@ func (a *app) conversationCards(c *ui.Context, r *reader) {
 	})
 }
 
-func (a *app) foldCard(c *ui.Context, r *reader, n int) {
+// foldCard is the fold of n cards from the i-th; a long conversation has several.
+func (a *app) foldCard(c *ui.Context, r *reader, i, n int) {
 	t := c.Theme()
-	b := ui.Row(c.Key("fold")).Gap(10).AlignItems(ui.Center).Padding(8, 8).Label(locales.ConvShowMore(n)).Children(func() {
+	b := ui.Row(c.Key(fmt.Sprint("fold", i))).Gap(10).AlignItems(ui.Center).Padding(8, 8).Label(locales.ConvShowMore(n)).Children(func() {
 		ui.Column(c).Grow(1).Height(1).Background(t.Border)
 		ui.Text(c, locales.ConvMore(n)).FontSize(12).TextColor(t.Accent)
 		ui.Column(c).Grow(1).Height(1).Background(t.Border)
@@ -279,11 +282,7 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 
 func (a *app) cardAttachments(c *ui.Context, m store.Message, b courrier.Body) {
 	t := c.Theme()
-	for _, at := range b.Attachments {
-		if at.ContentID != "" && strings.HasPrefix(at.MIMEType, "image/") {
-			continue // shows in the HTML
-		}
-
+	for _, at := range b.Attachments { // cards show text: inline images too are only here
 		ui.Row(c.Key(at.Part)).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, paperclipIcon).FontSize(14).TextColor(t.TextMuted)
 			ui.Text(c, at.Filename).SingleLine().Shrink(1)
@@ -344,11 +343,11 @@ func (a *app) pageLink(u *url.URL) {
 // pageKey changes when the page of r in theme would.
 func (r *reader) pageKey(theme string) string {
 	var sb strings.Builder
-	fmt.Fprint(&sb, theme, r.remote, r.view)
+	fmt.Fprint(&sb, theme, r.remote, r.view, i18n.Locale()) // the page's own words are in it
 
 	for _, m := range r.thread {
-		b := r.bodies[m.ID]
-		fmt.Fprint(&sb, " ", m.ID, len(b.Text), len(b.HTML), len(b.Attachments))
+		b, has := r.bodies[m.ID] // an empty body downloaded shows other than none
+		fmt.Fprint(&sb, " ", m.ID, has, len(b.Text), len(b.HTML), len(b.Attachments))
 	}
 
 	return sb.String()
@@ -435,9 +434,19 @@ details.more[open] > summary { display: none; }
 var link = regexp.MustCompile(`https?://[^\s<>"]+[^\s<>".,;:!?)\]']`)
 
 // textHTML is a text body as the page shows it, its links made links.
+// Links are found before escaping, which would put "&lt;" in them.
 func textHTML(s string) string {
-	s = html.EscapeString(s)
-	return link.ReplaceAllStringFunc(s, func(u string) string { return `<a href="` + u + `">` + u + `</a>` })
+	var sb strings.Builder
+	at := 0
+	for _, m := range link.FindAllStringIndex(s, -1) {
+		u := html.EscapeString(s[m[0]:m[1]])
+		fmt.Fprintf(&sb, `%s<a href="%s">%s</a>`, html.EscapeString(s[at:m[0]]), u, u)
+		at = m[1]
+	}
+
+	sb.WriteString(html.EscapeString(s[at:]))
+
+	return sb.String()
 }
 
 // cssSealed tells whether css can't close the @scope block it goes in. It
@@ -450,7 +459,9 @@ func cssSealed(css string) bool {
 
 		switch {
 		case c == '\\':
-			i++ // an escaped character is no brace
+			if i++; i == len(css) {
+				return false // it would escape the brace closing the scope
+			}
 
 		case strings.HasPrefix(css[i:], "/*"):
 			n := strings.Index(css[i+2:], "*/")
@@ -557,6 +568,10 @@ func scopedHTML(src, scope string) string {
 				n.RemoveChild(k)
 
 			default:
+				if k.Type == xhtml.ElementNode {
+					k.Attr = safeAttrs(k.Attr)
+				}
+
 				if k.Type == xhtml.ElementNode && k.Data == "body" {
 					body = k
 				}
@@ -595,6 +610,26 @@ func scopedHTML(src, scope string) string {
 	out.WriteString("</div></div>")
 
 	return out.String()
+}
+
+// urlSpace is what a URL parser drops: tabs and newlines anywhere.
+var urlSpace = strings.NewReplacer("\t", "", "\n", "", "\r", "")
+
+// safeAttrs drops the attributes of a message's element that could act in
+// the app: links to its courrier: actions, and popovers, which show above
+// everything, out of the message's box.
+func safeAttrs(as []xhtml.Attribute) []xhtml.Attribute {
+	return slices.DeleteFunc(as, func(at xhtml.Attribute) bool {
+		v := strings.TrimFunc(urlSpace.Replace(at.Val), func(r rune) bool { return r <= ' ' })
+		return strings.HasPrefix(at.Key, "popover") || len(v) >= 9 && strings.EqualFold(v[:9], "courrier:")
+	})
+}
+
+// inlined tells whether at shows in html, put into it as a data: URL:
+// mail.Parse leaves larger images as cid: links, which show nothing.
+func inlined(at courrier.Attachment, html string) bool {
+	return at.ContentID != "" && strings.HasPrefix(at.MIMEType, "image/") && html != "" &&
+		!strings.Contains(strings.ToLower(html), "cid:"+strings.ToLower(at.ContentID))
 }
 
 // conversationPage is r's conversation as one page for the web view, in
@@ -689,9 +724,14 @@ func (r *reader) pageCard(sb *strings.Builder, i int) {
 		}
 	}
 
+	shown := ""
+	if r.view == 1 {
+		shown = b.HTML
+	}
+
 	var atts []string
 	for _, at := range b.Attachments {
-		if at.ContentID == "" || !strings.HasPrefix(at.MIMEType, "image/") {
+		if !inlined(at, shown) {
 			atts = append(atts, fmt.Sprintf(`<a href="courrier://save/%d?part=%s">📎 %s · %s</a>`, m.ID, url.QueryEscape(at.Part), esc(at.Filename), humanSize(at.Size)))
 		}
 	}

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,7 +33,11 @@ const (
 // Parse reads a whole message: its headers, text, HTML and attachments.
 // Inline cid: images are put into the HTML as data: URLs, so it shows
 // without the message's other parts.
-func Parse(raw []byte) (Header, Body, error) {
+func Parse(raw []byte) (Header, Body, error) { return parse(raw, false) }
+
+// parse is Parse; of a message nested in a signature it doesn't unwrap
+// another, which could nest without end.
+func parse(raw []byte, nested bool) (Header, Body, error) {
 	e, err := message.Read(bytes.NewReader(raw))
 	if e == nil {
 		return Header{}, Body{}, err
@@ -51,9 +57,9 @@ func Parse(raw []byte) (Header, Body, error) {
 			b.Security.Problem = "it has parts its signature doesn't cover"
 		}
 
-		if signed != nil {
+		if signed != nil && !nested {
 			// shortcut: attachments signed inside stay in smime.p7m, as their parts can't be saved by number; unwrap them if users ask.
-			if _, in, err := Parse(signed); err == nil {
+			if _, in, err := parse(signed, true); err == nil {
 				b.Text, b.HTML, b.Invite, b.Mislinks = in.Text, in.HTML, in.Invite, in.Mislinks
 			}
 		}
@@ -153,17 +159,39 @@ func (ps *parts) attach(a Attachment) {
 	ps.b.Attachments = append(ps.b.Attachments, a)
 }
 
+// cidRef matches a cid: link of HTML, its Content-ID in the group.
+var cidRef = regexp.MustCompile(`(?i)\bcid:([^"'\s<>)]+)`)
+
 // body returns the body gathered, its inline images put into the HTML.
+// An image no cid: link names is an attachment like any other: it loses
+// its Content-ID, which would hide it as shown in the HTML.
 func (ps *parts) body() Body {
-	room := maxExpanded
-	for cid, url := range ps.inline {
-		grows := strings.Count(ps.b.HTML, "cid:"+cid) * len(url)
-		if grows > room {
-			continue
+	refs := map[string]int{}
+	for _, m := range cidRef.FindAllStringSubmatch(ps.b.HTML, -1) {
+		refs[m[1]]++
+	}
+
+	// Each image all its links or none, in a set order, up to the room.
+	room, put := maxExpanded, map[string]bool{}
+	for _, cid := range slices.Sorted(maps.Keys(refs)) {
+		if grows := refs[cid] * len(ps.inline[cid]); grows > 0 && grows <= room {
+			room -= grows
+			put[cid] = true
+		}
+	}
+
+	ps.b.HTML = cidRef.ReplaceAllStringFunc(ps.b.HTML, func(ref string) string {
+		if cid := ref[len("cid:"):]; put[cid] {
+			return ps.inline[cid]
 		}
 
-		room -= grows
-		ps.b.HTML = strings.ReplaceAll(ps.b.HTML, "cid:"+cid, url)
+		return ref
+	})
+
+	for i, a := range ps.b.Attachments {
+		if refs[a.ContentID] == 0 {
+			ps.b.Attachments[i].ContentID = ""
+		}
 	}
 
 	ps.b.Mislinks = mislinks(ps.b.HTML)
@@ -335,6 +363,9 @@ func HTMLText(s string) string {
 			tok := z.Token()
 			tt := tok.Type
 			switch tok.Data {
+			case "body": // an unclosed head ends here
+				skip = 0
+
 			case "script", "style", "head", "title":
 				if tt == html.StartTagToken {
 					skip++

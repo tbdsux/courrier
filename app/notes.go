@@ -351,7 +351,7 @@ func (a *app) unsubscribe(r *reader, m store.Message, b courrier.Body) {
 	case b.UnsubscribeMailto() != "":
 		a.openMailto(b.UnsubscribeMailto())
 
-	case a.openURL != nil:
-		a.openURL(b.UnsubscribeURL())
+	case a.openURL != nil: // asked first, as any link to a bare address
+		a.openLink(b.UnsubscribeURL(), linkHost(b.UnsubscribeURL()))
 	}
 }

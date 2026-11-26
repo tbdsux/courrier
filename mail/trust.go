@@ -18,22 +18,41 @@ type Auth struct {
 	DKIM, SPF, DMARC string `json:",omitempty"`
 }
 
-var (
-	authResult = regexp.MustCompile(`(?i)^\s*(dkim|spf|dmarc)\s*=\s*([a-z]+)`)
-	authQuoted = regexp.MustCompile(`"(?:[^"\\]|\\.)*"|\((?:[^()\\]|\\.)*\)`)
-)
+var authResult = regexp.MustCompile(`(?i)^\s*(dkim|spf|dmarc)(?:\s*/\s*\d+)?\s*=\s*([a-z]+)`)
+
+// authPlain is v without its comments and quoted strings, read as RFC 5322
+// does in one pass: comments nest, and a quote in one starts no string.
+func authPlain(v string) string {
+	var sb strings.Builder
+	depth, quoted := 0, false
+	for i := 0; i < len(v); i++ {
+		switch c := v[i]; {
+		case c == '\\' && (quoted || depth > 0):
+			i++
+		case quoted:
+			quoted = c != '"'
+		case c == '(':
+			depth++
+		case c == ')' && depth > 0:
+			depth--
+		case depth > 0:
+		case c == '"':
+			quoted = true
+		default:
+			sb.WriteByte(c)
+		}
+	}
+
+	return sb.String()
+}
 
 // authOf reads the topmost Authentication-Results, which the receiving
 // server added: ones below it came with the message, and anyone can write
 // them. Only what starts a ";" clause is a result: the rest of a clause
 // repeats what the sender chose, as an address "dmarc=pass@evil.example".
 func authOf(v string) Auth {
-	for s := ""; s != v; { // comments nest
-		s, v = v, authQuoted.ReplaceAllString(v, "")
-	}
-
 	var a Auth
-	for _, clause := range strings.Split(v, ";") {
+	for _, clause := range strings.Split(authPlain(v), ";") {
 		m := authResult.FindStringSubmatch(clause)
 		if m == nil {
 			continue
@@ -76,12 +95,13 @@ type Mislink struct {
 var looksLikeURL = regexp.MustCompile(`(?i)^(https?://)?([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?([/?#]\S*)?$`)
 
 // mislinks finds the links of HTML whose text shows another site than
-// they go to, at most 10.
+// they go to. All of them: a cap would let decoys hide the one clicked.
 func mislinks(src string) []Mislink {
 	var out []Mislink
+	seen := map[Mislink]bool{}
 	z := html.NewTokenizer(strings.NewReader(src))
 	href, text, in := "", strings.Builder{}, false
-	for len(out) < 10 {
+	for {
 		switch z.Next() {
 		case html.ErrorToken:
 			return out
@@ -105,14 +125,13 @@ func mislinks(src string) []Mislink {
 		case html.EndTagToken:
 			if t := z.Token(); t.Data == "a" && in {
 				in = false
-				if m, ok := mislink(text.String(), href); ok && !slices.Contains(out, m) {
+				if m, ok := mislink(text.String(), href); ok && !seen[m] {
+					seen[m] = true
 					out = append(out, m)
 				}
 			}
 		}
 	}
-
-	return out
 }
 
 // unsubscribeWords are what a link's text or address says when it

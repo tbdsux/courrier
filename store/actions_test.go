@@ -211,3 +211,43 @@ func TestRemoveAccountClearsItsActions(t *testing.T) {
 		t.Errorf("actions after removing an account: %+v %+v", actions(t, s, a), actions(t, s, b.ID))
 	}
 }
+
+// A new UIDVALIDITY renumbers the folder: the changes waiting for the old
+// UIDs would take other mail.
+func TestUIDValidityDropsActions(t *testing.T) {
+	s, _ := open(t)
+	acc, ms := imapInbox(t, s, 2)
+	must(t, s.SetFlag([]int64{ms[0].ID}, "flagged", true))
+	must(t, s.QueueAppend(acc, "INBOX", []byte("raw")))
+	must(t, s.UpdateFolder(acc, mail.Folder{Path: "INBOX", Special: "inbox", UIDValidity: 1}))
+
+	if as := actions(t, s, acc); len(as) != 2 {
+		t.Fatalf("same UIDVALIDITY dropped actions: %+v", as)
+	}
+
+	must(t, s.UpdateFolder(acc, mail.Folder{Path: "INBOX", Special: "inbox", UIDValidity: 2}))
+
+	if as := actions(t, s, acc); len(as) != 1 || as[0].Op != "append" {
+		t.Errorf("actions after a new UIDVALIDITY: %+v", as)
+	}
+}
+
+// A folder named Trash that can't take mail is no Trash to make again.
+func TestDestinationUnusable(t *testing.T) {
+	s, _ := open(t)
+	acc := accountOn(t, s, "pop3")
+	must(t, s.SetFolders(acc, []mail.Folder{{Path: "INBOX", Special: "inbox"}, {Path: "Trash", NoSelect: true}}))
+	raw := []byte("Subject: Hi\r\n\r\nHello\r\n")
+	h, b, _ := mail.Parse(raw)
+	must(t, s.AddPOP3(acc, "u1", h, b, raw))
+	inbox := folderNamed(t, s, "INBOX")
+	ms, _ := s.Messages(inbox.ID, 10)
+
+	if _, err := s.Move([]int64{ms[0].ID}, 0, "trash"); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, _ := s.Messages(inbox.ID, 10); len(got) != 1 {
+		t.Errorf("moved to an unusable folder: %+v", got)
+	}
+}

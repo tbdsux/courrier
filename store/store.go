@@ -101,9 +101,12 @@ func Open(path string, secrets Secrets) (*Store, error) {
 
 	s := &Store{db: db, secrets: secrets}
 
-	if _, err := db.Execute(ctx, "PRAGMA foreign_keys = ON"); err != nil {
-		db.Close()
-		return nil, err
+	// WAL: a write fsyncs once, not a rollback journal's several times.
+	for _, p := range []string{"PRAGMA foreign_keys = ON", "PRAGMA journal_mode = WAL", "PRAGMA synchronous = NORMAL"} {
+		if _, err := db.Execute(ctx, p); err != nil {
+			db.Close()
+			return nil, err
+		}
 	}
 
 	for _, stmt := range strings.Split(schema, ";") {
@@ -303,6 +306,17 @@ func (s *Store) AccountsUsing(serverID int64) ([]Account, error) {
 // server in the same transaction (a new hidden or saved profile when its ID
 // is 0). Hidden servers no account uses any more are removed.
 func (s *Store) SaveAccount(a *Account, srv *Server, inPass, smtpPass string) error {
+	id, idArgs := "last_insert_rowid()", []any(nil) // the account inserted just before
+	if a.ID != 0 {
+		id, idArgs = "?", []any{a.ID}
+	}
+
+	// Sealed first: a refused keychain changes nothing, the shared server neither.
+	pw, err := s.passwordsStmt(id, idArgs, inPass, smtpPass)
+	if err != nil {
+		return err
+	}
+
 	var stmts []sqlite.Statement
 	newServer := srv != nil && srv.ID == 0
 	if newServer {
@@ -324,16 +338,6 @@ func (s *Store) SaveAccount(a *Account, srv *Server, inPass, smtpPass string) er
 	if !newServer {
 		sid = "?"
 		args = append([]any{a.ServerID}, args...)
-	}
-
-	id, idArgs := "last_insert_rowid()", []any(nil) // the account inserted just before
-	if a.ID != 0 {
-		id, idArgs = "?", []any{a.ID}
-	}
-
-	pw, err := s.passwordsStmt(id, idArgs, inPass, smtpPass)
-	if err != nil {
-		return err
 	}
 
 	if a.ID == 0 {

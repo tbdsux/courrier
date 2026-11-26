@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"courrier/app/locales"
@@ -79,7 +80,11 @@ func (a *app) startAccount(acc store.Account) {
 		SMTP:     courrier.Endpoint{Protocol: "smtp", Host: srv.SMTPHost, Port: srv.SMTPPort, Security: srv.SMTPSecurity, Username: acc.SMTPUsername, Password: smtpPass}}
 	if p := providers[acc.Auth]; p != nil { // the secrets hold its refresh token
 		st := a.st
-		tk := courrier.NewTokens(p, pass, func(rt string) { st.SetPasswords(acc.ID, rt, rt) })
+		tk := courrier.NewTokens(p, pass, func(rt string) {
+			if err := st.SetPasswords(acc.ID, rt, rt); err != nil { // the old token may stop working at the next launch
+				log.Println("saving the refreshed sign-in:", err)
+			}
+		})
 		sy.s.Endpoint.Token, sy.s.SMTP.Token = tk.Token, tk.Token
 	}
 

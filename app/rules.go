@@ -22,7 +22,13 @@ var thenLabels = map[string]func() string{
 	"Leave it": locales.RuleLeaveIt, "Archive": locales.RuleArchive, "Delete": locales.RuleDelete, "Move to folder": locales.RuleMoveToFolder,
 }
 
-func thenLabel(then string) string { return thenLabels[then]() }
+func thenLabel(then string) string {
+	if f := thenLabels[then]; f != nil {
+		return f()
+	}
+
+	return then // of a newer version
+}
 
 // accountLabel names a rule's account choice: an email, or All accounts.
 func accountLabel(account string) string {

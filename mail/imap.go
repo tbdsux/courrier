@@ -193,7 +193,11 @@ func (ic *imapConn) folders() ([]Folder, error) {
 
 		st := l.Status
 		if st == nil && !f.NoSelect {
-			if st, err = ic.c.Status(l.Mailbox, statusItems).Wait(); err != nil {
+			// One mailbox refusing STATUS shows without counts; it stops no sync.
+			var refused *imap.Error
+			if st, err = ic.c.Status(l.Mailbox, statusItems).Wait(); errors.As(err, &refused) {
+				st = nil
+			} else if err != nil {
 				return nil, err
 			}
 		}
@@ -336,7 +340,7 @@ func headerFrom(m *imapclient.FetchMessageBuffer) Header {
 		m.BodyStructure.Walk(func(_ []int, p imap.BodyStructure) bool {
 			if sp, ok := p.(*imap.BodyStructureSinglePart); ok {
 				d := sp.Disposition()
-				if (d != nil && strings.EqualFold(d.Value, "attachment")) || (sp.Filename() != "" && sp.Type != "text") {
+				if (d != nil && strings.EqualFold(d.Value, "attachment")) || (sp.Filename() != "" && !strings.EqualFold(sp.Type, "text")) {
 					h.HasAttach = true
 				}
 			}
@@ -424,7 +428,7 @@ func (ic *imapConn) syncFolder(cache Cache, account int64, f *Folder, counted bo
 
 		hs, err = ic.fetchHeaders(imap.SeqSet{{Start: from, Stop: sel.NumMessages}}, 0)
 
-	case uint32(sel.UIDNext) > newest+1:
+	case sel.UIDNext == 0 || uint32(sel.UIDNext) > newest+1: // 0: a server that didn't say
 		hs, err = ic.fetchHeaders(imap.UIDSet{{Start: imap.UID(newest + 1), Stop: 0}}, newest)
 		for _, h := range hs {
 			if !h.Seen {
@@ -443,7 +447,9 @@ func (ic *imapConn) syncFolder(cache Cache, account int64, f *Folder, counted bo
 
 	if oldest != 0 {
 		if sel.HighestModSeq != 0 && modseq != 0 {
-			err = ic.syncChanges(cache, account, f.Path, oldest, newest, modseq, sel, exists+uint32(len(hs)))
+			// exists 0: the count wasn't known, so search for expunges whatever it is now.
+			gone := exists == 0 || sel.NumMessages != exists+uint32(len(hs))
+			err = ic.syncChanges(cache, account, f.Path, oldest, newest, modseq, sel, gone)
 		} else {
 			err = ic.syncAllFlags(cache, account, f.Path, oldest, newest)
 		}
@@ -454,7 +460,14 @@ func (ic *imapConn) syncFolder(cache Cache, account int64, f *Folder, counted bo
 	}
 
 	if sel.HighestModSeq != 0 {
-		err = cache.SetSyncState(account, f.Path, sel.HighestModSeq, sel.NumMessages)
+		exists := sel.NumMessages
+		for _, h := range hs {
+			if h.UID >= uint32(sel.UIDNext) { // came after the SELECT counted: unknown, so the next sync checks for expunges
+				exists = 0
+			}
+		}
+
+		err = cache.SetSyncState(account, f.Path, sel.HighestModSeq, exists)
 	}
 
 	return fresh, err
@@ -476,9 +489,9 @@ func (ic *imapConn) syncAllFlags(cache Cache, account int64, path string, oldest
 	return cache.SyncFlags(account, path, oldest, newest, flags)
 }
 
-// syncChanges fetches the flags changed since modseq, and the UIDs left
-// when the folder holds fewer messages than expected.
-func (ic *imapConn) syncChanges(cache Cache, account int64, path string, oldest, newest uint32, modseq uint64, sel *imap.SelectData, expected uint32) error {
+// syncChanges fetches the flags changed since modseq, and with gone, as
+// when the folder holds fewer messages than expected, which are left.
+func (ic *imapConn) syncChanges(cache Cache, account int64, path string, oldest, newest uint32, modseq uint64, sel *imap.SelectData, gone bool) error {
 	set := imap.UIDSet{{Start: imap.UID(oldest), Stop: imap.UID(newest)}}
 	flags := map[uint32]Flags{}
 	if sel.HighestModSeq != modseq {
@@ -493,7 +506,7 @@ func (ic *imapConn) syncChanges(cache Cache, account int64, path string, oldest,
 	}
 
 	var present map[uint32]bool
-	if sel.NumMessages != expected {
+	if gone {
 		res, err := ic.c.UIDSearch(&imap.SearchCriteria{UID: []imap.UIDSet{set}}, nil).Wait()
 		if err != nil {
 			return err
@@ -637,7 +650,7 @@ func (ic *imapConn) open(cache Cache, account int64, path string, uid uint32) er
 	}
 
 	b, ok := Body{}, false
-	if !isSecure(m.BodyStructure.MediaType()) { // a signature needs the message whole
+	if m.BodyStructure != nil && !isSecure(m.BodyStructure.MediaType()) { // a signature needs the message whole
 		if b, ok, err = ic.shownParts(uid, m.BodyStructure); err != nil {
 			return err
 		}
@@ -737,9 +750,9 @@ func (ic *imapConn) shownParts(uid uint32, bs imap.BodyStructure) (b Body, ok bo
 			return Body{}, false, nil
 		}
 
-		e, err := message.Read(bytes.NewReader(append(head, data...)))
-		if e == nil {
-			return Body{}, false, err
+		e, _ := message.Read(bytes.NewReader(append(head, data...)))
+		if e == nil { // the whole message, parsed, may still show
+			return Body{}, false, nil
 		}
 
 		ps.add(part, e)

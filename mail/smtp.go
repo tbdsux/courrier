@@ -3,9 +3,11 @@ package mail
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/smtp"
+	"net/textproto"
 	"time"
 )
 
@@ -51,8 +53,12 @@ func smtpLogin(conn net.Conn, e Endpoint, a smtp.Auth) (*smtp.Client, error) {
 		}
 	}
 
-	if err := c.Auth(a); err != nil {
+	// A 4xx reply or a dropped connection is worth retrying; a 5xx refusal isn't.
+	var refused *textproto.Error
+	if err := c.Auth(a); errors.As(err, &refused) && refused.Code >= 500 {
 		return nil, fmt.Errorf("%w: %v", ErrAuth, err)
+	} else if err != nil {
+		return nil, err
 	}
 
 	return c, nil

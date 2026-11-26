@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS draft_files (
   mime_type    TEXT NOT NULL,
   data         BLOB NOT NULL
 );
+CREATE INDEX IF NOT EXISTS draft_files_by_draft ON draft_files(draft_id);
 CREATE TABLE IF NOT EXISTS outbox (
   id           INTEGER PRIMARY KEY,
   account_id   INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
@@ -264,7 +265,8 @@ func (s *Store) Outbox(account int64) ([]mail.Outgoing, error) {
 func (s *Store) AllOutbox() ([]Outgoing, error) { return s.outbox("1") }
 
 func (s *Store) Claim(id int64, until time.Time) (bool, error) {
-	r, err := s.db.Execute(ctx, "UPDATE outbox SET leased_until = ?, attempts = attempts + 1 WHERE id = ? AND sent = 0 AND leased_until < ?",
+	// Not one rescheduled since it was listed as due.
+	r, err := s.db.Execute(ctx, "UPDATE outbox SET leased_until = ?, attempts = attempts + 1 WHERE id = ? AND sent = 0 AND leased_until < ?3 AND send_after <= ?3",
 		until.Unix(), id, time.Now().Unix())
 	return r.Changes == 1, err
 }
@@ -301,7 +303,7 @@ func (s *Store) RetryOutgoing(id int64) error { return s.Reschedule(id, time.Now
 
 // Reschedule makes a message not sent yet due at at.
 func (s *Store) Reschedule(id int64, at time.Time) error {
-	_, err := s.db.Execute(ctx, "UPDATE outbox SET send_after = ?, last_error = '' WHERE id = ? AND sent = 0", at.Unix(), id)
+	_, err := s.db.Execute(ctx, "UPDATE outbox SET send_after = ?, last_error = '' WHERE id = ? AND sent = 0 AND leased_until < ?", at.Unix(), id, time.Now().Unix())
 	return err
 }
 

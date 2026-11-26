@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS actions (
   created     INTEGER NOT NULL,
   attempts    INTEGER NOT NULL DEFAULT 0,
   last_error  TEXT NOT NULL DEFAULT ''
-)`
+);
+CREATE INDEX IF NOT EXISTS actions_by_folder ON actions(account_id, path)`
 
 // undoFor is how long a move the server did can be undone.
 const undoFor = 10 * time.Minute
@@ -213,7 +214,10 @@ func (s *Store) destination(m target, folder int64, special string) (Folder, err
 		return Folder{Folder: mail.Folder{Path: name, Special: special}}, nil
 	}
 
-	if err := s.AddLocalFolder(m.AccountID, name, special); err != nil {
+	// Made once: a folder of that name it can't use (no select, another
+	// special use) stays as it is, and the message where it is.
+	r, err := s.db.Execute(ctx, "INSERT INTO folders (account_id, path, special, local) VALUES (?, ?, ?, 1) ON CONFLICT DO NOTHING", m.AccountID, name, special)
+	if err != nil || r.Changes == 0 {
 		return Folder{}, err
 	}
 
