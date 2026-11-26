@@ -435,6 +435,10 @@ func TestCSSSealed(t *testing.T) {
 	if strings.Contains(strings.ToLower(h), "courrier") || strings.Contains(h, "popover") || !strings.Contains(h, `href="https://example.com"`) {
 		t.Errorf("unsafe attributes kept: %q", h)
 	}
+
+	if got := textHTML(`see <https://example.com/a?b=1&c=2> and "https://example.org"`); got != `see &lt;<a href="https://example.com/a?b=1&amp;c=2">https://example.com/a?b=1&amp;c=2</a>&gt; and &#34;<a href="https://example.org">https://example.org</a>&#34;` {
+		t.Errorf("textHTML: %s", got)
+	}
 }
 
 func TestShortDate(t *testing.T) {

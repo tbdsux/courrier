@@ -436,9 +436,19 @@ details.more[open] > summary { display: none; }
 var link = regexp.MustCompile(`https?://[^\s<>"]+[^\s<>".,;:!?)\]']`)
 
 // textHTML is a text body as the page shows it, its links made links.
+// Links are found before escaping, which would put "&lt;" in them.
 func textHTML(s string) string {
-	s = html.EscapeString(s)
-	return link.ReplaceAllStringFunc(s, func(u string) string { return `<a href="` + u + `">` + u + `</a>` })
+	var sb strings.Builder
+	at := 0
+	for _, m := range link.FindAllStringIndex(s, -1) {
+		u := html.EscapeString(s[m[0]:m[1]])
+		fmt.Fprintf(&sb, `%s<a href="%s">%s</a>`, html.EscapeString(s[at:m[0]]), u, u)
+		at = m[1]
+	}
+
+	sb.WriteString(html.EscapeString(s[at:]))
+
+	return sb.String()
 }
 
 // cssSealed tells whether css can't close the @scope block it goes in. It
