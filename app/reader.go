@@ -78,12 +78,14 @@ func (a *app) followLink(raw string, clicked bool) {
 		return
 	}
 
-	if u.Scheme == "courrier" {
+	switch {
+	case u.Scheme == "courrier":
 		a.update(func() { a.pageLink(u) })
-		return
-	}
 
-	if a.openURL != nil && (u.Scheme == "http" || u.Scheme == "https" || u.Scheme == "mailto") {
+	case u.Scheme == "mailto": // written here, not in another mail app
+		a.update(func() { a.openMailto(raw) })
+
+	case a.openURL != nil && (u.Scheme == "http" || u.Scheme == "https"):
 		a.update(func() { a.openLink(raw, u.Hostname()) })
 	}
 }

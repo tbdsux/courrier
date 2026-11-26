@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"courrier/app/locales"
 	courrier "courrier/mail"
 	"courrier/store"
 
@@ -353,8 +354,16 @@ func TestSandbox(t *testing.T) {
 		}
 	}
 
-	// Navigation, as the meta refresh tries, is cancelled; clicked links open outside.
+	// mailto: links are written here, not in another app.
 	var opened []string
+	b := &app{openURL: func(u string) { opened = append(opened, u) }, update: func(f func()) { f() }}
+	b.guardNavigation(&mygo.NavigateEvent{URL: "mailto:bob@example.com", UserInitiated: true})
+	if len(opened) != 0 || b.toast != locales.ToastAddAccountToWrite() {
+		t.Errorf("mailto: opened %v, toast %q", opened, b.toast)
+	}
+
+	// Navigation, as the meta refresh tries, is cancelled; clicked links open outside.
+	opened = nil
 	a := &app{openURL: func(u string) { opened = append(opened, u) }, update: func(f func()) { f() }}
 	for _, e := range []*mygo.NavigateEvent{{URL: "about:blank"}, {URL: "https://evil.example"}, {URL: "https://example.com", UserInitiated: true}, {URL: "file:///etc/passwd", UserInitiated: true}} {
 		a.guardNavigation(e)
