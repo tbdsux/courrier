@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 )
@@ -54,6 +55,16 @@ func TestMislinks(t *testing.T) {
 	want := []Mislink{{Shown: "paypal.com", Target: "evil.example"}}
 	if !slices.Equal(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
+	}
+
+	// Decoys first don't hide the link clicked.
+	decoys := ""
+	for i := range 20 {
+		decoys += fmt.Sprintf(`<a href="https://d%d.example/">paypal.com</a>`, i)
+	}
+
+	if got := mislinks(decoys + `<a href="https://evil.example/">bank.example</a>`); len(got) != 21 || got[20].Target != "evil.example" {
+		t.Errorf("past decoys: %d, last %+v", len(got), got[len(got)-1])
 	}
 
 	// Hrefs that browsers mend go to the same host as a clean one, and

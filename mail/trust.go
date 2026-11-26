@@ -95,12 +95,13 @@ type Mislink struct {
 var looksLikeURL = regexp.MustCompile(`(?i)^(https?://)?([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?([/?#]\S*)?$`)
 
 // mislinks finds the links of HTML whose text shows another site than
-// they go to, at most 10.
+// they go to. All of them: a cap would let decoys hide the one clicked.
 func mislinks(src string) []Mislink {
 	var out []Mislink
+	seen := map[Mislink]bool{}
 	z := html.NewTokenizer(strings.NewReader(src))
 	href, text, in := "", strings.Builder{}, false
-	for len(out) < 10 {
+	for {
 		switch z.Next() {
 		case html.ErrorToken:
 			return out
@@ -124,14 +125,13 @@ func mislinks(src string) []Mislink {
 		case html.EndTagToken:
 			if t := z.Token(); t.Data == "a" && in {
 				in = false
-				if m, ok := mislink(text.String(), href); ok && !slices.Contains(out, m) {
+				if m, ok := mislink(text.String(), href); ok && !seen[m] {
+					seen[m] = true
 					out = append(out, m)
 				}
 			}
 		}
 	}
-
-	return out
 }
 
 // unsubscribeWords are what a link's text or address says when it
