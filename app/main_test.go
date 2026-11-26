@@ -343,8 +343,14 @@ func TestSandbox(t *testing.T) {
 		t.Error("remote images not allowed when asked")
 	}
 
-	if !hasRemote(evil) || hasRemote(`<img src="data:image/png;base64,xx">`) {
+	if !hasRemote(evil) || hasRemote(`<img src="data:image/png;base64,xx">`) || hasRemote(`<a href="https://example.com">x</a>`) {
 		t.Error("hasRemote")
+	}
+
+	for _, h := range []string{`<img src = " https://t.example/p.gif">`, `<img srcset="//t.example/p.gif 2x">`, `<td background='http://t.example/b.png'>`, `<p style="background: URL( https://t.example/b.png)">`} {
+		if !hasRemote(h) {
+			t.Errorf("hasRemote missed %s", h)
+		}
 	}
 
 	// Navigation, as the meta refresh tries, is cancelled; clicked links open outside.

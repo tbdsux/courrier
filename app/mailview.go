@@ -471,10 +471,11 @@ func (a *app) openMessage(m store.Message) {
 // loadBodies reads r's messages and their bodies from the cache, and
 // fetches those it hasn't.
 func (a *app) loadBodies(r *reader) {
-	allowed := true
+	remote, trusted, missing := false, true, false
 	for i, x := range r.thread {
 		m, b, err := a.st.Message(x.ID)
 		if err != nil {
+			missing = true
 			continue
 		}
 
@@ -483,13 +484,15 @@ func (a *app) loadBodies(r *reader) {
 		if m.HasBody {
 			r.bodies[m.ID] = b
 
-			if hasRemote(b.HTML) && !a.imagesTrusted(m, b) {
-				allowed = false
+			if hasRemote(b.HTML) {
+				remote = true
+				trusted = trusted && a.imagesTrusted(m, b)
 			}
 
 			continue
 		}
 
+		missing = true // offline, or failed to come, it may come later
 		s := a.syncer(m.AccountID)
 		if s == nil || a.syncers[m.AccountID].pop3 || r.asked[m.ID] {
 			continue
@@ -510,7 +513,9 @@ func (a *app) loadBodies(r *reader) {
 		})
 	}
 
-	r.remote = r.remote || allowed
+	// Unasked, images load only once the whole conversation is here, and
+	// all of its that has some comes from senders the user trusts.
+	r.remote = r.remote || remote && trusted && !missing
 	r.body = r.bodies[r.m.ID]
 }
 

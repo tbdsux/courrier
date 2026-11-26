@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -195,6 +196,52 @@ func TestCanReply(t *testing.T) {
 	if strings.Contains(page, "courrier://reply/7") || strings.Contains(page, "courrier://all/7") || !strings.Contains(page, "courrier://forward/7") ||
 		!strings.Contains(page, "doesn&#39;t take replies") {
 		t.Errorf("page offers a reply, or no note:\n%s", page)
+	}
+}
+
+// Images load unasked only for a conversation all downloaded, whose
+// images all come from trusted senders; mail without a sender has none.
+func TestRemoteImagesStayBlocked(t *testing.T) {
+	a, _, _ := listMail(t, courrier.Body{HTML: "<p>no images</p>"})
+	r := a.cur
+	if r == nil || r.remote {
+		t.Fatalf("images allowed without any to allow: %+v", r)
+	}
+
+	if err := a.st.AddHeaders(a.accounts[0].ID, "Lists", []courrier.Header{{UID: 2, Subject: "Later", Date: time.Now()}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A trusted sender's images wait for the message not downloaded, as
+	// when offline: it could have images of its own.
+	acc := a.accounts[0].ID
+	if err := a.st.AddHeaders(acc, "Lists", []courrier.Header{{UID: 3, FromAddr: "News@Example.com", Subject: "Pics", Date: time.Now()}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := a.st.SetBody(acc, "Lists", 3, courrier.Body{HTML: `<img src="https://t.example/p.gif">`}); err != nil {
+		t.Fatal(err)
+	}
+
+	a.st.SetPref("images:news@example.com", "1")
+	all, _ := a.st.Messages(r.m.FolderID, 10)
+	r.thread = all
+	a.loadBodies(r)
+
+	if r.remote {
+		t.Error("images allowed with a message not downloaded")
+	}
+
+	r.thread = slices.DeleteFunc(slices.Clone(all), func(m store.Message) bool { return m.UID == 2 })
+	a.loadBodies(r)
+
+	if !r.remote {
+		t.Error("a trusted sender's images blocked")
+	}
+
+	a.st.SetPref("images:", "1")
+	if a.imagesTrusted(r.m, courrier.Body{}) {
+		t.Error("mail without a sender trusted")
 	}
 }
 
