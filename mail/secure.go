@@ -94,36 +94,54 @@ func inlinePGP(text string) Security {
 // signedContent is the first part of a multipart/signed message as sent,
 // its lines ending in CRLF: the bytes its signature covers (RFC 1847). It
 // must find the delimiters the parser does, or a signature would vouch for
-// other bytes than the ones shown: the first is a whole line, and a line
-// that only starts with the boundary ends the part only as the parser's
-// does, followed by a space or "-".
+// other bytes than the ones shown: the first is a whole line, whose end
+// sets the newline the others start with, and the part ends at the first
+// of those followed by a space, tab, newline or "-".
 func signedContent(raw []byte, boundary string) []byte {
-	raw = bytes.ReplaceAll(raw, []byte("\r\n"), []byte("\n"))
-	_, body, ok := bytes.Cut(raw, []byte("\n\n"))
-	if boundary == "" || !ok {
+	if boundary == "" {
 		return nil
 	}
 
 	dash := []byte("--" + boundary)
-	start, at := -1, 0
-	for _, l := range bytes.SplitAfter(body, []byte("\n")) {
-		rest, ok := bytes.CutPrefix(l, dash)
-
-		switch {
-		case !ok:
-		case start < 0:
-			if len(bytes.TrimRight(rest, " \t\n")) == 0 {
-				start = at + len(l)
-			}
-
-		case len(rest) == 0 || bytes.IndexByte([]byte(" \t\n-"), rest[0]) >= 0:
-			return bytes.ReplaceAll(body[start:max(start, at-1)], []byte("\n"), []byte("\r\n"))
+	var nl []byte
+	at, inBody := 0, false
+	for _, l := range bytes.SplitAfter(raw, []byte("\n")) {
+		at += len(l)
+		if !inBody {
+			inBody = len(bytes.TrimRight(l, "\r\n")) == 0
+			continue
 		}
 
-		at += len(l)
+		if rest, ok := bytes.CutPrefix(l, dash); ok {
+			if rest = bytes.TrimLeft(rest, " \t"); string(rest) == "\r\n" || string(rest) == "\n" {
+				nl = rest
+				break
+			}
+		}
 	}
 
-	return nil
+	if nl == nil {
+		return nil
+	}
+
+	part, end := raw[at:], append(bytes.Clone(nl), dash...)
+	for i := 0; ; {
+		j := bytes.Index(part[i:], end)
+		if j < 0 {
+			return nil
+		}
+
+		j += i
+		if k := j + len(end); k == len(part) || bytes.IndexByte([]byte(" \t\r\n-"), part[k]) >= 0 {
+			if len(nl) == 1 { // LF mode: the CRLF form was signed
+				return bytes.ReplaceAll(bytes.ReplaceAll(part[:j], []byte("\r\n"), []byte("\n")), []byte("\n"), []byte("\r\n"))
+			}
+
+			return part[:j]
+		}
+
+		i = j + 1
+	}
 }
 
 // verifySMIME checks a detached S/MIME signature of content.

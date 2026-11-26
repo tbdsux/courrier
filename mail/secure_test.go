@@ -104,6 +104,13 @@ func TestSMIMESigned(t *testing.T) {
 		t.Errorf("LF: %+v", b.Security)
 	}
 
+	// A bare LF delimiter in a CRLF message ends no part for the parser, so
+	// it can't end the signed bytes before content the parser shows.
+	injected := signed("ann@example.com", content+"\n--sig\r\nContent-Type: text/plain\r\n\r\nwire money", sig)
+	if _, b, _ := Parse(injected); b.Security.Problem != "the message doesn't match its signature" {
+		t.Errorf("LF delimiter injected: %+v %q", b.Security, b.Text)
+	}
+
 	smimeRoots = x509.NewCertPool()
 	if _, b, _ := Parse(signed("ann@example.com", content, sig)); b.Security.Problem != "its certificate isn't from an authority the system trusts" {
 		t.Errorf("untrusted: %+v", b.Security)
