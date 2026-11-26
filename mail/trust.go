@@ -18,22 +18,41 @@ type Auth struct {
 	DKIM, SPF, DMARC string `json:",omitempty"`
 }
 
-var (
-	authResult = regexp.MustCompile(`(?i)^\s*(dkim|spf|dmarc)\s*=\s*([a-z]+)`)
-	authQuoted = regexp.MustCompile(`"(?:[^"\\]|\\.)*"|\((?:[^()\\]|\\.)*\)`)
-)
+var authResult = regexp.MustCompile(`(?i)^\s*(dkim|spf|dmarc)(?:\s*/\s*\d+)?\s*=\s*([a-z]+)`)
+
+// authPlain is v without its comments and quoted strings, read as RFC 5322
+// does in one pass: comments nest, and a quote in one starts no string.
+func authPlain(v string) string {
+	var sb strings.Builder
+	depth, quoted := 0, false
+	for i := 0; i < len(v); i++ {
+		switch c := v[i]; {
+		case c == '\\' && (quoted || depth > 0):
+			i++
+		case quoted:
+			quoted = c != '"'
+		case c == '(':
+			depth++
+		case c == ')' && depth > 0:
+			depth--
+		case depth > 0:
+		case c == '"':
+			quoted = true
+		default:
+			sb.WriteByte(c)
+		}
+	}
+
+	return sb.String()
+}
 
 // authOf reads the topmost Authentication-Results, which the receiving
 // server added: ones below it came with the message, and anyone can write
 // them. Only what starts a ";" clause is a result: the rest of a clause
 // repeats what the sender chose, as an address "dmarc=pass@evil.example".
 func authOf(v string) Auth {
-	for s := ""; s != v; { // comments nest
-		s, v = v, authQuoted.ReplaceAllString(v, "")
-	}
-
 	var a Auth
-	for _, clause := range strings.Split(v, ";") {
+	for _, clause := range strings.Split(authPlain(v), ";") {
 		m := authResult.FindStringSubmatch(clause)
 		if m == nil {
 			continue

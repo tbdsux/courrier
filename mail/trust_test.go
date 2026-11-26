@@ -15,6 +15,9 @@ func TestAuth(t *testing.T) {
 		`mx; spf=fail smtp.mailfrom="a;dmarc=pass@evil.example"; dmarc=fail`:                                 {SPF: "fail", DMARC: "fail"},
 		"mx; dmarc=fail (one; dmarc=pass (two; dmarc=pass))":                                                 {DMARC: "fail"},
 		"mx; dmarc=fail; dmarc=pass":                                                                         {DMARC: "fail"},
+		// A quote inside a comment starts no string to swallow the result after it.
+		`mx; spf=pass (outer "x (inner)); dmarc=fail (end "y)`: {SPF: "pass", DMARC: "fail"},
+		"mx; dmarc/1=fail": {DMARC: "fail"},
 	} {
 		if got := authOf(v); got != want {
 			t.Errorf("%q: got %+v, want %+v", v, got, want)
