@@ -447,7 +447,9 @@ func (ic *imapConn) syncFolder(cache Cache, account int64, f *Folder, counted bo
 
 	if oldest != 0 {
 		if sel.HighestModSeq != 0 && modseq != 0 {
-			err = ic.syncChanges(cache, account, f.Path, oldest, newest, modseq, sel, exists+uint32(len(hs)))
+			// exists 0: the count wasn't known, so search for expunges whatever it is now.
+			gone := exists == 0 || sel.NumMessages != exists+uint32(len(hs))
+			err = ic.syncChanges(cache, account, f.Path, oldest, newest, modseq, sel, gone)
 		} else {
 			err = ic.syncAllFlags(cache, account, f.Path, oldest, newest)
 		}
@@ -458,7 +460,14 @@ func (ic *imapConn) syncFolder(cache Cache, account int64, f *Folder, counted bo
 	}
 
 	if sel.HighestModSeq != 0 {
-		err = cache.SetSyncState(account, f.Path, sel.HighestModSeq, sel.NumMessages)
+		exists := sel.NumMessages
+		for _, h := range hs {
+			if h.UID >= uint32(sel.UIDNext) { // came after the SELECT counted: unknown, so the next sync checks for expunges
+				exists = 0
+			}
+		}
+
+		err = cache.SetSyncState(account, f.Path, sel.HighestModSeq, exists)
 	}
 
 	return fresh, err
@@ -482,7 +491,9 @@ func (ic *imapConn) syncAllFlags(cache Cache, account int64, path string, oldest
 
 // syncChanges fetches the flags changed since modseq, and the UIDs left
 // when the folder holds fewer messages than expected.
-func (ic *imapConn) syncChanges(cache Cache, account int64, path string, oldest, newest uint32, modseq uint64, sel *imap.SelectData, expected uint32) error {
+// syncChanges fetches the flags changed since modseq, and with gone, as
+// when the folder holds fewer messages than expected, which are left.
+func (ic *imapConn) syncChanges(cache Cache, account int64, path string, oldest, newest uint32, modseq uint64, sel *imap.SelectData, gone bool) error {
 	set := imap.UIDSet{{Start: imap.UID(oldest), Stop: imap.UID(newest)}}
 	flags := map[uint32]Flags{}
 	if sel.HighestModSeq != modseq {
@@ -497,7 +508,7 @@ func (ic *imapConn) syncChanges(cache Cache, account int64, path string, oldest,
 	}
 
 	var present map[uint32]bool
-	if sel.NumMessages != expected {
+	if gone {
 		res, err := ic.c.UIDSearch(&imap.SearchCriteria{UID: []imap.UIDSet{set}}, nil).Wait()
 		if err != nil {
 			return err
