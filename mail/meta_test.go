@@ -93,6 +93,7 @@ func TestUnsubscribeStaysPublic(t *testing.T) {
 	for addr, public := range map[string]bool{
 		"93.184.216.34:443": true, "127.0.0.1:443": false, "192.168.1.1:443": false, "10.0.0.8:443": false,
 		"169.254.169.254:80": false, "[::1]:443": false, "[fe80::1]:443": false, "0.0.0.0:443": false,
+		"100.100.100.200:80": false, "100.64.0.1:443": false, "198.18.0.1:443": false, "255.255.255.255:443": false, "[64:ff9b::a00:1]:443": false,
 	} {
 		if err := publicOnly("tcp", addr, nil); (err == nil) != public {
 			t.Errorf("%s: %v", addr, err)

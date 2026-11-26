@@ -104,6 +104,19 @@ var UnsubscribeClient = &http.Client{
 // comma inside them doesn't part two (RFC 2369).
 var bracketed = regexp.MustCompile(`<([^<>]*)>`)
 
+// notPublic are the ranges that net.IP's methods don't tell as not on
+// the internet: shared address space (CGNAT, Tailscale), "this network",
+// benchmarking, reserved and broadcast, and NAT64, which reaches IPv4 ones.
+var notPublic = func() []*net.IPNet {
+	var out []*net.IPNet
+	for _, s := range []string{"100.64.0.0/10", "0.0.0.0/8", "192.0.0.0/24", "198.18.0.0/15", "240.0.0.0/4", "64:ff9b::/96", "64:ff9b:1::/48"} {
+		_, n, _ := net.ParseCIDR(s)
+		out = append(out, n)
+	}
+
+	return out
+}()
+
 // publicOnly refuses to connect to an address that isn't on the internet.
 // It runs after the name is resolved, so a name can't hide such an address.
 func publicOnly(_, address string, _ syscall.RawConn) error {
@@ -113,7 +126,8 @@ func publicOnly(_, address string, _ syscall.RawConn) error {
 	}
 
 	ip := net.ParseIP(host)
-	if ip == nil || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+	if ip == nil || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() ||
+		slices.ContainsFunc(notPublic, func(n *net.IPNet) bool { return n.Contains(ip) }) {
 		return fmt.Errorf("%s isn't a public address", host)
 	}
 
