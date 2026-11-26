@@ -327,10 +327,15 @@ func (a *app) loadFields(r *reader) {
 	}
 
 	r.fieldsBusy = true
+	id := r.m.ID
 	s.Header(r.m.Path, r.m.UID, func(raw []byte, err error) {
 		a.update(func() {
 			r.fieldsBusy = false
-			set(raw, err)
+			if r.m.ID == id {
+				set(raw, err)
+			} else if a.allHeaders && a.cur == r { // another message shown meanwhile
+				a.loadFields(r)
+			}
 		})
 	})
 }
