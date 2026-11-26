@@ -366,7 +366,7 @@ func (a *app) reloadMail() {
 		if m, _, err := a.st.Message(r.m.ID); err == nil {
 			r.m = m
 
-			if th, err := a.st.Conversation(m); err == nil && a.set.Threads && m.Special != "drafts" {
+			if th, err := a.st.Conversation(m); err == nil && len(th) > 0 && a.set.Threads && m.Special != "drafts" {
 				r.thread = th // a reply sent joins it
 			}
 
