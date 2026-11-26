@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS actions (
   created     INTEGER NOT NULL,
   attempts    INTEGER NOT NULL DEFAULT 0,
   last_error  TEXT NOT NULL DEFAULT ''
-)`
+);
+CREATE INDEX IF NOT EXISTS actions_by_folder ON actions(account_id, path)`
 
 // undoFor is how long a move the server did can be undone.
 const undoFor = 10 * time.Minute

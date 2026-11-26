@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS attachments (
   size        INTEGER NOT NULL,
   content_id  TEXT NOT NULL DEFAULT ''
 );
+CREATE INDEX IF NOT EXISTS attachments_by_message ON attachments(message_id);
 CREATE TABLE IF NOT EXISTS pop3_seen (
   account_id  INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   uidl        TEXT NOT NULL,

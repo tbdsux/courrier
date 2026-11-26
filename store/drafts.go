@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS draft_files (
   mime_type    TEXT NOT NULL,
   data         BLOB NOT NULL
 );
+CREATE INDEX IF NOT EXISTS draft_files_by_draft ON draft_files(draft_id);
 CREATE TABLE IF NOT EXISTS outbox (
   id           INTEGER PRIMARY KEY,
   account_id   INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
