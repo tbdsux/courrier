@@ -19,6 +19,7 @@ import (
 	courrier "courrier/mail"
 	"courrier/store"
 
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 	xhtml "golang.org/x/net/html"
 )
@@ -341,11 +342,11 @@ func (a *app) pageLink(u *url.URL) {
 // pageKey changes when the page of r in theme would.
 func (r *reader) pageKey(theme string) string {
 	var sb strings.Builder
-	fmt.Fprint(&sb, theme, r.remote, r.view)
+	fmt.Fprint(&sb, theme, r.remote, r.view, i18n.Locale()) // the page's own words are in it
 
 	for _, m := range r.thread {
-		b := r.bodies[m.ID]
-		fmt.Fprint(&sb, " ", m.ID, len(b.Text), len(b.HTML), len(b.Attachments))
+		b, has := r.bodies[m.ID] // an empty body downloaded shows other than none
+		fmt.Fprint(&sb, " ", m.ID, has, len(b.Text), len(b.HTML), len(b.Attachments))
 	}
 
 	return sb.String()
