@@ -31,7 +31,11 @@ const (
 // Parse reads a whole message: its headers, text, HTML and attachments.
 // Inline cid: images are put into the HTML as data: URLs, so it shows
 // without the message's other parts.
-func Parse(raw []byte) (Header, Body, error) {
+func Parse(raw []byte) (Header, Body, error) { return parse(raw, false) }
+
+// parse is Parse; of a message nested in a signature it doesn't unwrap
+// another, which could nest without end.
+func parse(raw []byte, nested bool) (Header, Body, error) {
 	e, err := message.Read(bytes.NewReader(raw))
 	if e == nil {
 		return Header{}, Body{}, err
@@ -51,9 +55,9 @@ func Parse(raw []byte) (Header, Body, error) {
 			b.Security.Problem = "it has parts its signature doesn't cover"
 		}
 
-		if signed != nil {
+		if signed != nil && !nested {
 			// shortcut: attachments signed inside stay in smime.p7m, as their parts can't be saved by number; unwrap them if users ask.
-			if _, in, err := Parse(signed); err == nil {
+			if _, in, err := parse(signed, true); err == nil {
 				b.Text, b.HTML, b.Invite, b.Mislinks = in.Text, in.HTML, in.Invite, in.Mislinks
 			}
 		}
