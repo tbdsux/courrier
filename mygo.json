@@ -1,7 +1,7 @@
 {
   "name": "Courrier",
   "identifier": "dev.tbdsux.courrier",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "main": "./app",
   "out": "build",
   "urlSchemes": [
