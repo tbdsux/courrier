@@ -288,11 +288,16 @@ func (a *app) sigBlock(from string) string {
 // compose opens a new message, from the account of the mailbox shown,
 // else the first.
 func (a *app) compose(m courrier.Draft) {
+	if len(a.accounts) == 0 {
+		a.toast = locales.ToastAddAccountToWrite()
+		return
+	}
+
 	d := store.Draft{Draft: m}
 	id, _ := a.mailbox()
 	if f, ok := a.folder(id); ok {
 		d.AccountID = f.AccountID
-	} else if len(a.accounts) > 0 {
+	} else {
 		d.AccountID = a.accounts[0].ID
 	}
 
