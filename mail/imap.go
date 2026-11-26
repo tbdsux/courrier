@@ -489,8 +489,6 @@ func (ic *imapConn) syncAllFlags(cache Cache, account int64, path string, oldest
 	return cache.SyncFlags(account, path, oldest, newest, flags)
 }
 
-// syncChanges fetches the flags changed since modseq, and the UIDs left
-// when the folder holds fewer messages than expected.
 // syncChanges fetches the flags changed since modseq, and with gone, as
 // when the folder holds fewer messages than expected, which are left.
 func (ic *imapConn) syncChanges(cache Cache, account int64, path string, oldest, newest uint32, modseq uint64, sel *imap.SelectData, gone bool) error {
