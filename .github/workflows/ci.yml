@@ -36,6 +36,8 @@ jobs:
         run: go test ./...
       - name: Vet
         run: go tool mygo vet .
+      - name: Check the translations
+        run: go tool mygo i18n check
       - name: Compile for macOS, Windows and Linux
         run: |
           for os in darwin windows linux; do
