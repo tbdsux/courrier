@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 )
 
@@ -14,7 +15,7 @@ import (
 // those starting with "From " (after any ">") quoted with one more ">".
 func WriteMbox(w io.Writer, raw []byte) error {
 	h, _, _ := Parse(raw)
-	from, date := h.FromAddr, h.Date
+	from, date := strings.Join(strings.Fields(h.FromAddr), ""), h.Date // a space would end the address
 	if from == "" {
 		from = "MAILER-DAEMON"
 	}
