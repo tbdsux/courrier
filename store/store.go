@@ -101,9 +101,12 @@ func Open(path string, secrets Secrets) (*Store, error) {
 
 	s := &Store{db: db, secrets: secrets}
 
-	if _, err := db.Execute(ctx, "PRAGMA foreign_keys = ON"); err != nil {
-		db.Close()
-		return nil, err
+	// WAL: a write fsyncs once, not a rollback journal's several times.
+	for _, p := range []string{"PRAGMA foreign_keys = ON", "PRAGMA journal_mode = WAL", "PRAGMA synchronous = NORMAL"} {
+		if _, err := db.Execute(ctx, p); err != nil {
+			db.Close()
+			return nil, err
+		}
 	}
 
 	for _, stmt := range strings.Split(schema, ";") {
