@@ -340,7 +340,7 @@ func headerFrom(m *imapclient.FetchMessageBuffer) Header {
 		m.BodyStructure.Walk(func(_ []int, p imap.BodyStructure) bool {
 			if sp, ok := p.(*imap.BodyStructureSinglePart); ok {
 				d := sp.Disposition()
-				if (d != nil && strings.EqualFold(d.Value, "attachment")) || (sp.Filename() != "" && sp.Type != "text") {
+				if (d != nil && strings.EqualFold(d.Value, "attachment")) || (sp.Filename() != "" && !strings.EqualFold(sp.Type, "text")) {
 					h.HasAttach = true
 				}
 			}
