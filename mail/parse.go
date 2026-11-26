@@ -363,6 +363,9 @@ func HTMLText(s string) string {
 			tok := z.Token()
 			tt := tok.Type
 			switch tok.Data {
+			case "body": // an unclosed head ends here
+				skip = 0
+
 			case "script", "style", "head", "title":
 				if tt == html.StartTagToken {
 					skip++

@@ -64,6 +64,12 @@ func TestParseInlineImages(t *testing.T) {
 	}
 }
 
+func TestHTMLTextUnclosedHead(t *testing.T) {
+	if got := HTMLText("<html><head><title>T</title><body><p>Hello</p>"); got != "Hello" {
+		t.Errorf("got %q", got)
+	}
+}
+
 func TestParseDeepNesting(t *testing.T) {
 	nested := func(depth int) []byte {
 		var sb strings.Builder
