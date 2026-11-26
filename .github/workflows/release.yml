@@ -19,6 +19,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0 # the notes need the commits since the previous tag
+      # Before the release is published, not after: a wrong tag leaves none.
+      - name: Check that the tag is mygo.json's version
+        run: test "v$(jq -r .version mygo.json)" = "$GITHUB_REF_NAME"
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -60,8 +63,6 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
-      - name: Check that the tag is mygo.json's version
-        run: test "v$(jq -r .version mygo.json)" = "$GITHUB_REF_NAME"
       - name: Install NSIS, for the Windows installers
         if: matrix.name == 'Windows'
         run: sudo apt-get update && sudo apt-get install -y nsis
