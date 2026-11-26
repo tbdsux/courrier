@@ -193,7 +193,11 @@ func (ic *imapConn) folders() ([]Folder, error) {
 
 		st := l.Status
 		if st == nil && !f.NoSelect {
-			if st, err = ic.c.Status(l.Mailbox, statusItems).Wait(); err != nil {
+			// One mailbox refusing STATUS shows without counts; it stops no sync.
+			var refused *imap.Error
+			if st, err = ic.c.Status(l.Mailbox, statusItems).Wait(); errors.As(err, &refused) {
+				st = nil
+			} else if err != nil {
 				return nil, err
 			}
 		}
