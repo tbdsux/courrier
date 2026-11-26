@@ -212,4 +212,20 @@ func TestTemplatesAndReschedule(t *testing.T) {
 	if out, _ := s.Outbox(acc); !out[0].SendAfter.Equal(at) {
 		t.Errorf("send after %v, want %v", out[0].SendAfter, at)
 	}
+
+	// Rescheduled after it was listed as due: not claimed to send now.
+	if ok, err := s.Claim(id, time.Now().Add(time.Minute)); err != nil || ok {
+		t.Errorf("claimed a message due later: %v %v", ok, err)
+	}
+
+	must(t, s.RetryOutgoing(id))
+	if ok, err := s.Claim(id, time.Now().Add(time.Minute)); err != nil || !ok {
+		t.Fatalf("not claimed when due: %v %v", ok, err)
+	}
+
+	// Being sent: a new time would be a lie.
+	must(t, s.Reschedule(id, at))
+	if out, _ := s.Outbox(acc); out[0].SendAfter.Equal(at) {
+		t.Error("rescheduled while sending")
+	}
 }
