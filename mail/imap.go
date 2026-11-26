@@ -752,9 +752,9 @@ func (ic *imapConn) shownParts(uid uint32, bs imap.BodyStructure) (b Body, ok bo
 			return Body{}, false, nil
 		}
 
-		e, err := message.Read(bytes.NewReader(append(head, data...)))
-		if e == nil {
-			return Body{}, false, err
+		e, _ := message.Read(bytes.NewReader(append(head, data...)))
+		if e == nil { // the whole message, parsed, may still show
+			return Body{}, false, nil
 		}
 
 		ps.add(part, e)
