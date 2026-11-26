@@ -34,6 +34,7 @@ var shortcuts = []shortcut{
 	{"S", "Flag or unflag", locales.ShortcutFlagOrUnflag, 0, ui.KeyS, false, func(a *app) { a.toggleFlag(a.targets()) }},
 	{"Z", "Snooze", locales.ShortcutSnooze, 0, ui.KeyZ, false, func(a *app) { a.askSnooze(a.targets()) }},
 	{"E", "Archive", locales.ShortcutArchive, 0, ui.KeyE, false, func(a *app) { a.archive(a.targets()) }},
+	{"!", "Junk or not junk", locales.ShortcutJunk, ui.Shift, ui.Key1, false, func(a *app) { a.junk(a.targets()) }},
 	{"#", "Delete", locales.ShortcutDelete, ui.Shift, ui.Key3, false, func(a *app) { a.deleteMessages(a.targets()) }},
 	{"Delete", "Delete", locales.ShortcutDelete, 0, ui.KeyDelete, false, func(a *app) { a.deleteMessages(a.targets()) }},
 	{"⌫", "Delete", locales.ShortcutDelete, 0, ui.KeyBackspace, false, func(a *app) { a.deleteMessages(a.targets()) }},
@@ -383,6 +384,34 @@ func (a *app) toggleFlag(ms []store.Message) {
 
 func (a *app) archive(ms []store.Message) { a.move(ms, 0, "archive", locales.ToastArchived()) }
 
+// junk moves ms to Junk; in Junk it moves them back to the Inbox.
+func (a *app) junk(ms []store.Message) {
+	var out []store.Message
+	for _, m := range ms {
+		if m.Special != "junk" {
+			out = append(out, m)
+		}
+	}
+
+	if len(out) == 0 {
+		a.move(ms, 0, "inbox", locales.ToastNotJunk())
+		return
+	}
+
+	a.move(out, 0, "junk", locales.ToastMovedToJunk())
+}
+
+// junkLabel names junk for ms: "Not junk" when all of them are in Junk.
+func junkLabel(ms []store.Message) string {
+	for _, m := range ms {
+		if m.Special != "junk" {
+			return locales.ActionJunk()
+		}
+	}
+
+	return locales.ActionNotJunk()
+}
+
 // deleteMessages moves ms to Trash; in Trash it asks to delete them for good.
 func (a *app) deleteMessages(ms []store.Message) {
 	var out []store.Message
@@ -681,6 +710,10 @@ func (a *app) messageMenu(m *ui.Menu, row store.Message) {
 		a.deleteMessages(ms)
 	}
 
+	if m.Item(junkLabel(ms)).Shortcut(bound("!")).Chosen() {
+		a.junk(ms)
+	}
+
 	m.Submenu(locales.ActionMoveTo(), func(sub *ui.Menu) { a.moveMenu(sub, ms) })
 	m.Submenu(locales.ActionSnooze(), func(sub *ui.Menu) { a.snoozeMenu(sub, ms) })
 
@@ -717,6 +750,11 @@ func (a *app) actionButtons(c *ui.Context) {
 
 	if iconButton(c, trashIcon, locales.CommonDelete(), locales.ActionDeleteTip()).Clicked() {
 		a.deleteMessages(ms)
+	}
+
+	junk := junkLabel(ms)
+	if iconButton(c, junkIcon, junk, locales.ActionWithKey(junk, "!")).Clicked() {
+		a.junk(ms)
 	}
 
 	flag := flagLabel(unflagged)
