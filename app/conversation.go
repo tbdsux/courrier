@@ -280,11 +280,7 @@ func (a *app) messageCard(c *ui.Context, r *reader, i int) {
 
 func (a *app) cardAttachments(c *ui.Context, m store.Message, b courrier.Body) {
 	t := c.Theme()
-	for _, at := range b.Attachments {
-		if at.ContentID != "" && strings.HasPrefix(at.MIMEType, "image/") {
-			continue // shows in the HTML
-		}
-
+	for _, at := range b.Attachments { // cards show text: inline images too are only here
 		ui.Row(c.Key(at.Part)).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, paperclipIcon).FontSize(14).TextColor(t.TextMuted)
 			ui.Text(c, at.Filename).SingleLine().Shrink(1)
@@ -627,6 +623,13 @@ func safeAttrs(as []xhtml.Attribute) []xhtml.Attribute {
 	})
 }
 
+// inlined tells whether at shows in html, put into it as a data: URL:
+// mail.Parse leaves larger images as cid: links, which show nothing.
+func inlined(at courrier.Attachment, html string) bool {
+	return at.ContentID != "" && strings.HasPrefix(at.MIMEType, "image/") && html != "" &&
+		!strings.Contains(strings.ToLower(html), "cid:"+strings.ToLower(at.ContentID))
+}
+
 // conversationPage is r's conversation as one page for the web view, in
 // theme (pageTheme's).
 func (r *reader) conversationPage(theme string) string {
@@ -719,9 +722,14 @@ func (r *reader) pageCard(sb *strings.Builder, i int) {
 		}
 	}
 
+	shown := ""
+	if r.view == 1 {
+		shown = b.HTML
+	}
+
 	var atts []string
 	for _, at := range b.Attachments {
-		if at.ContentID == "" || !strings.HasPrefix(at.MIMEType, "image/") {
+		if !inlined(at, shown) {
 			atts = append(atts, fmt.Sprintf(`<a href="courrier://save/%d?part=%s">📎 %s · %s</a>`, m.ID, url.QueryEscape(at.Part), esc(at.Filename), humanSize(at.Size)))
 		}
 	}
