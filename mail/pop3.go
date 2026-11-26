@@ -47,6 +47,10 @@ func pop3Login(ctx context.Context, conn net.Conn, e Endpoint) (*pop3Conn, error
 		c = &pop3Conn{newLineConn(tc)}
 	}
 
+	if strings.ContainsAny(e.Username+e.Password, "\r\n") { // would end the command early
+		return nil, fmt.Errorf("%w: a line break in the username or password", ErrAuth)
+	}
+
 	if _, err := c.cmd("USER " + e.Username); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrAuth, err)
 	}
