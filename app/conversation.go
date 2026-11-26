@@ -167,7 +167,7 @@ func (a *app) conversationCards(c *ui.Context, r *reader) {
 		ui.Column(c).Padding(4, 16, 16, 16).Children(func() {
 			for _, cd := range stack(len(r.thread), r.isOpen, r.unfold) {
 				if cd.more > 0 {
-					a.foldCard(c, r, cd.more)
+					a.foldCard(c, r, cd.i, cd.more)
 					continue
 				}
 
@@ -177,9 +177,10 @@ func (a *app) conversationCards(c *ui.Context, r *reader) {
 	})
 }
 
-func (a *app) foldCard(c *ui.Context, r *reader, n int) {
+// foldCard is the fold of n cards from the i-th; a long conversation has several.
+func (a *app) foldCard(c *ui.Context, r *reader, i, n int) {
 	t := c.Theme()
-	b := ui.Row(c.Key("fold")).Gap(10).AlignItems(ui.Center).Padding(8, 8).Label(locales.ConvShowMore(n)).Children(func() {
+	b := ui.Row(c.Key(fmt.Sprint("fold", i))).Gap(10).AlignItems(ui.Center).Padding(8, 8).Label(locales.ConvShowMore(n)).Children(func() {
 		ui.Column(c).Grow(1).Height(1).Background(t.Border)
 		ui.Text(c, locales.ConvMore(n)).FontSize(12).TextColor(t.Accent)
 		ui.Column(c).Grow(1).Height(1).Background(t.Border)
