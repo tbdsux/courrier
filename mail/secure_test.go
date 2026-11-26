@@ -16,8 +16,8 @@ import (
 )
 
 // smimeSigner makes a CA and a certificate of ann@example.com it signed,
-// and returns a function that signs content with it.
-func smimeSigner(t *testing.T) (*x509.CertPool, func(content string, detach bool) string) {
+// changed by edit, and returns a function that signs content with it.
+func smimeSigner(t *testing.T, edit ...func(*x509.Certificate)) (*x509.CertPool, func(content string, detach bool) string) {
 	t.Helper()
 	cert := func(tmpl, parent *x509.Certificate, pub, priv any) *x509.Certificate {
 		der, err := x509.CreateCertificate(rand.Reader, tmpl, parent, pub, priv)
@@ -35,9 +35,14 @@ func smimeSigner(t *testing.T) (*x509.CertPool, func(content string, detach bool
 	ca := cert(caTmpl, caTmpl, &caKey.PublicKey, caKey)
 
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	leaf := cert(&x509.Certificate{SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: "Ann"}, EmailAddresses: []string{"ann@example.com"},
+	tmpl := &x509.Certificate{SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: "Ann"}, EmailAddresses: []string{"ann@example.com"},
 		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature,
-		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection}}, ca, &key.PublicKey, caKey)
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection}}
+	for _, e := range edit {
+		e(tmpl)
+	}
+
+	leaf := cert(tmpl, ca, &key.PublicKey, caKey)
 
 	roots := x509.NewCertPool()
 	roots.AddCert(ca)
@@ -143,6 +148,29 @@ func TestSMIMESigned(t *testing.T) {
 	opaque := "From: ann@example.com\r\nContent-Type: application/pkcs7-mime; smime-type=signed-data; name=smime.p7m\r\nContent-Transfer-Encoding: base64\r\n\r\n" + sign(content, false) + "\r\n"
 	if _, b, _ := Parse([]byte(opaque)); b.Security.Problem != "" || !b.Security.Signed || strings.TrimSpace(b.Text) != "Hello, signed." {
 		t.Errorf("opaque: %+v %q", b.Security, b.Text)
+	}
+}
+
+func TestSMIMECertificate(t *testing.T) {
+	content := "Content-Type: text/plain\r\n\r\nHello, signed.\r\n"
+	check := func(from string, edit func(*x509.Certificate)) Security {
+		roots, sign := smimeSigner(t, edit)
+		smimeRoots = roots
+		defer func() { smimeRoots = nil }()
+
+		raw := "From: " + from + "\r\nContent-Type: application/pkcs7-mime; smime-type=signed-data\r\nContent-Transfer-Encoding: base64\r\n\r\n" + sign(content, false) + "\r\n"
+		_, b, _ := Parse([]byte(raw))
+
+		return b.Security
+	}
+
+	// The address that matched, not the certificate's first.
+	if s := check("bob@example.com", func(c *x509.Certificate) { c.EmailAddresses = []string{"ann@example.com", "Bob@example.com"} }); s.Problem != "" || s.Signer != "Bob@example.com" {
+		t.Errorf("second address: %+v", s)
+	}
+
+	if s := check("ann@example.com", func(c *x509.Certificate) { c.KeyUsage = x509.KeyUsageKeyEncipherment }); s.Problem != "its certificate isn't for signing" {
+		t.Errorf("encryption-only key: %+v", s)
 	}
 }
 

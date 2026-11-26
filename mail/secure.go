@@ -174,22 +174,30 @@ func checkSMIME(p7 *pkcs7.PKCS7, from string) (signer, problem string) {
 		return "", "the message doesn't match its signature"
 	}
 
-	at := time.Now()
-	p7.UnmarshalSignedAttribute(pkcs7.OIDAttributeSigningTime, &at) // without it, now
+	if cert.KeyUsage != 0 && cert.KeyUsage&(x509.KeyUsageDigitalSignature|x509.KeyUsageContentCommitment) == 0 {
+		return signer, "its certificate isn't for signing"
+	}
 
 	inter := x509.NewCertPool()
 	for _, c := range p7.Certificates {
 		inter.AddCert(c)
 	}
 
-	opts := x509.VerifyOptions{Roots: smimeRoots, Intermediates: inter, CurrentTime: at, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection}}
+	// Checked now: the signing time is the signer's say. A chain that held
+	// the day the certificate ran out tells expired from untrusted.
+	opts := x509.VerifyOptions{Roots: smimeRoots, Intermediates: inter, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection}}
 	if _, err := cert.Verify(opts); err != nil {
+		opts.CurrentTime = cert.NotAfter
+		if _, err2 := cert.Verify(opts); err2 == nil && time.Now().After(cert.NotAfter) {
+			return signer, "its certificate has expired"
+		}
+
 		return signer, "its certificate isn't from an authority the system trusts"
 	}
 
 	for _, a := range cert.EmailAddresses {
 		if strings.EqualFold(a, from) {
-			return signer, ""
+			return a, ""
 		}
 	}
 
