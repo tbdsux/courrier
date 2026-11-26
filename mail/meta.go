@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 	"syscall"
@@ -30,8 +31,8 @@ type Meta struct {
 // readHeader reads what Meta keeps of a message's header.
 func (m *Meta) readHeader(h message.Header) {
 	m.Unsubscribe = nil
-	for _, f := range strings.Split(h.Get("List-Unsubscribe"), ",") {
-		u := strings.Trim(strings.TrimSpace(f), "<>")
+	for _, f := range bracketed.FindAllStringSubmatch(h.Get("List-Unsubscribe"), -1) {
+		u := strings.TrimSpace(f[1])
 		if l := strings.ToLower(u); strings.HasPrefix(l, "https://") || strings.HasPrefix(l, "mailto:") {
 			m.Unsubscribe = append(m.Unsubscribe, u)
 		}
@@ -98,6 +99,10 @@ var UnsubscribeClient = &http.Client{
 		return nil
 	},
 }
+
+// bracketed matches a URL of List-Unsubscribe, in its angle brackets: a
+// comma inside them doesn't part two (RFC 2369).
+var bracketed = regexp.MustCompile(`<([^<>]*)>`)
 
 // publicOnly refuses to connect to an address that isn't on the internet.
 // It runs after the name is resolved, so a name can't hide such an address.

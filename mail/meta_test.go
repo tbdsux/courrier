@@ -26,6 +26,12 @@ func TestMetaUnsubscribe(t *testing.T) {
 		t.Errorf("urls %q %q", b.UnsubscribeURL(), b.UnsubscribeMailto())
 	}
 
+	// A comma inside the brackets is the URL's.
+	_, b, _ = Parse([]byte("List-Unsubscribe: <https://example.com/u?a=1,2>, <mailto:x@example.com>\r\n\r\nhi"))
+	if !slices.Equal(b.Unsubscribe, []string{"https://example.com/u?a=1,2", "mailto:x@example.com"}) {
+		t.Errorf("comma in a URL: %q", b.Unsubscribe)
+	}
+
 	// One click needs an https: URL.
 	_, b, _ = Parse([]byte("List-Unsubscribe: <mailto:a@b>\r\nList-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n\r\nhi"))
 	if b.OneClick {
