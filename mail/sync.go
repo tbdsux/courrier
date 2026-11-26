@@ -208,10 +208,17 @@ func (s *Syncer) report(st Status) {
 }
 
 func (s *Syncer) run(ctx context.Context) {
+	var pending []request
 	defer func() { // fail what still waits
+		for _, r := range pending {
+			r.done(errStopped)
+		}
+
 		for {
 			select {
 			case r := <-s.reqs:
+				r.done(errStopped)
+			case r := <-s.asks:
 				r.done(errStopped)
 			default:
 				return
@@ -220,7 +227,6 @@ func (s *Syncer) run(ctx context.Context) {
 	}()
 
 	backoff := minBackoff
-	var pending []request
 	for ctx.Err() == nil {
 		var connected bool
 		var err error
