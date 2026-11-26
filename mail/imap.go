@@ -652,7 +652,7 @@ func (ic *imapConn) open(cache Cache, account int64, path string, uid uint32) er
 	}
 
 	b, ok := Body{}, false
-	if !isSecure(m.BodyStructure.MediaType()) { // a signature needs the message whole
+	if m.BodyStructure != nil && !isSecure(m.BodyStructure.MediaType()) { // a signature needs the message whole
 		if b, ok, err = ic.shownParts(uid, m.BodyStructure); err != nil {
 			return err
 		}
